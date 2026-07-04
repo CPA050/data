@@ -12,22 +12,28 @@ export async function onRequestGet(context) {
     }
 
     try {
-        // 1. 从数据库中查询该用户的错题 (字段名必须与表结构一致)
+        // 🔧 改动1：用 SELECT * 避免字段名硬编码
         const { results } = await env.exam_db.prepare(
-            "SELECT id, question, correct_answer, user_answer FROM wrong_questions WHERE user_id = ?"
+            "SELECT * FROM wrong_questions WHERE user_id = ?"
         ).bind(userId).all();
 
-        // 2. 核心转换：格式化输出给前端
-        const formattedResults = results.map(item => {
-            return {
-                id: item.id,
-                q: item.question,
-                // 如果你的前端需要数组格式，可以在这里进行处理
-                // 如果数据库里存的是纯文本，则直接赋值
-                answer: item.correct_answer,
-                user_choice: item.user_answer
-            };
-        });
+        // 如果没有数据，直接返回空数组
+        if (!results || results.length === 0) {
+            return new Response(JSON.stringify([]), {
+                headers: { 
+                    "Content-Type": "application/json;charset=UTF-8",
+                    "Cache-Control": "no-cache" 
+                }
+            });
+        }
+
+        // 🔧 改动2：动态映射，兼容常见字段名
+        const formattedResults = results.map(item => ({
+            id: item.id,
+            q: item.question || item.content || item.text || '',           // 题目
+            answer: item.correct_answer || item.answer || item.correct || '', // 正确答案
+            user_choice: item.user_answer || item.selected || item.user_choice || '' // 用户选择
+        }));
 
         return new Response(JSON.stringify(formattedResults), {
             headers: { 
