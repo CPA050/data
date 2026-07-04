@@ -1,275 +1,168 @@
-// ==========================================
-// 🚀 QuizApp 核心逻辑 6.1 · 修复空白Bug与精致按钮过渡
-// ==========================================
+/* ==========================================
+   🍏 刷题系统 7.0 · 苹果原生毛玻璃精修版
+   ========================================== */
 
-window.QuizApp = {
-    idx: 0,
-    record: [],
-    activeBank: [],
+/* 全局基底 */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+    background: linear-gradient(135deg, #e0e5ec 0%, #eedee6 50%, #e4eaf5 100%) !important;
+    color: #1d1d1f !important;
+    margin: 0;
+    padding: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
+/* 🍏 统一外层容器：全设备完美自适应居中 */
+.stage-container {
+    width: 100%;
+    max-width: 440px;
+    margin: 0 auto;
+    position: relative;
+    box-sizing: border-box;
+}
+
+/* 🚀 主卡片：支持高级转场动画 */
+#home, .app-card {
+    background: rgba(255, 255, 255, 0.4) !important;
+    backdrop-filter: blur(20px) saturate(190%);
+    -webkit-backdrop-filter: blur(20px) saturate(190%);
+    width: 100%;
+    padding: 26px;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.5) !important; 
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04),
+                inset 0 1px 1px rgba(255, 255, 255, 0.4) !important;
+    box-sizing: border-box;
     
-    // 触屏滑动卡片变量
-    startX: 0,
-    moveX: 0,
+    /* 核心转场：一个慢慢消失，一个慢慢显现 */
+    opacity: 1;
+    transition: opacity 0.35s cubic-bezier(0.25, 1, 0.5, 1), 
+                transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+}
 
-    // 下拉收起面板手势变量
-    folderStartY: 0,
-    folderMoveY: 0,
+/* 卡片切题时的“隐形”预备状态 */
+.card-fade {
+    opacity: 0 !important;
+    transform: scale(0.98);
+}
 
-    start(isRandom) {
-        const bank = window.QUESTION_BANK || QUESTION_BANK;
-        if (!bank || bank.length === 0) {
-            alert("❌ 题库未加载，请检查 questions.js。");
-            return;
-        }
+/* 基础文字与排版 */
+h1 { text-align: center; color: #1d1d1f; font-size: 24px; font-weight: 700; margin-bottom: 25px; }
+h2 { font-size: 18px; font-weight: 600; color: #1d1d1f; line-height: 1.5; margin: 0 0 18px 0; }
+#top { font-size: 13px; font-weight: 600; color: #86868b; padding-bottom: 12px; border-bottom: 1px solid rgba(0, 0, 0, 0.06); margin-bottom: 18px; }
 
-        this.activeBank = [...bank];
-        if (isRandom) {
-            this.activeBank.sort(() => Math.random() - 0.5);
-        }
+/* 首页按钮 */
+button {
+    display: block; width: 100%; padding: 16px; margin: 16px 0;
+    background: #0071e3 !important; color: #ffffff !important; border: none !important;
+    border-radius: 14px; font-size: 17px; font-weight: 600; cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.15); transition: all 0.2s;
+}
+#home button:nth-of-type(2) { background: rgba(0, 0, 0, 0.04) !important; color: #0071e3 !important; box-shadow: none; }
 
-        this.idx = 0;
-        this.record = new Array(this.activeBank.length).fill(null);
+/* 选项卡片 */
+.opt {
+    background: rgba(255, 255, 255, 0.45) !important; color: #1d1d1f !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important; border-radius: 14px;
+    padding: 15px 18px; margin: 10px 0; font-size: 15px; cursor: pointer;
+    transition: all 0.15s ease;
+}
+.opt:hover { background: rgba(255, 255, 255, 0.75) !important; }
+.opt.correct { background: rgba(52, 199, 89, 0.15) !important; border-color: rgba(52, 199, 89, 0.4) !important; color: #1e7e34 !important; font-weight: 600; }
+.opt.wrong { background: rgba(255, 59, 48, 0.12) !important; border-color: rgba(255, 59, 48, 0.3) !important; color: #b3261e !important; font-weight: 600; }
 
-        document.getElementById("home").style.display = "none";
-        
-        // 动态架设完美的 DOM 结构
-        document.getElementById("app").innerHTML = `
-            <!-- 场景舞台 -->
-            <div class="card-scene" id="cardScene"></div>
+/* ==========================================
+   🔮 左下角总按钮：顶级苹果毛玻璃水晶球
+   ========================================== */
+.glass-trigger {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    
+    /* 苹果标准毛玻璃参数 */
+    background: rgba(255, 255, 255, 0.65) !important;
+    backdrop-filter: blur(20px) saturate(190%);
+    -webkit-backdrop-filter: blur(20px) saturate(190%);
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+    
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05),
+                inset 0 1.5px 1.5px rgba(255, 255, 255, 0.6) !important;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+    transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.3s;
+}
+.glass-trigger:active { transform: scale(0.9); }
+.glass-trigger svg { width: 18px; height: 18px; fill: #3a3a3c; }
 
-            <!-- 左下角悬浮控制按钮（升级精美动效） -->
-            <div class="glass-trigger" onclick="QuizApp.toggleFolder(true)">
-                <svg viewBox="0 0 24 24">
-                    <path d="M4 6h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 12h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 18h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/>
-                </svg>
-            </div>
+/* ==========================================
+   🍏 面板相关样式（纯透明背景 + 独立毛玻璃球）
+   ========================================== */
 
-            <!-- 空白区域遮罩 -->
-            <div class="folder-overlay" id="folderOverlay" onclick="QuizApp.toggleFolder(false)"></div>
+/* 遮罩层 */
+.folder-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.08);
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+}
+.folder-overlay.active { opacity: 1; pointer-events: auto; }
 
-            <!-- 无色背景题号文件夹 -->
-            <div class="grid-folder" id="gridFolder">
-                <div class="folder-drag-handle"></div>
-                <div class="folder-grid-content" id="folderGrid"></div>
-            </div>
-        `;
-        
-        document.getElementById("app").className = "stage-container";
-        document.getElementById("app").style.display = "block";
+/* 面板底座（完全透明，直接露墙纸） */
+.grid-folder {
+    position: fixed;
+    bottom: 0; left: 0; width: 100%; height: 65vh;
+    background: transparent !important;
+    z-index: 1001;
+    box-sizing: border-box; padding: 25px;
+    display: flex; flex-direction: column;
+    transform: translate3d(0, 100%, 0);
+    transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+    touch-action: none;
+}
+.grid-folder.active { transform: translate3d(0, 0, 0); }
 
-        this.renderCard();          // 初次渲染第一张卡片
-        this.bindSwipeEvents();      // 绑定卡片左右划手势
-        this.bindFolderDragEvents(); // 绑定面板下拉收回手势
-        this.renderGrid();          // 初始化题号球
-    },
+.folder-drag-handle {
+    width: 36px; height: 5px; background: rgba(0, 0, 0, 0.12);
+    border-radius: 3px; margin: 0 auto 20px auto; flex-shrink: 0;
+}
+.folder-grid-content {
+    flex: 1; overflow-y: auto; display: grid;
+    grid-template-columns: repeat(5, 1fr); gap: 14px; padding-bottom: 30px;
+}
+.folder-grid-content::-webkit-scrollbar { width: 0; }
 
-    // 🌟 核心修复：采用精准的浏览器双帧双保险机制，确保卡片完美位移，绝不变白
-    renderCard(direction) {
-        const scene = document.getElementById("cardScene");
-        if (!scene) return;
+/* 🌟 题号按钮：一颗颗独立的苹果毛玻璃气泡 */
+.qbtn {
+    aspect-ratio: 1; 
+    background: rgba(255, 255, 255, 0.6) !important;
+    backdrop-filter: blur(15px) saturate(180%);
+    -webkit-backdrop-filter: blur(15px) saturate(180%);
+    color: #1d1d1f !important; 
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+    border-radius: 50%; 
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02),
+                inset 0 1px 1px rgba(255, 255, 255, 0.5) !important;
+    transition: transform 0.2s;
+}
+.qbtn:active { transform: scale(0.9); }
 
-        const q = this.activeBank[this.idx];
-        const done = this.record.filter(x => x !== null).length;
-        const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
-        const acc = done ? Math.round(correct / done * 100) : 0;
-
-        const newCard = document.createElement("div");
-        newCard.className = "app-card";
-        
-        // 1. 先把新卡片摆放在屏幕外的预备位置
-        if (direction === "next") {
-            newCard.style.transform = "translate3d(100%, 0, 0)";
-        } else if (direction === "prev") {
-            newCard.style.transform = "translate3d(-100%, 0, 0)";
-        } else {
-            newCard.style.transform = "translate3d(0, 0, 0)";
-        }
-
-        newCard.innerHTML = `
-            <div id="top">正确率: ${acc}% | 进度: ${done}/${this.activeBank.length}</div>
-            <h2>Q${this.idx + 1}. ${q.q}</h2>
-            ${q.opts.map((o, oIdx) => {
-                let statusClass = "";
-                if (this.record[this.idx] !== null) {
-                    if (oIdx === q.a) statusClass = "correct";
-                    else if (oIdx === this.record[this.idx]) statusClass = "wrong";
-                }
-                return `<div class="opt ${statusClass}" onclick="QuizApp.select(${oIdx}, this)">${o}</div>`;
-            }).join("")}
-        `;
-
-        // 2. 旧卡片离场
-        const oldCard = scene.querySelector(".active-card");
-        if (oldCard) {
-            oldCard.classList.remove("active-card");
-            if (direction === "next") {
-                oldCard.classList.add("exit-left");
-            } else if (direction === "prev") {
-                oldCard.classList.add("exit-right");
-            }
-            setTimeout(() => oldCard.remove(), 450);
-        }
-
-        // 3. 将新卡片塞进舞台
-        scene.appendChild(newCard);
-
-        // 4. 🔥 双重渲染帧保护：确保浏览器已经吃下了上面的预备位置后，再执行滑入动画
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                newCard.classList.add("active-card");
-                newCard.style.transform = ""; // 清空内联样式，交给 CSS 类控制居中
-            });
-        });
-    },
-
-    select(oIdx, element) {
-        if (this.record[this.idx] !== null) return;
-
-        const q = this.activeBank[this.idx];
-        this.record[this.idx] = oIdx;
-
-        if (oIdx === q.a) {
-            element.classList.add("correct");
-        } else {
-            element.classList.add("wrong");
-            const opts = element.parentNode.querySelectorAll(".opt");
-            if (opts[q.a]) opts[q.a].classList.add("correct");
-        }
-
-        this.renderGrid();
-
-        setTimeout(() => {
-            if (this.idx + 1 < this.activeBank.length) {
-                this.idx++;
-                this.renderCard("next");
-            }
-        }, 650);
-    },
-
-    toggleFolder(show) {
-        const folder = document.getElementById("gridFolder");
-        const overlay = document.getElementById("folderOverlay");
-        if (!folder || !overlay) return;
-
-        if (show) {
-            folder.style.transition = "transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)";
-            folder.classList.add("active");
-            overlay.classList.add("active");
-            this.renderGrid();
-        } else {
-            folder.style.transition = "transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)";
-            folder.style.transform = ""; 
-            folder.classList.remove("active");
-            overlay.classList.remove("active");
-        }
-    },
-
-    bindFolderDragEvents() {
-        const folder = document.getElementById("gridFolder");
-        if (!folder) return;
-
-        const start = (e) => {
-            if (document.getElementById("folderGrid").scrollTop > 0) return;
-            this.folderStartY = e.touches ? e.touches[0].clientY : e.clientY;
-            this.folderMoveY = this.folderStartY;
-            folder.style.transition = "none"; 
-        };
-
-        const move = (e) => {
-            if (!this.folderStartY) return;
-            this.folderMoveY = e.touches ? e.touches[0].clientY : e.clientY;
-            const deltaY = this.folderMoveY - this.folderStartY;
-            if (deltaY > 0) { 
-                folder.style.transform = `translate3d(0, ${deltaY}px, 0)`;
-            }
-        };
-
-        const end = () => {
-            if (!this.folderStartY) return;
-            const deltaY = this.folderMoveY - this.folderStartY;
-            const threshold = 100;
-            if (deltaY > threshold) {
-                this.toggleFolder(false); 
-            } else {
-                this.toggleFolder(true);  
-            }
-            this.folderStartY = 0;
-            this.folderMoveY = 0;
-        };
-
-        folder.addEventListener("touchstart", start, { passive: true });
-        folder.addEventListener("touchmove", move, { passive: true });
-        folder.addEventListener("touchend", end);
-
-        folder.addEventListener("mousedown", start);
-        window.addEventListener("mousemove", move);
-        window.addEventListener("mouseup", end);
-    },
-
-    bindSwipeEvents() {
-        const scene = document.getElementById("cardScene");
-        if (!scene) return;
-
-        const start = (e) => {
-            if (e.target.classList.contains("opt")) return;
-            this.startX = e.touches ? e.touches[0].clientX : e.clientX;
-            this.moveX = this.startX;
-        };
-
-        const move = (e) => {
-            if (!this.startX) return;
-            this.moveX = e.touches ? e.touches[0].clientX : e.clientX;
-        };
-
-        const end = () => {
-            if (!this.startX || !this.moveX) return;
-            const deltaX = this.moveX - this.startX;
-            const threshold = 50;
-
-            if (deltaX < -threshold && this.idx + 1 < this.activeBank.length) {
-                this.idx++;
-                this.renderCard("next");
-            } else if (deltaX > threshold && this.idx - 1 >= 0) {
-                this.idx--;
-                this.renderCard("prev");
-            }
-            this.startX = 0;
-            this.moveX = 0;
-        };
-
-        scene.addEventListener("touchstart", start, { passive: true });
-        scene.addEventListener("touchmove", move, { passive: true });
-        scene.addEventListener("touchend", end);
-
-        scene.addEventListener("mousedown", start);
-        window.addEventListener("mousemove", move);
-        window.addEventListener("mouseup", end);
-    },
-
-    renderGrid() {
-        const grid = document.getElementById("folderGrid");
-        if (!grid) return;
-        grid.innerHTML = "";
-
-        this.activeBank.forEach((_, i) => {
-            const d = document.createElement("div");
-            d.innerText = i + 1;
-            d.className = "qbtn";
-
-            if (this.record[i] !== null) {
-                d.classList.add(this.record[i] === this.activeBank[i].a ? "grid-correct" : "grid-wrong");
-            } else if (i === this.idx) {
-                d.classList.add("grid-active");
-            }
-
-            d.onclick = (e) => {
-                e.stopPropagation(); 
-                const direction = i > this.idx ? "next" : "prev";
-                this.idx = i;
-                this.renderCard(direction);
-                this.toggleFolder(false);
-            };
-            grid.appendChild(d);
-        });
-    }
-};
+/* 正误与激活 */
+.qbtn.grid-correct { background: rgba(52, 199, 89, 0.85) !important; color: #fff !important; border-color: transparent !important; }
+.qbtn.grid-wrong { background: rgba(255, 59, 48, 0.85) !important; color: #fff !important; border-color: transparent !important; }
+.qbtn.grid-active { border: 2px solid #0071e3 !important; color: #0071e3 !important; background: rgba(0, 113, 227, 0.1) !important; }
