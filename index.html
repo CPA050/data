@@ -1,31 +1,38 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>工程造价刷题系统</title>
-<!-- 引入你刚刚改好的高级感样式表 -->
-<link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>工程造价刷题系统</title>
+    <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<!-- 界面主容器 -->
-<div id="home">
-    <h1>工程造价 刷题系统</h1>
-    <button onclick="QuizApp.start(false)">顺序刷题</button>
-    <button onclick="QuizApp.start(true)">随机刷题</button>
-</div>
+    <div id="home">
+        <div class="user-status-bar" id="userStatusBar" style="text-align: center; margin-bottom: 25px; font-size: 14px;">
+            <span id="userInfoText" style="font-weight: 600; color: #86868b; cursor: pointer;" onclick="QuizApp.checkLogin()">👤 游客模式 (点击登录)</span>
+            <button onclick="QuizApp.logout()" class="logout-btn" style="display:none; width:auto; padding:5px 12px; margin-left:10px; font-size:12px; border:none; border-radius:8px; background:#ff3b30; color:#fff; cursor:pointer;">退出</button>
+        </div>
 
-<!-- 答题区域（默认隐藏，JS启动后显示） -->
-<div id="app" style="display:none;">
-    <div id="top">正确率: 0% | 进度: 0/0</div>
-    <div id="viewport"></div>
-    <div id="grid"></div>
-</div>
+        <h1>工程造价 刷题系统</h1>
+        
+        <button onclick="QuizApp.start(false)">顺序刷题</button>
+        <button onclick="QuizApp.start(true)">随机刷题</button>
 
-<!-- ⚠️ 严格按照顺序引入外部独立文件 -->
-<script src="questions.js"></script>
-<script src="app.js"></script>
+        <div class="home-footer-links" style="margin-top: 30px; display: flex; justify-content: center; border-top: 1px solid rgba(0, 0, 0, 0.08); padding-top: 20px;">
+            <a href="/wrong.html" class="glass-btn-link" onclick="return QuizApp.checkLoginBeforeGo(event)" style="display: inline-flex; align-items: center; text-decoration: none; color: #0071e3; font-size: 15px; font-weight: 500;">
+                <svg viewBox="0 0 24 24" class="btn-icon" style="width:18px; height:18px; fill:#0071e3; margin-right:6px;">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                </svg>
+                我的错题库
+            </a>
+        </div>
+    </div>
+
+    <div id="app" style="display:none;"></div>
+
+    <script src="questions.js"></script>
+    <script src="app.js"></script>
 
 </body>
 </html>
