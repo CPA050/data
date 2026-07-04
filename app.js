@@ -75,27 +75,40 @@ const QuizApp = {
         const q = this.activeBank[this.idx];
         this.record[this.idx] = i;
 
-        const correct = i === q.a;
+        const isCorrect = i === q.a;
 
-        if (correct) {
+        // 正确
+        if (isCorrect) {
             el.classList.add("correct");
-        } else {
+        } 
+        // 错误
+        else {
             el.classList.add("wrong");
 
-            // ⭐ 自动写入错题数据库
-            await fetch("/functions/api", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    question: q.q,
-                    correct_answer: q.opts[q.a],
-                    user_answer: q.opts[i]
-                })
-            });
+            const payload = {
+                question: q.q,
+                correct_answer: q.opts[q.a],
+                user_answer: q.opts[i]
+            };
+
+            // ⭐ 稳定写入错题（关键优化）
+            try {
+                await fetch("/api/wrong-add", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(payload)
+                });
+            } catch (err) {
+                console.log("错题上传失败（不影响主流程）", err);
+            }
         }
 
         this.renderGrid();
+        this.syncProgress();
 
+        // 自动下一题
         setTimeout(() => {
             if (this.idx < this.activeBank.length - 1) {
                 this.idx++;
@@ -133,6 +146,7 @@ const QuizApp = {
             }
 
             b.innerText = i + 1;
+
             b.onclick = () => {
                 this.idx = i;
                 this.render("pop");
@@ -143,10 +157,13 @@ const QuizApp = {
     },
 
     async loadWrongQuestions() {
-        const res = await fetch("/functions/api");
-        const data = await res.json();
-        console.log("错题本：", data);
-        return data;
+        try {
+            const res = await fetch("/api/wrong");
+            return await res.json();
+        } catch (e) {
+            console.log("获取错题失败", e);
+            return [];
+        }
     },
 
     returnHome() {
@@ -155,6 +172,4 @@ const QuizApp = {
     }
 };
 
-document.addEventListener("DOMContentLoaded", () => {
-    // 可加初始化逻辑
-});
+document.addEventListener("DOMContentLoaded", () => {});
