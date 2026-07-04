@@ -12,26 +12,20 @@ export async function onRequestGet(context) {
     }
 
     try {
-        // 1. 从数据库中查询该用户的错题
+        // 1. 从数据库中查询该用户的错题 (字段名必须与表结构一致)
         const { results } = await env.DB.prepare(
-            "SELECT id, q, opts, a FROM wrong_questions WHERE user_id = ?"
+            "SELECT id, question, correct_answer, user_answer FROM wrong_questions WHERE user_id = ?"
         ).bind(userId).all();
 
-        // 2. 核心转换：防止本地数据库存的 opts 格式异常导致报错
+        // 2. 核心转换：格式化输出给前端
         const formattedResults = results.map(item => {
-            let parsedOpts = [];
-            try {
-                parsedOpts = typeof item.opts === 'string' ? JSON.parse(item.opts) : item.opts;
-            } catch (e) {
-                // 如果解析失败，尝试按逗号切分，或者给个空数组保底，防止整页崩溃
-                parsedOpts = typeof item.opts === 'string' ? item.opts.split(',') : [];
-            }
-            
             return {
                 id: item.id,
-                q: item.q,
-                opts: parsedOpts,
-                a: Number(item.a)
+                q: item.question,
+                // 如果你的前端需要数组格式，可以在这里进行处理
+                // 如果数据库里存的是纯文本，则直接赋值
+                answer: item.correct_answer,
+                user_choice: item.user_answer
             };
         });
 
@@ -43,7 +37,6 @@ export async function onRequestGet(context) {
         });
 
     } catch (err) {
-        // 如果这里报错，会把具体的数据库错误吐给前端，方便调试
         return new Response(JSON.stringify({ error: err.message, stack: err.stack }), {
             status: 500,
             headers: { "Content-Type": "application/json;charset=UTF-8" }
