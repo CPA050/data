@@ -1,239 +1,152 @@
-// ==========================================
-// 🚀 QuizApp 7.5 · 修复手势冲突 & 纯正苹果毛玻璃版
-// ==========================================
+/* ==========================================
+   🍏 刷题系统 7.5 · 苹果原生毛玻璃精修版
+   ========================================== */
 
-window.QuizApp = {
-    idx: 0,
-    record: [],
-    activeBank: [],
-    
-    // 滑动卡片变量
-    startX: 0, startY: 0,
-    isScrolling: false,
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+    background: linear-gradient(135deg, #e0e5ec 0%, #eedee6 50%, #e4eaf5 100%) !important;
+    color: #1d1d1f !important;
+    margin: 0;
+    padding: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
 
-    // 下拉面板变量
-    folderStartY: 0, folderMoveY: 0,
+.stage-container {
+    width: 100%;
+    max-width: 440px;
+    margin: 0 auto;
+    position: relative;
+    box-sizing: border-box;
+}
 
-    start(isRandom) {
-        const bank = window.QUESTION_BANK || QUESTION_BANK;
-        if (!bank || bank.length === 0) {
-            alert("❌ 题库未加载，请检查 questions.js。");
-            return;
-        }
+/* 🚀 主卡片：通透毛玻璃 */
+#home, .app-card {
+    background: rgba(255, 255, 255, 0.45) !important;
+    backdrop-filter: blur(20px) saturate(190%);
+    -webkit-backdrop-filter: blur(20px) saturate(190%);
+    width: 100%;
+    padding: 26px;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.5) !important; 
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04),
+                inset 0 1px 1px rgba(255, 255, 255, 0.4) !important;
+    box-sizing: border-box;
+    opacity: 1;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
 
-        this.activeBank = [...bank];
-        if (isRandom) this.activeBank.sort(() => Math.random() - 0.5);
+.card-fade {
+    opacity: 0 !important;
+    transform: scale(0.99);
+}
 
-        this.idx = 0;
-        this.record = new Array(this.activeBank.length).fill(null);
+h1 { text-align: center; color: #1d1d1f; font-size: 24px; font-weight: 700; margin-bottom: 25px; }
+h2 { font-size: 18px; font-weight: 600; color: #1d1d1f; line-height: 1.5; margin: 0 0 18px 0; }
+#top { font-size: 13px; font-weight: 600; color: #86868b; padding-bottom: 12px; border-bottom: 1px solid rgba(0, 0, 0, 0.06); margin-bottom: 18px; }
 
-        document.getElementById("home").style.display = "none";
-        
-        // 构建最为稳定的单张卡片骨架
-        document.getElementById("app").innerHTML = `
-            <!-- 唯一的核心题目卡片 -->
-            <div class="app-card" id="mainQuizCard"></div>
+button {
+    display: block; width: 100%; padding: 16px; margin: 16px 0;
+    background: #0071e3 !important; color: #ffffff !important; border: none !important;
+    border-radius: 14px; font-size: 17px; font-weight: 600; cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.15); transition: all 0.2s;
+}
+#home button:nth-of-type(2) { background: rgba(0, 0, 0, 0.04) !important; color: #0071e3 !important; box-shadow: none; }
 
-            <!-- 左下角总按钮 -->
-            <div class="glass-trigger" id="masterGlassBtn">
-                <svg viewBox="0 0 24 24">
-                    <path d="M4 6h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 12h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 18h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/>
-                </svg>
-            </div>
+.opt {
+    background: rgba(255, 255, 255, 0.45) !important; color: #1d1d1f !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important; border-radius: 14px;
+    padding: 15px 18px; margin: 10px 0; font-size: 15px; cursor: pointer;
+    transition: all 0.15s ease;
+}
+.opt:active { background: rgba(255, 255, 255, 0.75) !important; }
+.opt.correct { background: rgba(52, 199, 89, 0.15) !important; border-color: rgba(52, 199, 89, 0.4) !important; color: #1e7e34 !important; font-weight: 600; }
+.opt.wrong { background: rgba(255, 59, 48, 0.12) !important; border-color: rgba(255, 59, 48, 0.3) !important; color: #b3261e !important; font-weight: 600; }
 
-            <div class="folder-overlay" id="folderOverlay"></div>
+/* ==========================================
+   🔮 左下角总按钮：顶级苹果毛玻璃水晶球
+   ========================================== */
+.glass-trigger {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.6) !important;
+    backdrop-filter: blur(20px) saturate(190%);
+    -webkit-backdrop-filter: blur(20px) saturate(190%);
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05),
+                inset 0 1.5px 1.5px rgba(255, 255, 255, 0.6) !important;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+    transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.glass-trigger:active { transform: scale(0.9); }
+.glass-trigger svg { width: 18px; height: 18px; fill: #3a3a3c; }
 
-            <div class="grid-folder" id="gridFolder">
-                <div class="folder-drag-handle"></div>
-                <div class="folder-grid-content" id="folderGrid"></div>
-            </div>
-        `;
-        
-        document.getElementById("app").className = "stage-container";
-        document.getElementById("app").style.display = "block";
+/* ==========================================
+   🍏 面板相关样式（纯透明背景 + 独立毛玻璃球）
+   ========================================== */
 
-        this.renderCard(false);      // 初始化第一题
-        this.bindGlobalEvents();     // 绑定改良后的安全事件体系
-        this.renderGrid();           // 渲染题号面板
-    },
+.folder-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+.folder-overlay.active { opacity: 1; pointer-events: auto; }
 
-    renderCard(needAnimation) {
-        const card = document.getElementById("mainQuizCard");
-        if (!card) return;
+.grid-folder {
+    position: fixed;
+    bottom: 0; left: 0; width: 100%; height: 65vh;
+    background: transparent !important; /* 纯透明，直接露出最底层彩虹背景 */
+    z-index: 1001;
+    box-sizing: border-box; padding: 25px;
+    display: flex; flex-direction: column;
+    transform: translate3d(0, 100%, 0);
+    transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.grid-folder.active { transform: translate3d(0, 0, 0); }
 
-        const q = this.activeBank[this.idx];
-        const done = this.record.filter(x => x !== null).length;
-        const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
-        const acc = done ? Math.round(correct / done * 100) : 0;
+.folder-drag-handle {
+    width: 36px; height: 5px; background: rgba(0, 0, 0, 0.12);
+    border-radius: 3px; margin: 0 auto 20px auto; flex-shrink: 0;
+}
+.folder-grid-content {
+    flex: 1; overflow-y: auto; display: grid;
+    grid-template-columns: repeat(5, 1fr); gap: 14px; padding-bottom: 30px;
+}
+.folder-grid-content::-webkit-scrollbar { width: 0; }
 
-        // 构造卡片内部，使用普通的 onclick，由于改良了手势，这里绝不会被拦截
-        const htmlContent = `
-            <div id="top">正确率: ${acc}% | 进度: ${done}/${this.activeBank.length}</div>
-            <h2>Q${this.idx + 1}. ${q.q}</h2>
-            ${q.opts.map((o, oIdx) => {
-                let statusClass = "";
-                if (this.record[this.idx] !== null) {
-                    if (oIdx === q.a) statusClass = "correct";
-                    else if (oIdx === this.record[this.idx]) statusClass = "wrong";
-                }
-                return `<div class="opt ${statusClass}" onclick="QuizApp.select(${oIdx}, this)">${o}</div>`;
-            }).join("")}
-        `;
+/* 🌟 题号按钮：高逼格独立毛玻璃球 */
+.qbtn {
+    aspect-ratio: 1; 
+    background: rgba(255, 255, 255, 0.55) !important;
+    backdrop-filter: blur(15px) saturate(180%);
+    -webkit-backdrop-filter: blur(15px) saturate(180%);
+    color: #1d1d1f !important; 
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+    border-radius: 50%; 
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02),
+                inset 0 1px 1px rgba(255, 255, 255, 0.5) !important;
+    transition: transform 0.1s;
+}
+.qbtn:active { transform: scale(0.9); }
 
-        if (needAnimation) {
-            card.classList.add("card-fade");
-            setTimeout(() => {
-                card.innerHTML = htmlContent;
-                card.classList.remove("card-fade");
-            }, 180);
-        } else {
-            card.innerHTML = htmlContent;
-            card.classList.remove("card-fade");
-        }
-    },
-
-    select(oIdx, element) {
-        if (this.record[this.idx] !== null) return;
-
-        const q = this.activeBank[this.idx];
-        this.record[this.idx] = oIdx;
-
-        if (oIdx === q.a) {
-            element.classList.add("correct");
-        } else {
-            element.classList.add("wrong");
-            const opts = element.parentNode.querySelectorAll(".opt");
-            if (opts[q.a]) opts[q.a].classList.add("correct");
-        }
-
-        this.renderGrid();
-
-        setTimeout(() => {
-            if (this.idx + 1 < this.activeBank.length) {
-                this.idx++;
-                this.renderCard(true);
-            }
-        }, 500);
-    },
-
-    toggleFolder(show) {
-        const folder = document.getElementById("gridFolder");
-        const overlay = document.getElementById("folderOverlay");
-        if (!folder || !overlay) return;
-
-        if (show) {
-            folder.style.transition = "transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)";
-            folder.classList.add("active");
-            overlay.classList.add("active");
-            this.renderGrid();
-        } else {
-            folder.style.transition = "transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)";
-            folder.style.transform = ""; 
-            folder.classList.remove("active");
-            overlay.classList.remove("active");
-        }
-    },
-
-    // 🌟 改良版事件系统：分离点击与手势，彻底修复点不动的 Bug
-    bindGlobalEvents() {
-        const app = document.getElementById("app");
-        const folder = document.getElementById("gridFolder");
-        const trigger = document.getElementById("masterGlassBtn");
-        const overlay = document.getElementById("folderOverlay");
-
-        // 1. 独立绑定左下角水晶按钮和遮罩的纯点击事件，绝不走手势逻辑
-        trigger.addEventListener("click", (e) => {
-            e.stopPropagation();
-            this.toggleFolder(true);
-        });
-        overlay.addEventListener("click", () => this.toggleFolder(false));
-
-        // 2. 改良版：左右划卡手势监听
-        app.addEventListener("touchstart", (e) => {
-            // 如果点在选项、悬浮球或文件夹内，不触发划卡判定
-            if (e.target.closest(".opt") || e.target.closest("#masterGlassBtn") || e.target.closest("#gridFolder")) return;
-            this.startX = e.touches[0].clientX;
-            this.startY = e.touches[0].clientY;
-            this.isScrolling = false;
-        }, { passive: true });
-
-        app.addEventListener("touchmove", (e) => {
-            if (!this.startX) return;
-            const moveX = e.touches[0].clientX;
-            const moveY = e.touches[0].clientY;
-            
-            // 如果垂直方向滑动的距离大于横向，认为是上下滚屏，放弃划卡
-            if (Math.abs(moveY - this.startY) > Math.abs(moveX - this.startX)) {
-                this.isScrolling = true;
-            }
-        }, { passive: true });
-
-        app.addEventListener("touchend", (e) => {
-            if (!this.startX || this.isScrolling) {
-                this.startX = 0; return;
-            }
-            const endX = e.changedTouches[0].clientX;
-            const deltaX = endX - this.startX;
-            const threshold = 60; // 必须划过 60 像素才触发
-
-            if (deltaX < -threshold && this.idx + 1 < this.activeBank.length) {
-                this.idx++; this.renderCard(true); // 下一题
-            } else if (deltaX > threshold && this.idx - 1 >= 0) {
-                this.idx--; this.renderCard(true); // 上一题
-            }
-            this.startX = 0;
-        });
-
-        // 3. 改良版：题号面板下拉收起手势
-        folder.addEventListener("touchstart", (e) => {
-            if (document.getElementById("folderGrid").scrollTop > 0) return;
-            this.folderStartY = e.touches[0].clientY;
-            folder.style.transition = "none"; 
-        }, { passive: true });
-
-        folder.addEventListener("touchmove", (e) => {
-            if (!this.folderStartY) return;
-            this.folderMoveY = e.touches[0].clientY;
-            const deltaY = this.folderMoveY - this.folderStartY;
-            if (deltaY > 0) folder.style.transform = `translate3d(0, ${deltaY}px, 0)`;
-        }, { passive: true });
-
-        folder.addEventListener("touchend", () => {
-            if (!this.folderStartY) return;
-            const deltaY = this.folderMoveY - this.folderStartY;
-            if (deltaY > 100) {
-                this.toggleFolder(false); 
-            } else {
-                this.toggleFolder(true);  
-            }
-            this.folderStartY = 0; this.folderMoveY = 0;
-        });
-    },
-
-    renderGrid() {
-        const grid = document.getElementById("folderGrid");
-        if (!grid) return;
-        grid.innerHTML = "";
-
-        this.activeBank.forEach((_, i) => {
-            const d = document.createElement("div");
-            d.innerText = i + 1;
-            d.className = "qbtn";
-
-            if (this.record[i] !== null) {
-                d.classList.add(this.record[i] === this.activeBank[i].a ? "grid-correct" : "grid-wrong");
-            } else if (i === this.idx) {
-                d.classList.add("grid-active");
-            }
-
-            // 题号小球纯点击响应
-            d.addEventListener("click", (e) => {
-                e.stopPropagation(); 
-                this.idx = i;
-                this.renderCard(false); 
-                this.toggleFolder(false);
-            });
-            grid.appendChild(d);
-        });
-    }
-};
+.qbtn.grid-correct { background: rgba(52, 199, 89, 0.85) !important; color: #fff !important; border-color: transparent !important; }
+.qbtn.grid-wrong { background: rgba(255, 59, 48, 0.85) !important; color: #fff !important; border-color: transparent !important; }
+.qbtn.grid-active { border: 2px solid #0071e3 !important; color: #0071e3 !important; background: rgba(0, 113, 227, 0.1) !important; }
