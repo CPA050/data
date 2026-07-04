@@ -1,14 +1,13 @@
 // ==========================================
-// 🚀 QuizApp 核心逻辑 4.0 · 物理滑屏与有序文件夹版
+// 🚀 QuizApp 核心逻辑 5.0 · 顶级卡片转场与自适应版
 // ==========================================
 
 window.QuizApp = {
     idx: 0,
     record: [],
     activeBank: [],
-    locked: false,
     
-    // 触摸手势变量
+    // 触屏滑卡变量
     startX: 0,
     moveX: 0,
 
@@ -27,28 +26,22 @@ window.QuizApp = {
         this.idx = 0;
         this.record = new Array(this.activeBank.length).fill(null);
 
-        // 初始化切换视图
+        // 隐藏主页
         document.getElementById("home").style.display = "none";
         
-        // 动态注入带有：滑屏视口、底部Dock、以及内置严格排序网格文件夹的 HTML 骨架
+        // 动态构建更高级的 DOM 视口舞台
         document.getElementById("app").innerHTML = `
-            <div id="top">正确率: 0% | 进度: 0/0</div>
-            
-            <!-- 左右滑屏视口 CONTAINER -->
-            <div class="swipe-container" id="swipeContainer">
-                <div class="swipe-wrapper" id="swipeWrapper"></div>
+            <!-- 场景视口 -->
+            <div class="card-scene" id="cardScene"></div>
+
+            <!-- 左下角悬浮水晶球按钮 -->
+            <div class="glass-trigger" onclick="QuizApp.toggleFolder(true)">
+                <svg viewBox="0 0 24 24">
+                    <path d="M4 6h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 12h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 18h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/>
+                </svg>
             </div>
 
-            <!-- 底部悬浮控制栏 DOCK -->
-            <div class="dock-bar">
-                <div class="glass-trigger" onclick="QuizApp.toggleFolder(true)">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M4 6h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 12h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 18h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/>
-                    </svg>
-                </div>
-            </div>
-
-            <!-- 🍏 iOS 级严格顺序网格弹窗文件夹 -->
+            <!-- 🍏 iOS 级严格顺序网格文件夹弹窗 -->
             <div class="grid-folder" id="gridFolder">
                 <div class="folder-header">
                     <span class="folder-title">全部题目 (${this.activeBank.length})</span>
@@ -58,167 +51,180 @@ window.QuizApp = {
             </div>
         `;
         
-        document.getElementById("app").style.display = "flex";
+        // 抹除外层固定块样式，交由自适应接管
+        document.getElementById("app").className = "stage-container";
+        document.getElementById("app").style.display = "block";
 
-        this.renderAllSlides(); // 一次性渲染所有题目平铺，实现滑屏
-        this.bindSwipeEvents(); // 绑定触屏与鼠标拖拽手势
-        this.renderGrid();     // 渲染有序文件夹网格
-        this.update();
+        this.renderCard();     // 渲染当前的卡片
+        this.bindSwipeEvents(); // 绑定整张卡片的滑动捕获
+        this.renderGrid();     // 渲染弹出面板
     },
 
-    // 渲染所有题目平铺到 wrapper 中
-    renderAllSlides() {
-        const wrapper = document.getElementById("swipeWrapper");
-        if (!wrapper) return;
+    // 核心渲染：动态生成单张题目卡片，并附加高级进出场动画
+    renderCard(direction) {
+        const scene = document.getElementById("cardScene");
+        if (!scene) return;
 
-        wrapper.innerHTML = this.activeBank.map((q, qIdx) => `
-            <div class="slide" data-idx="${qIdx}">
-                <h2>Q${qIdx + 1}. ${q.q}</h2>
-                ${q.opts.map((o, oIdx) => `
-                    <div class="opt o-${qIdx}-${oIdx}" onclick="QuizApp.select(${qIdx}, ${oIdx})">${o}</div>
-                `).join("")}
-            </div>
-        `).join("");
+        const q = this.activeBank[this.idx];
+        const done = this.record.filter(x => x !== null).length;
+        const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
+        const acc = done ? Math.round(correct / done * 100) : 0;
+
+        // 1. 产生新卡片
+        const newCard = document.createElement("div");
+        newCard.className = "app-card";
+        
+        // 根据滑屏方向初始化新卡片在空气中的预备位置
+        if (direction === "next") {
+            newCard.style.transform = "translateX(60px)";
+        } else if (direction === "prev") {
+            newCard.style.transform = "translateX(-60px)";
+        }
+
+        newCard.innerHTML = `
+            <div id="top">正确率: ${acc}% | 进度: ${done}/${this.activeBank.length}</div>
+            <h2>Q${this.idx + 1}. ${q.q}</h2>
+            ${q.opts.map((o, oIdx) => {
+                let statusClass = "";
+                if (this.record[this.idx] !== null) {
+                    if (oIdx === q.a) statusClass = "correct";
+                    else if (oIdx === this.record[this.idx]) statusClass = "wrong";
+                }
+                return `<div class="opt ${statusClass}" onclick="QuizApp.select(${oIdx}, this)">${o}</div>`;
+            }).join("")}
+        `;
+
+        // 2. 找出正在场上的旧卡片，赋予其“淡出滑走”的宿命
+        const oldCard = scene.querySelector(".active-card");
+        if (oldCard) {
+            oldCard.classList.remove("active-card");
+            if (direction === "next") {
+                oldCard.classList.add("exit-left");
+            } else if (direction === "prev") {
+                oldCard.classList.add("exit-right");
+            }
+            // 动画结束后移出老卡片，释放电脑内存
+            setTimeout(() => oldCard.remove(), 500);
+        }
+
+        // 3. 将新卡片推入舞台，并触发“淡入滑现”
+        scene.appendChild(newCard);
+        // 用 requestAnimationFrame 确保浏览器能捕捉到状态变化，从而展现丝滑动画
+        requestAnimationFrame(() => {
+            newCard.classList.add("active-card");
+        });
     },
 
-    // 控制 iOS 弹窗文件夹的开关状态
+    // 点击选项
+    select(oIdx, element) {
+        if (this.record[this.idx] !== null) return;
+
+        const q = this.activeBank[this.idx];
+        this.record[this.idx] = oIdx;
+
+        // 变色反馈
+        if (oIdx === q.a) {
+            element.classList.add("correct");
+        } else {
+            element.classList.add("wrong");
+            // 高亮正确答案
+            const opts = element.parentNode.querySelectorAll(".opt");
+            if (opts[q.a]) opts[q.a].classList.add("correct");
+        }
+
+        this.renderGrid();
+
+        // 答对/答错后，自动高质感滑向下一题
+        setTimeout(() => {
+            if (this.idx + 1 < this.activeBank.length) {
+                this.idx++;
+                this.renderCard("next");
+            }
+        }, 600);
+    },
+
+    // 有序网格文件夹显隐控制
     toggleFolder(show) {
         const folder = document.getElementById("gridFolder");
         if (!folder) return;
         if (show) {
             folder.classList.add("active");
-            this.renderGrid(); // 每次打开顺便重绘最新红绿状态
+            this.renderGrid();
         } else {
             folder.classList.remove("active");
         }
     },
 
-    // 核心滑屏算法：滑动切题
-    scrollToQuestion(index) {
-        if (index < 0 || index >= this.activeBank.length) return;
-        this.idx = index;
-        const wrapper = document.getElementById("swipeWrapper");
-        if (wrapper) {
-            wrapper.style.transform = `translateX(-${index * 100}%)`;
-        }
-        this.renderGrid();
-    },
-
-    // 选择答案
-    select(qIdx, oIdx) {
-        if (this.record[qIdx] !== null) return; // 已做过的不允许重复点
-
-        const q = this.activeBank[qIdx];
-        this.record[qIdx] = oIdx;
-
-        // 获取当前题目的所有选项容器
-        if (oIdx === q.a) {
-            document.querySelector(`.o-${qIdx}-${oIdx}`).classList.add("correct");
-        } else {
-            document.querySelector(`.o-${qIdx}-${oIdx}`).classList.add("wrong");
-            const correctDom = document.querySelector(`.o-${qIdx}-${q.a}`);
-            if (correctDom) correctDom.classList.add("correct");
-        }
-
-        this.update();
-        this.renderGrid();
-
-        // 答完自动延迟 600ms 滑动到下一题
-        setTimeout(() => {
-            if (qIdx === this.idx && this.idx + 1 < this.activeBank.length) {
-                this.scrollToQuestion(this.idx + 1);
-            }
-        }, 600);
-    },
-
-    // 绑定 iOS 物理滑动交互（兼容手机端 Touch 和 PC 端鼠标）
+    // 绑定卡片整体手势（兼容手机、电脑鼠标拖拽）
     bindSwipeEvents() {
-        const container = document.getElementById("swipeContainer");
-        const wrapper = document.getElementById("swipeWrapper");
-        if (!container || !wrapper) return;
+        const scene = document.getElementById("cardScene");
+        if (!scene) return;
 
         const start = (e) => {
+            // 如果点在选项上，不触发滑卡
+            if (e.target.classList.contains("opt")) return;
             this.startX = e.touches ? e.touches[0].clientX : e.clientX;
             this.moveX = this.startX;
-            wrapper.style.transition = "none"; // 拖拽时取消动画，实现跟手效果
         };
 
         const move = (e) => {
             if (!this.startX) return;
             this.moveX = e.touches ? e.touches[0].clientX : e.clientX;
-            const deltaX = this.moveX - this.startX;
-            const currentTranslate = -this.idx * container.offsetWidth;
-            wrapper.style.transform = `translateX(${currentTranslate + deltaX}px)`;
         };
 
         const end = () => {
-            if (!this.startX) return;
+            if (!this.startX || !this.moveX) return;
             const deltaX = this.moveX - this.startX;
-            const threshold = container.offsetWidth * 0.25; // 滑动超过 25% 视口则判定切题
-
-            wrapper.style.transition = "transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)"; // 恢复丝滑动画
+            const threshold = 60; // 只要划动超过 60 像素就触发灵敏的高级切页
 
             if (deltaX < -threshold && this.idx + 1 < this.activeBank.length) {
-                this.scrollToQuestion(this.idx + 1); // 向左滑，下一题
+                // 向左划，看下一题
+                this.idx++;
+                this.renderCard("next");
             } else if (deltaX > threshold && this.idx - 1 >= 0) {
-                this.scrollToQuestion(this.idx - 1); // 向右滑，上一题
-            } else {
-                this.scrollToQuestion(this.idx); // 没划过去，弹回原位
+                // 向右划，看上一题
+                this.idx--;
+                this.renderCard("prev");
             }
             this.startX = 0;
+            this.moveX = 0;
         };
 
-        // 手机端事件
-        container.addEventListener("touchstart", start, { passive: true });
-        container.addEventListener("touchmove", move, { passive: true });
-        container.addEventListener("touchend", end);
+        scene.addEventListener("touchstart", start, { passive: true });
+        scene.addEventListener("touchmove", move, { passive: true });
+        scene.addEventListener("touchend", end);
 
-        // PC 端鼠标模拟手势
-        container.addEventListener("mousedown", start);
+        scene.addEventListener("mousedown", start);
         window.addEventListener("mousemove", move);
         window.addEventListener("mouseup", end);
     },
 
-    update() {
-        const done = this.record.filter(x => x !== null).length;
-        const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
-        const acc = done ? Math.round(correct / done * 100) : 0;
-        
-        const top = document.getElementById("top");
-        if (top) {
-            top.innerText = `正确率: ${acc}% | 进度: ${done}/${this.activeBank.length}`;
-        }
-    },
-
-    // 渲染完美的、自上而下严格按顺序排列的网格面板
+    // 渲染完美的、严格按数字顺序排列的题号小球面板
     renderGrid() {
         const grid = document.getElementById("folderGrid");
         if (!grid) return;
         grid.innerHTML = "";
 
-        // 严格按顺序平铺 1, 2, 3, 4 ...
         this.activeBank.forEach((_, i) => {
             const d = document.createElement("div");
             d.innerText = i + 1;
             d.className = "qbtn";
 
             if (this.record[i] !== null) {
-                if (this.record[i] === this.activeBank[i].a) {
-                    d.classList.add("grid-correct");
-                } else {
-                    d.classList.add("grid-wrong");
-                }
+                d.classList.add(this.record[i] === this.activeBank[i].a ? "grid-correct" : "grid-wrong");
             } else if (i === this.idx) {
-                d.classList.add("grid-active"); // 当前题目蓝框
+                d.classList.add("grid-active");
             }
 
             d.onclick = () => {
-                this.scrollToQuestion(i); // 点击直接跳题
-                this.toggleFolder(false);  // 自动关闭 iOS 文件夹
+                const direction = i > this.idx ? "next" : "prev";
+                this.idx = i;
+                this.renderCard(direction);
+                this.toggleFolder(false); // 选完丝滑收起
             };
             grid.appendChild(d);
         });
     }
 };
 
-console.log("🍏 iOS 滑屏矩阵文件夹系统重构成功");
+console.log("🍏 顶级卡片滑转场转场引擎已启动");
