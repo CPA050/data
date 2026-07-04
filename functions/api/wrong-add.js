@@ -1,3 +1,4 @@
+// functions/api/wrong-add.js
 export async function onRequestPost({ request, env }) {
     const body = await request.json();
 
@@ -5,26 +6,32 @@ export async function onRequestPost({ request, env }) {
         return Response.json({ error: "缺少 user_id" }, { status: 400 });
     }
 
-    const userId = body.user_id;
-    const question = body.q || body.question || '';
-    let correctAnswer = body.a !== undefined ? String(body.a) : (body.correct_answer || '');
-    let userAnswer = body.user_answer !== undefined ? String(body.user_answer) : '';
-
-    // 如果传了 opts，将索引转为文本
-    if (body.opts && Array.isArray(body.opts)) {
-        const idx = parseInt(correctAnswer);
-        if (!isNaN(idx) && idx >= 0 && idx < body.opts.length) {
-            correctAnswer = body.opts[idx];
-        }
-        const uIdx = parseInt(userAnswer);
-        if (!isNaN(uIdx) && uIdx >= 0 && uIdx < body.opts.length) {
-            userAnswer = body.opts[uIdx];
-        }
+    if (!body.q) {
+        return Response.json({ error: "缺少题目内容 q" }, { status: 400 });
     }
 
-    await env.exam_db.prepare(
-        "INSERT INTO wrong_questions (user_id, question, correct_answer, user_answer) VALUES (?, ?, ?, ?)"
-    ).bind(userId, question, correctAnswer, userAnswer).run();
+    try {
+        const userId = body.user_id;
+        const q = body.q;
+        const opts = body.opts || [];
+        const a = body.a !== undefined ? body.a : 0;
 
-    return Response.json({ ok: true });
+        // 插入到你现有的表中
+        await env.exam_db.prepare(
+            "INSERT INTO wrong_questions (user_id, q, opts, a) VALUES (?, ?, ?, ?)"
+        ).bind(
+            userId,
+            q,
+            JSON.stringify(opts),
+            a
+        ).run();
+
+        return Response.json({ ok: true, message: "错题已记录" });
+
+    } catch (err) {
+        return Response.json({ 
+            error: err.message,
+            stack: err.stack 
+        }, { status: 500 });
+    }
 }
