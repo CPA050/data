@@ -15,25 +15,37 @@ export async function onRequestPost(context) {
         }
 
         // 🌟 核心：使用 user_id + id 双重校验，确保用户只能删除自己的错题
-        // 假设数据库中的主键列名为 id
         const result = await env.exam_db.prepare(
             "DELETE FROM wrong_questions WHERE user_id = ? AND id = ?"
         ).bind(user_id, id).run();
 
-        // 检查是否有行被删除
-        if (result.meta.changes === 0) {
-            return new Response(JSON.stringify({ success: false, message: "未找到该错题，可能已被删除。" }), {
+        // 🔧 兼容不同 D1 版本的返回结构
+        // 方式1: result.meta.changes (新版本)
+        // 方式2: result.changes (旧版本)
+        const changes = result.meta?.changes ?? result.changes ?? 0;
+
+        if (changes === 0) {
+            return new Response(JSON.stringify({ 
+                success: false, 
+                message: "未找到该错题，可能已被删除或不属于您。" 
+            }), {
                 status: 404,
                 headers: { "Content-Type": "application/json" }
             });
         }
 
-        return new Response(JSON.stringify({ success: true, message: "错题已成功消灭！" }), {
+        return new Response(JSON.stringify({ 
+            success: true, 
+            message: "错题已成功消灭！" 
+        }), {
             headers: { "Content-Type": "application/json;charset=UTF-8" }
         });
 
     } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), {
+        return new Response(JSON.stringify({ 
+            error: err.message,
+            stack: err.stack 
+        }), {
             status: 500,
             headers: { "Content-Type": "application/json" }
         });
