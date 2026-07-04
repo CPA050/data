@@ -9,12 +9,14 @@
 
 <body>
 
+<!-- 首页 -->
 <div id="home">
     <h1>刷题系统</h1>
     <button onclick="QuizApp.start(false)">顺序刷题</button>
     <button onclick="QuizApp.start(true)">随机刷题</button>
 </div>
 
+<!-- 答题区 -->
 <div id="app" style="display:none;">
     <div id="top">正确率 0%</div>
     <div id="progress"></div>
@@ -22,13 +24,9 @@
     <div id="grid"></div>
 </div>
 
+<!-- ⚠️ 只保留一次引入（关键） -->
 <script src="questions.js"></script>
 <script src="app.js"></script>
 
-</body>
-</html>
-    <!-- 引入数据与逻辑 -->
-    <script src="questions.js"></script>
-    <script src="app.js"></script>
 </body>
 </html>
