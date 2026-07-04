@@ -6,6 +6,8 @@ window.QuizApp = {
     idx: 0, record: [], activeBank: [],
     startX: 0, startY: 0, isScrolling: false,
     folderStartY: 0, folderMoveY: 0,
+    // 新增：网格是否可见
+    folderVisible: false,
 
     // --- 1. 核心业务：答题逻辑 ---
     start(isRandom) {
@@ -22,7 +24,7 @@ window.QuizApp = {
                 <svg viewBox="0 0 24 24"><path d="M4 6h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 12h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 18h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/></svg>
             </div>
             <div class="folder-overlay" id="folderOverlay"></div>
-            <div class="grid-folder" id="gridFolder">
+            <div class="grid-folder" id="gridFolder" style="display:none;">
                 <div class="folder-drag-handle"></div>
                 <div class="folder-grid-content" id="folderGrid"></div>
             </div>
@@ -32,6 +34,8 @@ window.QuizApp = {
         this.renderCard(false);
         this.bindGlobalEvents();
         this.renderGrid();
+        // 默认关闭网格
+        this.folderVisible = false;
     },
 
     renderCard(needAnimation) {
@@ -41,8 +45,12 @@ window.QuizApp = {
         const done = this.record.filter(x => x !== null).length;
         const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
         const acc = done ? Math.round(correct / done * 100) : 0;
+
         const htmlContent = `
-            <div id="top">正确率: ${acc}% | 进度: ${done}/${this.activeBank.length}</div>
+            <div id="top" style="display:flex; justify-content:space-between; align-items:center;">
+                <span>正确率: ${acc}% | 进度: ${done}/${this.activeBank.length}</span>
+                <button onclick="window.location.href='/'" style="background:transparent; border:1px solid #0071e3; color:#0071e3; padding:4px 12px; border-radius:16px; cursor:pointer; font-size:14px; font-weight:500;">🏠 返回首页</button>
+            </div>
             <h2>Q${this.idx + 1}. ${q.q}</h2>
             ${q.opts.map((o, oIdx) => {
                 let statusClass = "";
@@ -53,12 +61,15 @@ window.QuizApp = {
                 return `<div class="opt ${statusClass}" onclick="QuizApp.select(${oIdx}, this)">${o}</div>`;
             }).join("")}
         `;
+
         if (needAnimation) {
             card.classList.add("card-fade");
             setTimeout(() => { card.innerHTML = htmlContent; card.classList.remove("card-fade"); }, 180);
         } else {
             card.innerHTML = htmlContent;
         }
+        // 每次渲染卡片后更新网格（题目状态可能变化）
+        this.renderGrid();
     },
 
     select(oIdx, element) {
@@ -75,7 +86,7 @@ window.QuizApp = {
             const user = this.getCurrentUser();
             if (user) this.uploadWrongQuestion(user, q);
         }
-        this.renderGrid();
+        this.renderGrid();   // 更新网格颜色
         setTimeout(() => {
             if (this.idx + 1 < this.activeBank.length) {
                 this.idx++; this.renderCard(true);
@@ -148,15 +159,14 @@ window.QuizApp = {
         }
         return user;
     },
-    // ✅ 新增：用于错题本链接的登录检查（唯一改动点）
     checkLoginBeforeGo(targetUrl) {
         const user = this.getCurrentUser();
         if (!user) {
             alert('请先登录再查看错题本');
-            return false;   // 阻止跳转
+            return false;
         }
         window.location.href = targetUrl;
-        return false;       // 阻止默认 a 链接跳转，由 JS 控制
+        return false;
     },
     updateUserUI() {
         const user = this.getCurrentUser();
@@ -181,9 +191,99 @@ window.QuizApp = {
             });
         } catch (e) { console.error(e); }
     },
-    bindGlobalEvents() { /* ...保留你原有的事件逻辑... */ },
-    toggleFolder(show) { /* ...保留你原有的逻辑... */ },
-    renderGrid() { /* ...保留你原有的逻辑... */ }
+
+    // --- 4. 新增：网格导航功能 ---
+    toggleFolder(show) {
+        const folder = document.getElementById('gridFolder');
+        const overlay = document.getElementById('folderOverlay');
+        if (show === undefined) {
+            this.folderVisible = !this.folderVisible;
+        } else {
+            this.folderVisible = show;
+        }
+        if (this.folderVisible) {
+            folder.style.display = 'block';
+            overlay.style.display = 'block';
+            this.renderGrid(); // 确保网格内容最新
+        } else {
+            folder.style.display = 'none';
+            overlay.style.display = 'none';
+        }
+    },
+
+    renderGrid() {
+        const container = document.getElementById('folderGrid');
+        if (!container) return;
+        const total = this.activeBank.length;
+        if (total === 0) {
+            container.innerHTML = '<div style="padding:20px;text-align:center;color:#86868b;">暂无题目</div>';
+            return;
+        }
+        // 生成每个题目的按钮
+        let html = '<div style="display:grid; grid-template-columns:repeat(5,1fr); gap:10px; padding:10px;">';
+        for (let i = 0; i < total; i++) {
+            const status = this.record[i];
+            let bgColor = '#e0e5ec';       // 未答
+            let textColor = '#1d1d1f';
+            if (status !== null) {
+                const isCorrect = (status === this.activeBank[i].a);
+                if (isCorrect) {
+                    bgColor = '#34c759';   // 正确 - 绿色
+                    textColor = '#fff';
+                } else {
+                    bgColor = '#ff3b30';   // 错误 - 红色
+                    textColor = '#fff';
+                }
+            }
+            const isCurrent = (i === this.idx);
+            html += `
+                <div class="grid-item" data-index="${i}" 
+                     style="background:${bgColor}; color:${textColor}; 
+                            border-radius:12px; padding:12px 0; text-align:center; 
+                            font-weight:600; font-size:16px; cursor:pointer;
+                            border: ${isCurrent ? '3px solid #0071e3' : '2px solid transparent'};
+                            box-shadow: 0 2px 6px rgba(0,0,0,0.08); transition:0.15s;"
+                     onclick="QuizApp.jumpToQuestion(${i})">
+                    ${i + 1}
+                </div>
+            `;
+        }
+        html += '</div>';
+        container.innerHTML = html;
+    },
+
+    // 跳转到指定题目
+    jumpToQuestion(index) {
+        if (index < 0 || index >= this.activeBank.length) return;
+        this.idx = index;
+        // 关闭网格
+        this.toggleFolder(false);
+        // 重新渲染卡片（带动画）
+        this.renderCard(true);
+    },
+
+    // --- 5. 全局事件绑定 ---
+    bindGlobalEvents() {
+        // 点击四宫格按钮切换网格
+        const btn = document.getElementById('masterGlassBtn');
+        if (btn) {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleFolder();
+            });
+        }
+        // 点击遮罩关闭网格
+        const overlay = document.getElementById('folderOverlay');
+        if (overlay) {
+            overlay.addEventListener('click', () => {
+                this.toggleFolder(false);
+            });
+        }
+        // 可选的触摸滑动关闭（保留原有逻辑，如有）
+    },
+
+    // 保留原有的其他方法（如果有，如 swipe 等）
+    // ... 可以继续添加
 };
 
 window.addEventListener('DOMContentLoaded', () => { QuizApp.updateUserUI(); });
