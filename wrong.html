@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>错题本</title>
+<style>
+body{
+    font-family: sans-serif;
+    background:#0f0f1a;
+    color:white;
+    padding:20px;
+}
+
+.card{
+    background:#1c1c2b;
+    margin:10px 0;
+    padding:15px;
+    border-radius:12px;
+}
+
+.correct{color:#4ade80;}
+.wrong{color:#f87171;}
+
+h1{font-size:20px;}
+</style>
+</head>
+<body>
+
+<h1>📚 错题本</h1>
+
+<div id="list">加载中...</div>
+
+<script>
+async function load(){
+    const res = await fetch("/functions/api");
+    const data = await res.json();
+
+    const el = document.getElementById("list");
+    el.innerHTML = "";
+
+    if(data.length === 0){
+        el.innerHTML = "<p>暂无错题</p>";
+        return;
+    }
+
+    data.results.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "card";
+
+        div.innerHTML = `
+            <div>❓ ${item.question}</div>
+            <div class="correct">✔ 正确答案：${item.correct_answer}</div>
+            <div class="wrong">✘ 你的答案：${item.user_answer}</div>
+        `;
+
+        el.appendChild(div);
+    });
+}
+
+load();
+</script>
+
+</body>
+</html>
