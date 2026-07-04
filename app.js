@@ -1,41 +1,62 @@
 // ==========================================
-// 🚀 QuizApp 8.2 · 智能多用户错题库闭环引擎（完整版）
+// 🚀 QuizApp 9.0 · 多用户题库管理 + 错题闭环
 // ==========================================
 
 window.QuizApp = {
-    idx: 0, record: [], activeBank: [],
-    startX: 0, startY: 0, isScrolling: false,
-    folderStartY: 0, folderMoveY: 0,
+    idx: 0,
+    record: [],
+    activeBank: [],
+    startX: 0,
+    startY: 0,
+    isScrolling: false,
+    folderStartY: 0,
+    folderMoveY: 0,
     folderVisible: false,
 
-    // --- 1. 核心业务：答题逻辑 ---
-    start(isRandom) {
-        const bank = window.QUESTION_BANK || QUESTION_BANK;
-        if (!bank || bank.length === 0) { alert("❌ 题库未加载"); return; }
-        this.activeBank = [...bank];
-        if (isRandom) this.activeBank.sort(() => Math.random() - 0.5);
-        this.idx = 0;
-        this.record = new Array(this.activeBank.length).fill(null);
-        document.getElementById("home").style.display = "none";
-        document.getElementById("app").innerHTML = `
-            <div class="app-card" id="mainQuizCard"></div>
-            <div class="glass-trigger" id="masterGlassBtn">
-                <svg viewBox="0 0 24 24"><path d="M4 6h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 12h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 18h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/></svg>
-            </div>
-            <div class="folder-overlay" id="folderOverlay"></div>
-            <div class="grid-folder" id="gridFolder">
-                <div class="folder-drag-handle"></div>
-                <div class="folder-grid-content" id="folderGrid"></div>
-            </div>
-        `;
-        document.getElementById("app").className = "stage-container";
-        document.getElementById("app").style.display = "block";
-        this.renderCard(false);
-        this.bindGlobalEvents();
-        this.renderGrid();
-        this.folderVisible = false;
+    // ------------------------------------------------------------
+    // 1. 核心业务：从 API 加载题库并开始答题
+    // ------------------------------------------------------------
+    async start(isRandom) {
+        const user = this.getCurrentUser();
+        if (!user) {
+            alert("请先登录！");
+            return;
+        }
+        try {
+            const res = await fetch(`/api/questions?user_id=${encodeURIComponent(user)}`);
+            const bank = await res.json();
+            if (!bank || bank.length === 0) {
+                alert("❌ 您的题库为空，请先添加题目！");
+                return;
+            }
+            this.activeBank = [...bank];
+            if (isRandom) this.activeBank.sort(() => Math.random() - 0.5);
+            this.idx = 0;
+            this.record = new Array(this.activeBank.length).fill(null);
+            document.getElementById("home").style.display = "none";
+            document.getElementById("app").innerHTML = `
+                <div class="app-card" id="mainQuizCard"></div>
+                <div class="glass-trigger" id="masterGlassBtn">
+                    <svg viewBox="0 0 24 24"><path d="M4 6h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 12h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 18h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/></svg>
+                </div>
+                <div class="folder-overlay" id="folderOverlay"></div>
+                <div class="grid-folder" id="gridFolder">
+                    <div class="folder-drag-handle"></div>
+                    <div class="folder-grid-content" id="folderGrid"></div>
+                </div>
+            `;
+            document.getElementById("app").className = "stage-container";
+            document.getElementById("app").style.display = "block";
+            this.renderCard(false);
+            this.bindGlobalEvents();
+            this.renderGrid();
+            this.folderVisible = false;
+        } catch (err) {
+            alert("加载题库失败：" + err.message);
+        }
     },
 
+    // 渲染当前题目卡片
     renderCard(needAnimation) {
         const card = document.getElementById("mainQuizCard");
         if (!card) return;
@@ -66,9 +87,10 @@ window.QuizApp = {
         } else {
             card.innerHTML = htmlContent;
         }
-        this.renderGrid();
+        this.renderGrid(); // 同步更新题号网格
     },
 
+    // 选择选项
     select(oIdx, element) {
         if (this.record[this.idx] !== null) return;
         const q = this.activeBank[this.idx];
@@ -86,7 +108,8 @@ window.QuizApp = {
         this.renderGrid();
         setTimeout(() => {
             if (this.idx + 1 < this.activeBank.length) {
-                this.idx++; this.renderCard(true);
+                this.idx++;
+                this.renderCard(true);
             } else {
                 alert("🎉 答题结束！即将返回首页。");
                 window.location.reload();
@@ -94,7 +117,9 @@ window.QuizApp = {
         }, 500);
     },
 
-    // --- 2. 题库管理模式 ---
+    // ------------------------------------------------------------
+    // 2. 题库管理（多用户，每个用户独立）
+    // ------------------------------------------------------------
     async showManager() {
         const user = this.checkLogin();
         if (!user) return;
@@ -103,59 +128,159 @@ window.QuizApp = {
         document.getElementById("app").className = "stage-container";
         document.getElementById("app").innerHTML = `
             <div class="app-card">
-                <h2>📚 题库管理 (${user})</h2>
+                <h2>📚 我的题库 (${user})</h2>
                 <div style="margin:15px 0;">
-                    <button onclick="QuizApp.toggleSelectAll(this)">全选</button>
-                    <button onclick="QuizApp.deleteSelected()" style="background:#ff3b30; color:#fff;">批量删除</button>
-                    <button onclick="window.location.reload()">返回首页</button>
+                    <button onclick="QuizApp.showAddForm()" style="background:#34c759; color:#fff;">➕ 添加题目</button>
+                    <button onclick="window.location.reload()" style="background:#86868b; color:#fff;">返回首页</button>
                 </div>
                 <div id="managerList" style="text-align:left; max-height: 400px; overflow-y: auto;">加载中...</div>
             </div>
         `;
-        try {
-            const res = await fetch(`/api/wrong?user_id=${encodeURIComponent(user)}`);
-            const data = await res.json();
-            const list = document.getElementById("managerList");
-            if (data.length === 0) { list.innerHTML = "<div>暂无错题记录</div>"; return; }
-            list.innerHTML = data.map((q, i) => `
-                <div style="padding:10px; border-bottom:1px solid #eee; display:flex; align-items:center;">
-                    <input type="checkbox" class="q-checkbox" value="${q.id}" style="margin-right:10px;">
-                    <span>${i + 1}. ${q.q}</span>
-                </div>
-            `).join("");
-        } catch (e) { document.getElementById("managerList").innerHTML = "加载失败"; }
+        await this.loadQuestionsForManage();
     },
 
-    toggleSelectAll(btn) {
-        const cbs = document.querySelectorAll('.q-checkbox');
-        const isSelected = btn.innerText === "全选";
-        cbs.forEach(cb => cb.checked = isSelected);
-        btn.innerText = isSelected ? "取消全选" : "全选";
-    },
-
-    async deleteSelected() {
-        const selected = document.querySelectorAll('.q-checkbox:checked');
-        if (selected.length === 0) return alert("请先勾选题目");
-        if (!confirm(`确定删除选中的 ${selected.length} 道题吗？`)) return;
+    async loadQuestionsForManage() {
         const user = this.getCurrentUser();
-        for (let cb of selected) {
-            await this.deleteWrongQuestion(cb.value, user);
+        if (!user) {
+            alert("请先登录");
+            return;
         }
-        alert("操作完成");
-        window.location.reload();
+        const list = document.getElementById("managerList");
+        try {
+            const res = await fetch(`/api/questions?user_id=${encodeURIComponent(user)}`);
+            const data = await res.json();
+            if (!data || data.length === 0) {
+                list.innerHTML = "<div>暂无题目，点击「添加题目」创建第一道题。</div>";
+                return;
+            }
+            list.innerHTML = data.map((q, i) => `
+                <div style="padding:10px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:8px;">
+                    <span style="flex:1;"><strong>${i+1}.</strong> ${q.q}</span>
+                    <button onclick="QuizApp.editQuestion(${q.id})" style="background:#0071e3; color:#fff; border:none; border-radius:8px; padding:4px 12px;">编辑</button>
+                    <button onclick="QuizApp.deleteQuestion(${q.id})" style="background:#ff3b30; color:#fff; border:none; border-radius:8px; padding:4px 12px;">删除</button>
+                </div>
+            `).join('');
+        } catch (e) {
+            list.innerHTML = "加载失败：" + e.message;
+        }
     },
 
-    // --- 3. 工具与通信 ---
-    getCurrentUser() { return localStorage.getItem('quiz_user_id'); },
+    // 添加题目表单（使用 prompt）
+    showAddForm() {
+        const user = this.getCurrentUser();
+        if (!user) { alert("请先登录"); return; }
+        const q = prompt("请输入题目内容：");
+        if (!q) return;
+        const optsRaw = prompt("请输入选项，用逗号分隔（如：A. 选项1, B. 选项2, C. 选项3）：");
+        if (!optsRaw) return;
+        const opts = optsRaw.split(',').map(s => s.trim());
+        const a = parseInt(prompt("请输入正确答案的序号（从0开始，例如0代表第一个选项）："));
+        if (isNaN(a) || a < 0 || a >= opts.length) {
+            alert("序号无效");
+            return;
+        }
+        this.submitQuestion({ q, opts, a });
+    },
+
+    async submitQuestion(questionData) {
+        const user = this.getCurrentUser();
+        if (!user) { alert("请先登录"); return; }
+        try {
+            const res = await fetch('/api/questions-add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...questionData, user_id: user })
+            });
+            const result = await res.json();
+            if (result.ok) {
+                alert("添加成功！");
+                this.loadQuestionsForManage();
+            } else {
+                alert("添加失败：" + (result.error || ''));
+            }
+        } catch (e) {
+            alert("请求失败：" + e.message);
+        }
+    },
+
+    async deleteQuestion(id) {
+        const user = this.getCurrentUser();
+        if (!user) { alert("请先登录"); return; }
+        if (!confirm("确定删除这道题吗？")) return;
+        try {
+            const res = await fetch('/api/questions-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: user, id })
+            });
+            const result = await res.json();
+            if (result.ok) {
+                alert("删除成功");
+                this.loadQuestionsForManage();
+            } else {
+                alert("删除失败：" + (result.error || ''));
+            }
+        } catch (e) {
+            alert("请求失败：" + e.message);
+        }
+    },
+
+    async editQuestion(id) {
+        const user = this.getCurrentUser();
+        if (!user) { alert("请先登录"); return; }
+        const res = await fetch(`/api/questions?user_id=${encodeURIComponent(user)}`);
+        const all = await res.json();
+        const q = all.find(item => item.id === id);
+        if (!q) { alert("未找到该题"); return; }
+        const newQ = prompt("编辑题目内容：", q.q);
+        if (newQ === null) return;
+        const newOptsRaw = prompt("编辑选项（逗号分隔）：", q.opts.join(', '));
+        if (newOptsRaw === null) return;
+        const newOpts = newOptsRaw.split(',').map(s => s.trim());
+        const newA = parseInt(prompt("编辑正确答案序号（从0开始）：", q.a));
+        if (isNaN(newA) || newA < 0 || newA >= newOpts.length) {
+            alert("序号无效");
+            return;
+        }
+        try {
+            const updateRes = await fetch('/api/questions-update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: user, id, q: newQ, opts: newOpts, a: newA })
+            });
+            const result = await updateRes.json();
+            if (result.ok) {
+                alert("更新成功！");
+                this.loadQuestionsForManage();
+            } else {
+                alert("更新失败：" + (result.error || ''));
+            }
+        } catch (e) {
+            alert("请求失败：" + e.message);
+        }
+    },
+
+    // ------------------------------------------------------------
+    // 3. 错题相关（按用户隔离）
+    // ------------------------------------------------------------
+    getCurrentUser() {
+        return localStorage.getItem('quiz_user_id');
+    },
+
     checkLogin() {
         let user = this.getCurrentUser();
         if (!user) {
             user = prompt("🍏 请输入您的用户名：");
-            if (user) { localStorage.setItem('quiz_user_id', user.trim()); this.updateUserUI(); return user.trim(); }
+            if (user) {
+                localStorage.setItem('quiz_user_id', user.trim());
+                this.updateUserUI();
+                return user.trim();
+            }
             return null;
         }
         return user;
     },
+
     checkLoginBeforeGo(targetUrl) {
         const user = this.getCurrentUser();
         if (!user) {
@@ -165,31 +290,35 @@ window.QuizApp = {
         window.location.href = targetUrl;
         return false;
     },
+
     updateUserUI() {
         const user = this.getCurrentUser();
         const infoText = document.getElementById('userInfoText');
-        if (infoText) infoText.innerText = user ? `🍏 已登录: ${user}` : `👤 游客模式`;
+        if (infoText) {
+            infoText.innerText = user ? `🍏 已登录: ${user}` : `👤 游客模式 (点击登录)`;
+        }
     },
+
     async uploadWrongQuestion(userId, q) {
         try {
             await fetch('/api/wrong-add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: userId, q: q.q, opts: q.opts, a: q.a })
+                body: JSON.stringify({
+                    user_id: userId,
+                    q: q.q,
+                    opts: q.opts,
+                    a: q.a
+                })
             });
-        } catch (e) { console.error(e); }
-    },
-    async deleteWrongQuestion(id, userId) {
-        try {
-            await fetch('/api/wrong-delete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: userId, id: id })
-            });
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+        }
     },
 
-    // --- 4. 网格导航（适配你的 CSS） ---
+    // ------------------------------------------------------------
+    // 4. 题号导航网格
+    // ------------------------------------------------------------
     toggleFolder(show) {
         const folder = document.getElementById('gridFolder');
         const overlay = document.getElementById('folderOverlay');
@@ -239,7 +368,9 @@ window.QuizApp = {
         this.renderCard(true);
     },
 
-    // --- 5. 全局事件绑定 ---
+    // ------------------------------------------------------------
+    // 5. 事件绑定
+    // ------------------------------------------------------------
     bindGlobalEvents() {
         const btn = document.getElementById('masterGlassBtn');
         if (btn) {
@@ -254,7 +385,12 @@ window.QuizApp = {
                 this.toggleFolder(false);
             });
         }
+        // 可选：触摸事件支持
+        // ...
     }
 };
 
-window.addEventListener('DOMContentLoaded', () => { QuizApp.updateUserUI(); });
+// 页面加载后刷新用户状态
+window.addEventListener('DOMContentLoaded', () => {
+    QuizApp.updateUserUI();
+});
