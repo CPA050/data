@@ -1,12 +1,12 @@
 /* ==========================================
-   ✨ 刷题系统 2.0 · 高定现代极简主义皮肤
+   🍏 刷题系统 3.0 · iOS 视网膜级玻璃拟态皮肤
    ========================================== */
 
-/* 全局基底：柔和高雅的中性色底色 */
+/* 全局基底：柔和的大厂渐变，完美烘托玻璃的通透感 */
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
-    background: radial-gradient(circle at top center, #fdfbf7 0%, #f4f5f7 100%) !important;
-    color: #1d1d1f !important; /* 苹果官网同款标志深灰，比死黑更高级 */
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+    background: linear-gradient(135deg, #e0e5ec 0%, #eedee6 50%, #e4eaf5 100%) !important;
+    color: #1d1d1f !important;
     margin: 0;
     padding: 40px 20px;
     display: flex;
@@ -15,128 +15,131 @@ body {
     min-height: 100vh;
     box-sizing: border-box;
     letter-spacing: -0.01em !important;
-    overflow-auto: auto !important;
+    overflow-y: auto !important;
 }
 
-/* 呼吸感悬浮容器 */
+/* 🍏 iOS 核心毛玻璃容器 */
 #home, #app {
-    background: rgba(255, 255, 255, 0.85) !important;
-    backdrop-filter: blur(20px); /* 朦胧的毛玻璃质感 */
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(255, 255, 255, 0.45) !important; /* 高通透半透明 */
+    backdrop-filter: blur(25px) saturate(190%); /* 视网膜级模糊 + 增强色彩饱和度 */
+    -webkit-backdrop-filter: blur(25px) saturate(190%);
+    
     width: 100%;
-    max-width: 580px;
-    padding: 40px;
-    border-radius: 20px; /* 更圆润优雅的弧度 */
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04), 
-                0 1px 8px rgba(0, 0, 0, 0.02) !important;
+    max-width: 540px;
+    padding: 35px;
+    border-radius: 24px; /* 经典的 iOS 连续曲率圆角 */
+    
+    /* 玻璃切面高光边框：上方微白，下方微暗，极具立体感 */
+    border: 1px solid rgba(255, 255, 255, 0.5) !important; 
+    
+    /* iOS 标志性的多层次柔和阴影 */
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03),
+                0 1px 3px rgba(0, 0, 0, 0.02),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+                
     box-sizing: border-box;
-    transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* 艺术感大标题 */
+/* 艺术艺术感大标题 */
 h1 {
     text-align: center;
     color: #1d1d1f !important;
     font-size: 26px;
     font-weight: 700;
     letter-spacing: -0.02em;
-    margin-bottom: 40px;
-    background: linear-gradient(135deg, #1d1d1f 0%, #434343 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    margin-bottom: 35px;
 }
 
 h2 {
-    font-size: 20px;
+    font-size: 19px;
     font-weight: 600;
-    color: #2c3e50 !important;
-    line-height: 1.6;
-    margin-bottom: 28px;
+    color: #1d1d1f !important;
+    line-height: 1.5;
+    margin-bottom: 25px;
 }
 
-/* 极简高级感按钮 */
+/* iOS 风格大药丸主按钮 */
 button {
     display: block;
     width: 100%;
     padding: 16px;
-    margin: 18px 0;
-    background: #1d1d1f !important; /* 哑光黑，沉稳且极其现代 */
+    margin: 16px 0;
+    background: #0071e3 !important; /* Apple 官方标志性蓝色 */
     color: #ffffff !important;
     border: none !important;
-    border-radius: 10px;
-    font-size: 16px;
-    font-weight: 500;
+    border-radius: 14px; /* 药丸弧度 */
+    font-size: 17px;
+    font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    transition: all 0.25s ease;
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.15);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 button:hover {
-    background: #333336 !important;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    background: #0077ed !important;
+    transform: scale(1.015); /* 微张力缩放 */
+    box-shadow: 0 6px 20px rgba(0, 113, 227, 0.25);
 }
 
-/* 莫兰迪色系随机按钮 */
+/* 次级按钮：浅色半透明玻璃质感 */
 #home button:nth-of-type(2) {
-    background: #e2e8f0 !important; /* 灰蓝色调，沉静不突兀 */
-    color: #334155 !important;
+    background: rgba(0, 0, 0, 0.04) !important;
+    color: #0071e3 !important;
+    box-shadow: none;
 }
 #home button:nth-of-type(2):hover {
-    background: #cbd5e1 !important;
+    background: rgba(0, 0, 0, 0.08) !important;
 }
 
 /* 顶部轻量化信息栏 */
 #top {
     font-size: 13px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #86868b !important; /* 优雅的辅助灰 */
-    padding-bottom: 16px;
-    border-bottom: 1px solid #e5e5e7;
-    margin-bottom: 28px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #86868b !important; /* 苹果副文本专用灰 */
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    margin-bottom: 25px;
 }
 
-/* 奢华感交互选项卡片 */
+/* 触感选项卡片（微磨砂白） */
 .opt {
-    background-color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.5) !important;
     color: #1d1d1f !important;
-    border: 1px solid #e5e5e7 !important; 
-    border-radius: 12px;
-    padding: 18px 20px;
-    margin: 14px 0;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    border-radius: 14px;
+    padding: 16px 20px;
+    margin: 12px 0;
     font-size: 16px;
     font-weight: 400;
-    line-height: 1.4;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.01);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* 悬浮微动效：轻微上浮 + 柔和外阴影 */
+/* 悬浮动效：卡片变亮并微微内凹 */
 .opt:hover {
-    border-color: #1d1d1f !important;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.04);
+    background: rgba(255, 255, 255, 0.8) !important;
+    border-color: rgba(0, 113, 227, 0.3) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
 }
 
-/* 优雅克制的正确反馈：温润的低饱和度绿 */
+/* 正确反馈：清透的苹果绿玻璃 */
 .opt.correct {
-    background: #f0fdf4 !important;
-    border-color: #4ade80 !important;
-    color: #166534 !important;
-    font-weight: 500;
-    box-shadow: 0 4px 12px rgba(74, 222, 128, 0.15) !important;
+    background: rgba(52, 199, 89, 0.15) !important;
+    border-color: rgba(52, 199, 89, 0.4) !important;
+    color: #1e7e34 !important;
+    font-weight: 600;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
 }
 
-/* 优雅克制的错误反馈：高级低饱和粉红 */
+/* 错误反馈：高级的系统红玻璃 */
 .opt.wrong {
-    background: #fef2f2 !important;
-    border-color: #f87171 !important;
-    color: #991b1b !important;
-    font-weight: 500;
-    box-shadow: 0 4px 12px rgba(248, 113, 113, 0.15) !important;
+    background: rgba(255, 59, 48, 0.12) !important;
+    border-color: rgba(255, 59, 48, 0.3) !important;
+    color: #b3261e !important;
+    font-weight: 600;
 }
 
 /* 底部轻量题号卡网格 */
@@ -144,42 +147,50 @@ button:hover {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    margin-top: 40px;
-    padding-top: 24px;
-    border-top: 1px solid #e5e5e7;
+    margin-top: 35px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-/* 几何极简题号按钮 */
+/* 胶囊题号 */
 .qbtn {
     width: 34px;
     height: 34px;
-    background-color: transparent !important;
-    color: #86868b !important;
-    border: 1px solid #e5e5e7 !important;
-    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.3) !important;
+    color: #515154 !important;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
 }
 .qbtn:hover {
-    border-color: #1d1d1f !important;
-    color: #1d1d1f !important;
+    background: rgba(255, 255, 255, 0.7) !important;
+    border-color: rgba(0, 0, 0, 0.15) !important;
 }
 
-/* 题号状态：莫兰迪纯色填充 */
+/* 题号激活状态（当前正在做的题目） */
+.qbtn[style*="border-color: rgb(33, 150, 243)"],
+.qbtn[style*="border-color: #2196f3"] {
+    border-color: #0071e3 !important;
+    color: #0071e3 !important;
+    background: rgba(0, 113, 227, 0.05) !important;
+}
+
+/* 题号反馈：直接完美映射 iOS 绿和红 */
 .qbtn[style*="background: rgb(76, 175, 80)"], 
 .qbtn[style*="background: #4caf50"] {
-    background: #4ade80 !important;
-    color: white !important;
+    background: rgba(52, 199, 89, 0.8) !important;
+    color: #ffffff !important;
     border-color: transparent !important;
 }
 .qbtn[style*="background: rgb(244, 67, 54)"], 
 .qbtn[style*="background: #f44336"] {
-    background: #f87171 !important;
-    color: white !important;
+    background: rgba(255, 59, 48, 0.8) !important;
+    color: #ffffff !important;
     border-color: transparent !important;
 }
