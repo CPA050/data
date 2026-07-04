@@ -1,5 +1,5 @@
 // ==========================================
-// 🚀 QuizApp 7.5 · 修复手势冲突 & 纯正苹果毛玻璃版
+// 🚀 QuizApp 8.0 · 智能多用户错题库闭环引擎
 // ==========================================
 
 window.QuizApp = {
@@ -7,17 +7,15 @@ window.QuizApp = {
     record: [],
     activeBank: [],
     
-    // 滑动卡片变量
+    // 滑动卡片与面板变量
     startX: 0, startY: 0,
     isScrolling: false,
-
-    // 下拉面板变量
     folderStartY: 0, folderMoveY: 0,
 
     start(isRandom) {
         const bank = window.QUESTION_BANK || QUESTION_BANK;
         if (!bank || bank.length === 0) {
-            alert("❌ 题库未加载，请检查 questions.js。");
+            alert("❌ 题库未加载，请检查数据。");
             return;
         }
 
@@ -29,20 +27,13 @@ window.QuizApp = {
 
         document.getElementById("home").style.display = "none";
         
-        // 构建最为稳定的单张卡片骨架
+        // 构建稳定的苹果毛玻璃卡片骨架
         document.getElementById("app").innerHTML = `
-            <!-- 唯一的核心题目卡片 -->
             <div class="app-card" id="mainQuizCard"></div>
-
-            <!-- 左下角总按钮 -->
             <div class="glass-trigger" id="masterGlassBtn">
-                <svg viewBox="0 0 24 24">
-                    <path d="M4 6h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 12h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 18h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/>
-                </svg>
+                <svg viewBox="0 0 24 24"><path d="M4 6h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 12h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 18h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/></svg>
             </div>
-
             <div class="folder-overlay" id="folderOverlay"></div>
-
             <div class="grid-folder" id="gridFolder">
                 <div class="folder-drag-handle"></div>
                 <div class="folder-grid-content" id="folderGrid"></div>
@@ -52,9 +43,9 @@ window.QuizApp = {
         document.getElementById("app").className = "stage-container";
         document.getElementById("app").style.display = "block";
 
-        this.renderCard(false);      // 初始化第一题
-        this.bindGlobalEvents();     // 绑定改良后的安全事件体系
-        this.renderGrid();           // 渲染题号面板
+        this.renderCard(false);
+        this.bindGlobalEvents();
+        this.renderGrid();
     },
 
     renderCard(needAnimation) {
@@ -66,7 +57,6 @@ window.QuizApp = {
         const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
         const acc = done ? Math.round(correct / done * 100) : 0;
 
-        // 构造卡片内部，使用普通的 onclick，由于改良了手势，这里绝不会被拦截
         const htmlContent = `
             <div id="top">正确率: ${acc}% | 进度: ${done}/${this.activeBank.length}</div>
             <h2>Q${this.idx + 1}. ${q.q}</h2>
@@ -97,13 +87,24 @@ window.QuizApp = {
 
         const q = this.activeBank[this.idx];
         this.record[this.idx] = oIdx;
+        const isCorrect = (oIdx === q.a);
 
-        if (oIdx === q.a) {
+        if (isCorrect) {
             element.classList.add("correct");
+            // 🌟 核心：如果在错题模式下答对，且带有数据库 id，自动从数据库移除
+            if (window.isWrongQuestionMode && q.id) {
+                this.deleteWrongQuestion(q.id);
+            }
         } else {
             element.classList.add("wrong");
             const opts = element.parentNode.querySelectorAll(".opt");
             if (opts[q.a]) opts[q.a].classList.add("correct");
+
+            // 🌟 核心：答错时，如果用户已登录，自动同步到 D1 数据库
+            const user = this.getCurrentUser();
+            if (user) {
+                this.uploadWrongQuestion(user, q);
+            }
         }
 
         this.renderGrid();
@@ -112,45 +113,95 @@ window.QuizApp = {
             if (this.idx + 1 < this.activeBank.length) {
                 this.idx++;
                 this.renderCard(true);
+            } else if (window.isWrongQuestionMode) {
+                alert("🎉 恭喜你刷完了当前错题集！");
+                window.location.reload();
             }
         }, 500);
     },
 
-    toggleFolder(show) {
-        const folder = document.getElementById("gridFolder");
-        const overlay = document.getElementById("folderOverlay");
-        if (!folder || !overlay) return;
+    // 登录及用户标识管理
+    getCurrentUser() {
+        return localStorage.getItem('quiz_user_id');
+    },
 
-        if (show) {
-            folder.style.transition = "transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)";
-            folder.classList.add("active");
-            overlay.classList.add("active");
-            this.renderGrid();
-        } else {
-            folder.style.transition = "transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)";
-            folder.style.transform = ""; 
-            folder.classList.remove("active");
-            overlay.classList.remove("active");
+    checkLogin() {
+        let user = this.getCurrentUser();
+        if (!user) {
+            user = prompt("🍏 为了保存您的专属错题集，请输入您的用户名/邮箱：");
+            if (user && user.trim() !== "") {
+                localStorage.setItem('quiz_user_id', user.trim());
+                this.updateUserUI();
+                return user.trim();
+            }
+            return null;
+        }
+        return user;
+    },
+
+    updateUserUI() {
+        const user = this.getCurrentUser();
+        const infoText = document.getElementById('userInfoText');
+        const logoutBtn = document.querySelector('.logout-btn');
+        if (infoText) {
+            if (user) {
+                infoText.innerText = `🍏 已登录: ${user}`;
+                if (logoutBtn) logoutBtn.style.display = 'inline-block';
+            } else {
+                infoText.innerText = `👤 游客模式 (错题不会同步)`;
+                if (logoutBtn) logoutBtn.style.display = 'none';
+            }
         }
     },
 
-    // 🌟 改良版事件系统：分离点击与手势，彻底修复点不动的 Bug
+    logout() {
+        localStorage.removeItem('quiz_user_id');
+        this.updateUserUI();
+    },
+
+    checkLoginBeforeGo(e) {
+        if (!this.getCurrentUser()) {
+            e.preventDefault();
+            this.checkLogin();
+        }
+        return true;
+    },
+
+    // 异步 API：上传错题
+    async uploadWrongQuestion(userId, questionData) {
+        try {
+            await fetch('/api/wrong-add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: userId,
+                    q: questionData.q,
+                    opts: questionData.opts,
+                    a: questionData.a
+                })
+            });
+        } catch (err) { console.error("同步错题失败:", err); }
+    },
+
+    // 异步 API：删除错题
+    async deleteWrongQuestion(questionDbId) {
+        try {
+            const res = await fetch(`/api/wrong-delete?id=${questionDbId}`, { method: 'DELETE' });
+            if (res.ok) console.log(`错题 ${questionDbId} 已从云端移除`);
+        } catch (err) { console.error("自动删题异常:", err); }
+    },
+
+    // 全局手势与点击事件保护机制
     bindGlobalEvents() {
         const app = document.getElementById("app");
         const folder = document.getElementById("gridFolder");
         const trigger = document.getElementById("masterGlassBtn");
         const overlay = document.getElementById("folderOverlay");
 
-        // 1. 独立绑定左下角水晶按钮和遮罩的纯点击事件，绝不走手势逻辑
-        trigger.addEventListener("click", (e) => {
-            e.stopPropagation();
-            this.toggleFolder(true);
-        });
+        trigger.addEventListener("click", (e) => { e.stopPropagation(); this.toggleFolder(true); });
         overlay.addEventListener("click", () => this.toggleFolder(false));
 
-        // 2. 改良版：左右划卡手势监听
         app.addEventListener("touchstart", (e) => {
-            // 如果点在选项、悬浮球或文件夹内，不触发划卡判定
             if (e.target.closest(".opt") || e.target.closest("#masterGlassBtn") || e.target.closest("#gridFolder")) return;
             this.startX = e.touches[0].clientX;
             this.startY = e.touches[0].clientY;
@@ -159,32 +210,19 @@ window.QuizApp = {
 
         app.addEventListener("touchmove", (e) => {
             if (!this.startX) return;
-            const moveX = e.touches[0].clientX;
-            const moveY = e.touches[0].clientY;
-            
-            // 如果垂直方向滑动的距离大于横向，认为是上下滚屏，放弃划卡
-            if (Math.abs(moveY - this.startY) > Math.abs(moveX - this.startX)) {
+            if (Math.abs(e.touches[0].clientY - this.startY) > Math.abs(e.touches[0].clientX - this.startX)) {
                 this.isScrolling = true;
             }
         }, { passive: true });
 
         app.addEventListener("touchend", (e) => {
-            if (!this.startX || this.isScrolling) {
-                this.startX = 0; return;
-            }
-            const endX = e.changedTouches[0].clientX;
-            const deltaX = endX - this.startX;
-            const threshold = 60; // 必须划过 60 像素才触发
-
-            if (deltaX < -threshold && this.idx + 1 < this.activeBank.length) {
-                this.idx++; this.renderCard(true); // 下一题
-            } else if (deltaX > threshold && this.idx - 1 >= 0) {
-                this.idx--; this.renderCard(true); // 上一题
-            }
+            if (!this.startX || this.isScrolling) { this.startX = 0; return; }
+            const deltaX = e.changedTouches[0].clientX - this.startX;
+            if (deltaX < -60 && this.idx + 1 < this.activeBank.length) { this.idx++; this.renderCard(true); }
+            else if (deltaX > 60 && this.idx - 1 >= 0) { this.idx--; this.renderCard(true); }
             this.startX = 0;
         });
 
-        // 3. 改良版：题号面板下拉收起手势
         folder.addEventListener("touchstart", (e) => {
             if (document.getElementById("folderGrid").scrollTop > 0) return;
             this.folderStartY = e.touches[0].clientY;
@@ -200,40 +238,34 @@ window.QuizApp = {
 
         folder.addEventListener("touchend", () => {
             if (!this.folderStartY) return;
-            const deltaY = this.folderMoveY - this.folderStartY;
-            if (deltaY > 100) {
-                this.toggleFolder(false); 
-            } else {
-                this.toggleFolder(true);  
-            }
+            if (this.folderMoveY - this.folderStartY > 100) this.toggleFolder(false); 
+            else this.toggleFolder(true);  
             this.folderStartY = 0; this.folderMoveY = 0;
         });
+    },
+
+    toggleFolder(show) {
+        const folder = document.getElementById("gridFolder");
+        const overlay = document.getElementById("folderOverlay");
+        if (!folder || !overlay) return;
+        folder.style.transition = "transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)";
+        if (show) { folder.classList.add("active"); overlay.classList.add("active"); this.renderGrid(); } 
+        else { folder.style.transform = ""; folder.classList.remove("active"); overlay.classList.remove("active"); }
     },
 
     renderGrid() {
         const grid = document.getElementById("folderGrid");
         if (!grid) return;
         grid.innerHTML = "";
-
         this.activeBank.forEach((_, i) => {
             const d = document.createElement("div");
-            d.innerText = i + 1;
-            d.className = "qbtn";
-
-            if (this.record[i] !== null) {
-                d.classList.add(this.record[i] === this.activeBank[i].a ? "grid-correct" : "grid-wrong");
-            } else if (i === this.idx) {
-                d.classList.add("grid-active");
-            }
-
-            // 题号小球纯点击响应
-            d.addEventListener("click", (e) => {
-                e.stopPropagation(); 
-                this.idx = i;
-                this.renderCard(false); 
-                this.toggleFolder(false);
-            });
+            d.innerText = i + 1; d.className = "qbtn";
+            if (this.record[i] !== null) d.classList.add(this.record[i] === this.activeBank[i].a ? "grid-correct" : "grid-wrong");
+            else if (i === this.idx) d.classList.add("grid-active");
+            d.addEventListener("click", (e) => { e.stopPropagation(); this.idx = i; this.renderCard(false); this.toggleFolder(false); });
             grid.appendChild(d);
         });
     }
 };
+
+window.addEventListener('DOMContentLoaded', () => { QuizApp.updateUserUI(); });
