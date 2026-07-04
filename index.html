@@ -3,29 +3,151 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>刷题系统</title>
-<link rel="stylesheet" href="style.css" />
-</head>
+<title>工程造价刷题系统</title>
+<style>
+    /* 🌟 核心防御样式：强行重置所有背景和颜色，彻底免疫黑夜模式干扰 */
+    html, body {
+        background-color: #f7f9fa !important;
+        color: #333333 !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        min-height: 100vh;
+    }
 
+    .container {
+        background: #ffffff !important;
+        width: 100%;
+        max-width: 600px;
+        margin: 20px;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        box-sizing: border-box;
+    }
+
+    h1 {
+        text-align: center;
+        color: #1a1a1a !important;
+        font-size: 24px;
+        margin-bottom: 30px;
+    }
+
+    /* 首页按钮样式 */
+    .menu-btn {
+        display: block;
+        width: 100%;
+        padding: 15px;
+        margin: 15px 0;
+        background: #2196F3 !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 8px;
+        font-size: 18px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .menu-btn:hover {
+        background: #1976D2 !important;
+    }
+
+    /* 答题区样式 */
+    #top {
+        font-size: 16px;
+        font-weight: bold;
+        color: #666 !important;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #eee;
+        margin-bottom: 20px;
+    }
+
+    h2 {
+        font-size: 19px;
+        color: #2c3e50 !important;
+        line-height: 1.5;
+        margin-bottom: 20px;
+    }
+
+    /* 选项卡片 */
+    .opt {
+        background: #ffffff !important;
+        color: #333333 !important;
+        border: 2px solid #eaeeef !important;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 12px 0;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .opt:hover {
+        border-color: #2196F3 !important;
+        background: #f0f7ff !important;
+    }
+
+    /* 答题反馈颜色：强行高亮 */
+    .opt.correct {
+        background: #e8f5e9 !important;
+        border-color: #4caf50 !important;
+        color: #2e7d32 !important;
+        font-weight: bold;
+    }
+    .opt.wrong {
+        background: #ffebee !important;
+        border-color: #f44336 !important;
+        color: #c62828 !important;
+        font-weight: bold;
+    }
+
+    /* 底部题号网格 */
+    #grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 30px;
+        padding-top: 20px;
+        border-top: 1px solid #eee;
+    }
+    .qbtn {
+        width: 36px;
+        height: 36px;
+        background: #ffffff !important;
+        color: #555555 !important;
+        border: 1px solid #dcdfe6 !important;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+</style>
+</head>
 <body>
 
-<!-- 首页 -->
-<div id="home">
-    <h1>刷题系统</h1>
-    <button onclick="QuizApp.start(false)">顺序刷题</button>
-    <button onclick="QuizApp.start(true)">随机刷题</button>
-</div>
+<div class="container">
+    <!-- 首页 -->
+    <div id="home">
+        <h1>工程造价 刷题系统</h1>
+        <button class="menu-btn" onclick="QuizApp.start(false)">顺序刷题</button>
+        <button class="menu-btn" onclick="QuizApp.start(true)" style="background:#4CAF50 !important;">随机刷题</button>
+    </div>
 
-<!-- 答题区 -->
-<div id="app" style="display:none;">
-    <div id="top">正确率 0%</div>
-    <div id="progress"></div>
-    <div id="viewport"></div>
-    <div id="grid"></div>
+    <!-- 答题区 -->
+    <div id="app" style="display:none;">
+        <div id="top">正确率: 0% | 进度: 0/0</div>
+        <div id="viewport"></div>
+        <div id="grid"></div>
+    </div>
 </div>
 
 <script>
-// 🌟 1. 直接把题库写在网页里，彻底解决引入失败问题
+// 1. 完整固化题库
 window.QUESTION_BANK = [
     {q:"从投资者角度看，某教学楼工程造价通常指该工程预计或实际支出的（ ）。",opts:["A. 施工企业利润","B. 全部固定资产投资费用","C. 材料采购费用","D. 人工工资"],a:1},
     {q:"下列造价文件中，通常由设计单位负责编制的是（ ）。",opts:["A. 施工预算","B. 投标报价","C. 设计概算","D. 竣工结算"],a:2},
@@ -68,7 +190,7 @@ window.QUESTION_BANK = [
     {q:"平整场地按首层面积计算。",opts:["A. 正确","B. 错误"],a:0}
 ];
 
-// 🌟 2. 核心逻辑直接挂载
+// 2. 核心控制逻辑
 window.QuizApp = {
     idx: 0,
     record: [],
@@ -76,30 +198,16 @@ window.QuizApp = {
     locked: false,
 
     start(isRandom) {
-        if (!window.QUESTION_BANK || QUESTION_BANK.length === 0) {
-            alert("题库未加载");
-            return;
-        }
-
-        this.activeBank = [...QUESTION_BANK];
-
+        this.activeBank = [...window.QUESTION_BANK];
         if (isRandom) {
             this.activeBank.sort(() => Math.random() - 0.5);
         }
-
+        
         this.idx = 0;
         this.record = new Array(this.activeBank.length).fill(null);
 
-        const home = document.getElementById("home");
-        const app = document.getElementById("app");
-
-        if (!home || !app) {
-            alert("HTML结构错误：缺少 home 或 app");
-            return;
-        }
-
-        home.style.display = "none";
-        app.style.display = "block";
+        document.getElementById("home").style.display = "none";
+        document.getElementById("app").style.display = "block";
 
         this.render();
         this.renderGrid();
@@ -109,50 +217,29 @@ window.QuizApp = {
     render() {
         const q = this.activeBank[this.idx];
         const view = document.getElementById("viewport");
-
         if (!q || !view) return;
 
         view.innerHTML = `
             <h2>Q${this.idx + 1}. ${q.q}</h2>
             ${q.opts.map((o, i) => `
-                <div class="opt" onclick="QuizApp.select(${i})">
-                    ${o}
-                </div>
+                <div class="opt" onclick="QuizApp.select(${i})">${o}</div>
             `).join("")}
         `;
     },
 
-    async select(i) {
-        if (this.locked) return;
-        if (this.record[this.idx] !== null) return;
-
+    select(i) {
+        if (this.locked || this.record[this.idx] !== null) return;
         this.locked = true;
 
         const q = this.activeBank[this.idx];
         this.record[this.idx] = i;
 
         const opts = document.querySelectorAll(".opt");
-
         if (i === q.a) {
             opts[i].classList.add("correct");
         } else {
             opts[i].classList.add("wrong");
             if (opts[q.a]) opts[q.a].classList.add("correct");
-
-            // 错题写入数据库
-            try {
-                await fetch("/api/wrong-add", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        question: q.q,
-                        correct_answer: q.opts[q.a],
-                        user_answer: q.opts[i]
-                    })
-                });
-            } catch (e) {
-                console.log("错题上传失败", e);
-            }
         }
 
         this.update();
@@ -163,27 +250,23 @@ window.QuizApp = {
             if (this.idx < this.activeBank.length) {
                 this.render();
             } else {
-                alert("已完成所有题目");
+                alert("太棒了，所有题目已完成！");
             }
             this.locked = false;
-        }, 600);
+        }, 800);
     },
 
     update() {
         const done = this.record.filter(x => x !== null).length;
-        const correct = this.record.filter((v, i) =>
-            v !== null && v === this.activeBank[i].a
-        ).length;
-
+        const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
         const acc = done ? Math.round(correct / done * 100) : 0;
-        const top = document.getElementById("top");
-        if (top) top.innerText = "正确率 " + acc + "%";
+        
+        document.getElementById("top").innerText = `正确率: ${acc}% | 进度: ${done}/${this.activeBank.length}`;
     },
 
     renderGrid() {
         const grid = document.getElementById("grid");
         if (!grid) return;
-
         grid.innerHTML = "";
 
         this.activeBank.forEach((_, i) => {
@@ -193,23 +276,22 @@ window.QuizApp = {
 
             if (this.record[i] !== null) {
                 d.style.background = this.record[i] === this.activeBank[i].a ? "#4caf50" : "#f44336";
-                d.style.color = "#fff";
+                d.style.color = "#ffffff";
+                d.style.borderColor = "transparent";
+            } else if (i === this.idx) {
+                d.style.borderColor = "#2196F3";
+                d.style.color = "#2196F3";
             }
 
             d.onclick = () => {
                 this.idx = i;
                 this.render();
+                this.renderGrid();
             };
-
             grid.appendChild(d);
         });
     }
 };
-
-document.addEventListener("DOMContentLoaded", () => {
-    console.log("系统加载成功，题库数:", window.QUESTION_BANK.length);
-});
 </script>
-
 </body>
 </html>
