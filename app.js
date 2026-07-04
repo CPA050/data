@@ -56,7 +56,6 @@ window.QuizApp = {
         }
     },
 
-    // 渲染当前题目卡片
     renderCard(needAnimation) {
         const card = document.getElementById("mainQuizCard");
         if (!card) return;
@@ -90,7 +89,6 @@ window.QuizApp = {
         this.renderGrid();
     },
 
-    // 选择选项
     select(oIdx, element) {
         if (this.record[this.idx] !== null) return;
         const q = this.activeBank[this.idx];
@@ -118,7 +116,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 2. 题库管理（多用户，每个用户独立）—— 优化界面版
+    // 2. 题库管理（优化自适应+退出登录）
     // ------------------------------------------------------------
     async showManager() {
         const user = this.checkLogin();
@@ -128,7 +126,7 @@ window.QuizApp = {
         document.getElementById("app").className = "stage-container";
         document.getElementById("app").innerHTML = `
             <div class="app-card" style="padding:20px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:8px;">
                     <h2 style="margin:0; font-size:22px;">📚 我的题库</h2>
                     <span style="font-size:14px; color:#86868b; background:rgba(0,0,0,0.05); padding:4px 12px; border-radius:20px;">👤 ${user}</span>
                 </div>
@@ -170,15 +168,15 @@ window.QuizApp = {
                     共 <strong style="color:#1d1d1f;">${total}</strong> 道题
                 </div>
                 ${data.map((q, i) => `
-                    <div style="background:rgba(255,255,255,0.5); backdrop-filter:blur(10px); border-radius:14px; padding:14px 16px; margin-bottom:10px; border:1px solid rgba(255,255,255,0.6); box-shadow:0 2px 8px rgba(0,0,0,0.04); transition:0.2s; display:flex; align-items:center; gap:12px;">
+                    <div style="background:rgba(255,255,255,0.5); backdrop-filter:blur(10px); border-radius:14px; padding:12px 14px; margin-bottom:10px; border:1px solid rgba(255,255,255,0.6); box-shadow:0 2px 8px rgba(0,0,0,0.04); transition:0.2s; display:flex; flex-wrap:wrap; align-items:center; gap:8px;">
                         <div style="flex-shrink:0; width:28px; height:28px; background:#0071e3; color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600;">${i + 1}</div>
-                        <div style="flex:1; min-width:0;">
+                        <div style="flex:1; min-width:150px;">
                             <div style="font-size:15px; font-weight:500; color:#1d1d1f; line-height:1.4; word-break:break-word;">${q.q}</div>
                             <div style="font-size:12px; color:#86868b; margin-top:4px;">
                                 ${q.opts.length} 个选项 · 正确答案: ${q.opts[q.a] || q.a}
                             </div>
                         </div>
-                        <div style="display:flex; gap:6px; flex-shrink:0;">
+                        <div style="display:flex; gap:6px; flex-wrap:wrap; flex-shrink:0;">
                             <button onclick="QuizApp.editQuestion(${q.id})" style="background:#0071e3; color:#fff; border:none; border-radius:10px; padding:6px 14px; font-size:13px; font-weight:500; cursor:pointer; transition:0.2s;">✏️ 编辑</button>
                             <button onclick="QuizApp.deleteQuestion(${q.id})" style="background:#ff3b30; color:#fff; border:none; border-radius:10px; padding:6px 14px; font-size:13px; font-weight:500; cursor:pointer; transition:0.2s;">🗑️ 删除</button>
                         </div>
@@ -190,7 +188,6 @@ window.QuizApp = {
         }
     },
 
-    // 添加题目表单（使用 prompt）
     showAddForm() {
         const user = this.getCurrentUser();
         if (!user) { alert("请先登录"); return; }
@@ -286,7 +283,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 3. 错题相关（按用户隔离）
+    // 3. 用户管理（登录/退出/更新界面）
     // ------------------------------------------------------------
     getCurrentUser() {
         return localStorage.getItem('quiz_user_id');
@@ -306,6 +303,16 @@ window.QuizApp = {
         return user;
     },
 
+    // ✅ 新增：退出登录方法
+    logout() {
+        if (confirm("确定要退出登录吗？")) {
+            localStorage.removeItem('quiz_user_id');
+            this.updateUserUI();
+            alert("已退出登录");
+            window.location.reload();
+        }
+    },
+
     checkLoginBeforeGo(targetUrl) {
         const user = this.getCurrentUser();
         if (!user) {
@@ -316,14 +323,25 @@ window.QuizApp = {
         return false;
     },
 
+    // ✅ 修改：更新用户界面，显示/隐藏退出按钮
     updateUserUI() {
         const user = this.getCurrentUser();
         const infoText = document.getElementById('userInfoText');
+        const logoutBtn = document.getElementById('logoutBtn');
         if (infoText) {
-            infoText.innerText = user ? `🍏 已登录: ${user}` : `👤 游客模式 (点击登录)`;
+            if (user) {
+                infoText.innerText = `🍏 已登录: ${user}`;
+                if (logoutBtn) logoutBtn.style.display = 'inline-block';
+            } else {
+                infoText.innerText = `👤 游客模式 (点击登录)`;
+                if (logoutBtn) logoutBtn.style.display = 'none';
+            }
         }
     },
 
+    // ------------------------------------------------------------
+    // 4. 错题相关（按用户隔离）
+    // ------------------------------------------------------------
     async uploadWrongQuestion(userId, q) {
         try {
             await fetch('/api/wrong-add', {
@@ -342,7 +360,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 4. 题号导航网格
+    // 5. 题号导航网格
     // ------------------------------------------------------------
     toggleFolder(show) {
         const folder = document.getElementById('gridFolder');
@@ -394,7 +412,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 5. 事件绑定
+    // 6. 事件绑定
     // ------------------------------------------------------------
     bindGlobalEvents() {
         const btn = document.getElementById('masterGlassBtn');
