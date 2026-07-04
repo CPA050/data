@@ -1,82 +1,226 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>我的专属错题消灭模式</title>
-    <!-- 引入主页的高级感样式表，让刷题卡片、滑动面板的外观和主页完全统一 -->
-    <link rel="stylesheet" href="style.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的错题集</title>
     <style>
-        /* 融合你原本的暗黑科技风底色 */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            background: #0f0f1a !important;
-            color: white !important;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #e0e5ec 0%, #e0e6 50%, #e4eaf5 100%);
+            color: #1d1d1f;
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
         }
-        h1 {
-            font-size: 20px;
-            text-align: center;
+        .container {
+            max-width: 700px;
+            width: 100%;
+            background: rgba(255,255,255,0.6);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.08);
             margin-top: 20px;
         }
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sub {
+            color: #86868b;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        .back-btn {
+            display: inline-block;
+            margin-bottom: 20px;
+            padding: 8px 16px;
+            background: #0071e3;
+            color: #fff;
+            border: none;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .back-btn:hover { opacity: 0.8; }
+        .wrong-item {
+            background: #fff;
+            border-radius: 16px;
+            padding: 16px 18px;
+            margin-bottom: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+        }
+        .wrong-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .wrong-content {
+            flex: 1;
+            margin-right: 12px;
+        }
+        .wrong-content .q {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        .wrong-content .detail {
+            font-size: 14px;
+            color: #555;
+        }
+        .wrong-content .detail span {
+            display: inline-block;
+            margin-right: 16px;
+        }
+        .wrong-content .detail .correct { color: #34c759; }
+        .wrong-content .detail .wrong { color: #ff3b30; }
+        .delete-btn {
+            background: #ff3b30;
+            color: #fff;
+            border: none;
+            border-radius: 30px;
+            padding: 6px 14px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: 0.2s;
+            flex-shrink: 0;
+        }
+        .delete-btn:hover { opacity: 0.8; transform: scale(0.96); }
+        .empty-msg {
+            text-align: center;
+            padding: 40px 0;
+            color: #86868b;
+            font-size: 16px;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px 0;
+            color: #86868b;
+        }
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.75);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 40px;
+            font-size: 15px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        .toast.show { opacity: 1; }
     </style>
 </head>
 <body>
 
-    <!-- 错题库的主容器 -->
-    <div id="app" class="stage-container">
-        <div class="app-card" style="text-align:center; padding: 40px 20px; background:#1c1c2b; border-radius:12px;">
-            <h2 style="color: #86868b; font-size: 16px;">📚 正在努力加载您的专属错题库...</h2>
-        </div>
-    </div>
+<div class="container">
+    <a href="/" class="back-btn">← 返回首页</a>
+    <h1>📚 我的错题集</h1>
+    <div class="sub" id="userDisplay">加载中...</div>
 
-    <!-- ⚠️ 严格按照顺序引入你的核心公共引擎 -->
-    <script src="app.js"></script>
-    <script>
-        window.addEventListener('DOMContentLoaded', async () => {
-            // 1. 获取当前在主页登录的用户名
-            const user = localStorage.getItem('quiz_user_id');
-            if (!user) {
-                alert("👤 请先在首页输入用户名/邮箱登录！");
-                window.location.href = "/";
+    <div id="wrongList">
+        <div class="loading">⏳ 加载错题中...</div>
+    </div>
+</div>
+
+<!-- 轻提示 -->
+<div id="toast" class="toast"></div>
+
+<script>
+    // ---------- 工具函数 ----------
+    function getUser() {
+        return localStorage.getItem('quiz_user_id') || sessionStorage.getItem('quiz_user_id');
+    }
+
+    function showToast(msg, duration = 2000) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        clearTimeout(t._timer);
+        t._timer = setTimeout(() => t.classList.remove('show'), duration);
+    }
+
+    // ---------- 渲染错题列表 ----------
+    async function loadWrongQuestions() {
+        const user = getUser();
+        if (!user) {
+            document.getElementById('userDisplay').textContent = '⚠️ 未登录，请先登录';
+            document.getElementById('wrongList').innerHTML = `<div class="empty-msg">请先 <a href="/" style="color:#0071e3;">返回首页</a> 登录</div>`;
+            return;
+        }
+        document.getElementById('userDisplay').textContent = `👤 ${user}`;
+
+        try {
+            const res = await fetch(`/api/wrong?user_id=${encodeURIComponent(user)}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+
+            const container = document.getElementById('wrongList');
+            if (!data || data.length === 0) {
+                container.innerHTML = `<div class="empty-msg">🎉 暂无错题，继续加油！</div>`;
                 return;
             }
-            
-            // 2. 🌟 核心开关：告知 app.js 引擎当前处于“错题消灭模式”，答对题目时自动触发删除
-            window.isWrongQuestionMode = true; 
 
-            try {
-                // 3. 请求正确的后端接口，并带上当前用户的名字进行隔离查询
-                const res = await fetch(`/api/wrong?user_id=${encodeURIComponent(user)}`);
-                const wrongData = await res.json();
-                
-                // 4. 如果没题了，显示唯美的空空如也提示卡
-                if (!wrongData || wrongData.length === 0) {
-                    document.getElementById("app").innerHTML = `
-                        <div class="app-card" style="text-align:center; padding: 40px 20px; background:#1c1c2b; border-radius:12px;">
-                            <h2 style="margin:0; font-size: 18px; color: #4ade80;">🎉 恭喜！你的错题已全部消灭~</h2>
-                            <p style="color:#86868b; margin-top:15px; font-size:14px; line-height:1.5;">
-                                云端数据库很干净，没有关于你的错题记录。
-                            </p>
-                            <button onclick="window.location.href='/'" style="margin-top:20px; padding: 10px 20px; border-radius: 8px; border:none; background:#0071e3; color:white; cursor:pointer;">返回主页</button>
+            // 按 id 倒序排列（最新的在前）
+            data.sort((a, b) => b.id - a.id);
+
+            container.innerHTML = data.map(item => `
+                <div class="wrong-item" data-id="${item.id}">
+                    <div class="wrong-content">
+                        <div class="q">${item.q}</div>
+                        <div class="detail">
+                            <span class="correct">✅ 正确答案：${item.answer || '未知'}</span>
+                            <span class="wrong">❌ 你的选择：${item.user_choice || '未记录'}</span>
                         </div>
-                    `;
-                    return;
-                }
-
-                // 5. 将捞出来的云端错题注入全局变量，交给 QuizApp 引擎一键启动！
-                window.QUESTION_BANK = wrongData; 
-                
-                // false 代表不乱序，按照你做错的先后顺序一道道消灭它
-                QuizApp.start(false); 
-
-            } catch (err) {
-                console.error("加载错题异常:", err);
-                document.getElementById("app").innerHTML = `
-                    <div class="app-card" style="text-align:center; padding: 30px; background:#1c1c2b;">
-                        ❌ 加载错题库失败，请检查网络或刷新重试
                     </div>
-                `;
-            }
-        });
-    </script>
+                    <button class="delete-btn" onclick="deleteWrong(${item.id})">删除</button>
+                </div>
+            `).join('');
+        } catch (err) {
+            document.getElementById('wrongList').innerHTML = `<div class="empty-msg">❌ 加载失败：${err.message}</div>`;
+            console.error(err);
+        }
+    }
 
+    // ---------- 删除单条错题 ----------
+    async function deleteWrong(id) {
+        const user = getUser();
+        if (!user) return showToast('请先登录', 1500);
+
+        if (!confirm('确定要删除这条错题吗？')) return;
+
+        try {
+            const res = await fetch('/api/wrong-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: user, id })
+            });
+            const result = await res.json();
+            if (!res.ok || !result.success) {
+                throw new Error(result.error || result.message || '删除失败');
+            }
+            showToast('✅ 已删除', 1500);
+            // 重新加载列表
+            loadWrongQuestions();
+        } catch (err) {
+            showToast('❌ ' + err.message, 2000);
+            console.error(err);
+        }
+    }
+
+    // ---------- 页面加载时执行 ----------
+    document.addEventListener('DOMContentLoaded', loadWrongQuestions);
+</script>
 </body>
 </html>
