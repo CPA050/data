@@ -1,72 +1,32 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>造价工程师·至臻题库系统</title>
-    <link rel="stylesheet" href="style.css" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>刷题系统</title>
+<link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
 
-    <!-- 动态微光环境幕布 -->
-    <div class="ambient-glow">
-        <div class="glow-sphere sphere-1"></div>
-        <div class="glow-sphere sphere-2"></div>
-        <div class="glow-sphere sphere-3"></div>
-    </div>
+<div id="home">
+    <h1>刷题系统</h1>
+    <button onclick="QuizApp.start(false)">顺序刷题</button>
+    <button onclick="QuizApp.start(true)">随机刷题</button>
+</div>
 
-    <div class="safe">
-        <!-- 首页欢迎 -->
-        <div id="home">
-            <div class="brand-badge">PREMIUM EDITION</div>
-            <h1 class="main-title">造价师<span>答题系统</span></h1>
-            <p class="subtitle">精选造价工程师高频考点 · 全沉浸式智能刷题</p>
-            <div class="mode-group">
-                <button class="btn btn-primary" onclick="QuizApp.start(false)">
-                    <span class="btn-text">顺序精刷</span>
-                </button>
-                <button class="btn btn-secondary" onclick="QuizApp.start(true)">
-                    <span class="btn-text">乱序摸底</span>
-                </button>
-            </div>
-        </div>
+<div id="app" style="display:none;">
+    <div id="top">正确率 0%</div>
+    <div id="progress"></div>
+    <div id="viewport"></div>
+    <div id="grid"></div>
+</div>
 
-        <!-- 答题主界面 -->
-        <div id="app">
-            <div class="top-nav">
-                <div class="nav-left">
-                    <span class="status-dot"></span>
-                    <span id="top">正确率 0%</span>
-                </div>
-                <div class="nav-right" id="nav-counter">01 / 00</div>
-            </div>
-            <div class="progress-container">
-                <div class="progress-bar" id="progress">
-                    <div class="progress-glow"></div>
-                </div>
-            </div>
-            <div id="viewport"></div>
-        </div>
-    </div>
+<script src="questions.js"></script>
+<script src="app.js"></script>
 
-    <!-- 悬浮高级菜单按钮 (纯CSS极简ICON) -->
-    <div class="menu-trigger" onclick="QuizApp.togglePanel()">
-        <div class="burger-box">
-            <span class="burger-line"></span>
-            <span class="burger-line"></span>
-            <span class="burger-line"></span>
-        </div>
-    </div>
-    
-    <div id="mask" onclick="QuizApp.closePanel()"></div>
-    <div id="panel">
-        <div class="panel-header">
-            <div class="panel-handle"></div>
-            <div class="panel-title">答题看板</div>
-        </div>
-        <div class="grid" id="grid"></div>
-    </div>
-
+</body>
+</html>
     <!-- 引入数据与逻辑 -->
     <script src="questions.js"></script>
     <script src="app.js"></script>
