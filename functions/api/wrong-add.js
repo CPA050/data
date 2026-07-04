@@ -1,14 +1,14 @@
-export async function onRequestPost(context) {
-  const db = context.env.exam_db;
+export async function onRequestPost({ request, env }) {
+    const db = env.exam_db;
+    const body = await request.json();
 
-  const body = await context.request.json();
+    await db.prepare(
+        "INSERT INTO wrong_questions (question, correct_answer, user_answer) VALUES (?, ?, ?)"
+    ).bind(
+        body.question,
+        body.correct_answer,
+        body.user_answer
+    ).run();
 
-  const { question, correct_answer, user_answer } = body;
-
-  await db.prepare(
-    `INSERT INTO wrong_questions (question, correct_answer, user_answer)
-     VALUES (?, ?, ?)`
-  ).bind(question, correct_answer, user_answer).run();
-
-  return Response.json({ ok: true });
+    return Response.json({ ok: true });
 }
