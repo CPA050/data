@@ -148,6 +148,16 @@ window.QuizApp = {
         }
         return user;
     },
+    // ✅ 新增：用于错题本链接的登录检查（唯一改动点）
+    checkLoginBeforeGo(targetUrl) {
+        const user = this.getCurrentUser();
+        if (!user) {
+            alert('请先登录再查看错题本');
+            return false;   // 阻止跳转
+        }
+        window.location.href = targetUrl;
+        return false;       // 阻止默认 a 链接跳转，由 JS 控制
+    },
     updateUserUI() {
         const user = this.getCurrentUser();
         const infoText = document.getElementById('userInfoText');
