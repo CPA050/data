@@ -13,7 +13,7 @@ export async function onRequestGet(context) {
 
     try {
         // 1. 从数据库中查询该用户的错题 (字段名必须与表结构一致)
-        const { results } = await env.DB.prepare(
+        const { results } = await env.exam_db.prepare(
             "SELECT id, question, correct_answer, user_answer FROM wrong_questions WHERE user_id = ?"
         ).bind(userId).all();
 
