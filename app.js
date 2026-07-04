@@ -1,5 +1,5 @@
 // ==========================================
-// 🚀 QuizApp 8.0 · 智能多用户错题库闭环引擎
+// 🚀 QuizApp 8.1 · 智能多用户错题库闭环引擎（已优化：自动返回首页）
 // ==========================================
 
 window.QuizApp = {
@@ -91,7 +91,6 @@ window.QuizApp = {
 
         if (isCorrect) {
             element.classList.add("correct");
-            // 🌟 核心：如果在错题模式下答对，且带有数据库 id，自动从数据库移除
             if (window.isWrongQuestionMode && q.id) {
                 this.deleteWrongQuestion(q.id);
             }
@@ -100,7 +99,6 @@ window.QuizApp = {
             const opts = element.parentNode.querySelectorAll(".opt");
             if (opts[q.a]) opts[q.a].classList.add("correct");
 
-            // 🌟 核心：答错时，如果用户已登录，自动同步到 D1 数据库
             const user = this.getCurrentUser();
             if (user) {
                 this.uploadWrongQuestion(user, q);
@@ -110,20 +108,24 @@ window.QuizApp = {
         this.renderGrid();
 
         setTimeout(() => {
+            // 🌟 逻辑优化：判断是否是最后一道题
             if (this.idx + 1 < this.activeBank.length) {
                 this.idx++;
                 this.renderCard(true);
-            } else if (window.isWrongQuestionMode) {
-                alert("🎉 恭喜你刷完了当前错题集！");
-                window.location.reload();
+            } else {
+                // 答完最后一题的处理
+                const done = this.record.filter(x => x !== null).length;
+                const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
+                const acc = done ? Math.round(correct / done * 100) : 0;
+                
+                alert(`🎉 答题结束！最终正确率：${acc}%。即将返回首页。`);
+                window.location.href = '/'; // 强制跳转回首页
             }
         }, 500);
     },
 
-    // 登录及用户标识管理
-    getCurrentUser() {
-        return localStorage.getItem('quiz_user_id');
-    },
+    // (其余函数保持不变...)
+    getCurrentUser() { return localStorage.getItem('quiz_user_id'); },
 
     checkLogin() {
         let user = this.getCurrentUser();
@@ -154,10 +156,7 @@ window.QuizApp = {
         }
     },
 
-    logout() {
-        localStorage.removeItem('quiz_user_id');
-        this.updateUserUI();
-    },
+    logout() { localStorage.removeItem('quiz_user_id'); this.updateUserUI(); },
 
     checkLoginBeforeGo(e) {
         if (!this.getCurrentUser()) {
@@ -167,7 +166,6 @@ window.QuizApp = {
         return true;
     },
 
-    // 异步 API：上传错题
     async uploadWrongQuestion(userId, questionData) {
         try {
             await fetch('/api/wrong-add', {
@@ -183,7 +181,6 @@ window.QuizApp = {
         } catch (err) { console.error("同步错题失败:", err); }
     },
 
-    // 异步 API：删除错题
     async deleteWrongQuestion(questionDbId) {
         try {
             const res = await fetch(`/api/wrong-delete?id=${questionDbId}`, { method: 'DELETE' });
@@ -191,7 +188,6 @@ window.QuizApp = {
         } catch (err) { console.error("自动删题异常:", err); }
     },
 
-    // 全局手势与点击事件保护机制
     bindGlobalEvents() {
         const app = document.getElementById("app");
         const folder = document.getElementById("gridFolder");
