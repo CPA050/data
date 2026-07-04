@@ -6,6 +6,7 @@
     <title>工程造价刷题系统</title>
     <link rel="stylesheet" href="style.css" />
     <style>
+        /* 增加按钮样式以匹配你的原风格 */
         button {
             display: block;
             width: 80%;
@@ -33,11 +34,12 @@
         
         <button onclick="QuizApp.start(false)">顺序刷题</button>
         <button onclick="QuizApp.start(true)">随机刷题</button>
+        <!-- 题库管理按钮：保留原样，使用模态框 -->
         <button class="manager-btn" onclick="QuizApp.showManager()">题库管理</button>
 
         <div class="home-footer-links" style="margin-top: 30px; display: flex; justify-content: center; border-top: 1px solid rgba(0, 0, 0, 0.08); padding-top: 20px;">
-            <!-- ✅ 仅修改此处：调用 showManager，不再跳转外部页面 -->
-            <a href="#" class="glass-btn-link" onclick="QuizApp.showManager(); return false;" style="display: inline-flex; align-items: center; text-decoration: none; color: #0071e3; font-size: 15px; font-weight: 500;">
+            <!-- 我的错题库：跳转到独立页面 wrong.html -->
+            <a href="/wrong.html" class="glass-btn-link" onclick="return QuizApp.checkLoginBeforeGo('/wrong.html')" style="display: inline-flex; align-items: center; text-decoration: none; color: #0071e3; font-size: 15px; font-weight: 500;">
                 <svg viewBox="0 0 24 24" class="btn-icon" style="width:18px; height:18px; fill:#0071e3; margin-right:6px;">
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
                 </svg>
