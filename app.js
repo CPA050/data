@@ -1,5 +1,5 @@
 // ==========================================
-// 🚀 QuizApp 7.0 · 高可靠淡入淡出答题引擎
+// 🚀 QuizApp 7.5 · 修复手势冲突 & 纯正苹果毛玻璃版
 // ==========================================
 
 window.QuizApp = {
@@ -7,8 +7,11 @@ window.QuizApp = {
     record: [],
     activeBank: [],
     
-    // 手势变量
-    startX: 0, moveX: 0,
+    // 滑动卡片变量
+    startX: 0, startY: 0,
+    isScrolling: false,
+
+    // 下拉面板变量
     folderStartY: 0, folderMoveY: 0,
 
     start(isRandom) {
@@ -28,17 +31,17 @@ window.QuizApp = {
         
         // 构建最为稳定的单张卡片骨架
         document.getElementById("app").innerHTML = `
-            <!-- 唯一的核心题目卡片，绝无重叠跑偏和空白问题 -->
+            <!-- 唯一的核心题目卡片 -->
             <div class="app-card" id="mainQuizCard"></div>
 
             <!-- 左下角总按钮 -->
-            <div class="glass-trigger" onclick="QuizApp.toggleFolder(true)">
+            <div class="glass-trigger" id="masterGlassBtn">
                 <svg viewBox="0 0 24 24">
                     <path d="M4 6h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 12h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 18h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/>
                 </svg>
             </div>
 
-            <div class="folder-overlay" id="folderOverlay" onclick="QuizApp.toggleFolder(false)"></div>
+            <div class="folder-overlay" id="folderOverlay"></div>
 
             <div class="grid-folder" id="gridFolder">
                 <div class="folder-drag-handle"></div>
@@ -49,13 +52,11 @@ window.QuizApp = {
         document.getElementById("app").className = "stage-container";
         document.getElementById("app").style.display = "block";
 
-        this.renderCard(false);     // 初始化首题，不加动画
-        this.bindSwipeEvents();      // 左右滑卡手势
-        this.bindFolderDragEvents(); // 面板下拉手势
-        this.renderGrid();
+        this.renderCard(false);      // 初始化第一题
+        this.bindGlobalEvents();     // 绑定改良后的安全事件体系
+        this.renderGrid();           // 渲染题号面板
     },
 
-    // 核心渲染：支持精致的“慢慢消失，慢慢显现”过渡
     renderCard(needAnimation) {
         const card = document.getElementById("mainQuizCard");
         if (!card) return;
@@ -65,7 +66,7 @@ window.QuizApp = {
         const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
         const acc = done ? Math.round(correct / done * 100) : 0;
 
-        // 构建内部 HTML 内容
+        // 构造卡片内部，使用普通的 onclick，由于改良了手势，这里绝不会被拦截
         const htmlContent = `
             <div id="top">正确率: ${acc}% | 进度: ${done}/${this.activeBank.length}</div>
             <h2>Q${this.idx + 1}. ${q.q}</h2>
@@ -80,16 +81,12 @@ window.QuizApp = {
         `;
 
         if (needAnimation) {
-            // 1. 先让卡片慢慢淡出消失
             card.classList.add("card-fade");
-            
-            // 2. 在消失的刹那间替换题目数据，然后重新慢慢淡入显现
             setTimeout(() => {
                 card.innerHTML = htmlContent;
                 card.classList.remove("card-fade");
-            }, 200);
+            }, 180);
         } else {
-            // 无动画直接展现（如首次进入或从面板跳转）
             card.innerHTML = htmlContent;
             card.classList.remove("card-fade");
         }
@@ -111,13 +108,12 @@ window.QuizApp = {
 
         this.renderGrid();
 
-        // 答完自动触发高级淡入淡出转场去下一题
         setTimeout(() => {
             if (this.idx + 1 < this.activeBank.length) {
                 this.idx++;
-                this.renderCard(true); // 开启转场动画
+                this.renderCard(true);
             }
-        }, 600);
+        }, 500);
     },
 
     toggleFolder(show) {
@@ -138,80 +134,80 @@ window.QuizApp = {
         }
     },
 
-    // 下拉手势
-    bindFolderDragEvents() {
+    // 🌟 改良版事件系统：分离点击与手势，彻底修复点不动的 Bug
+    bindGlobalEvents() {
+        const app = document.getElementById("app");
         const folder = document.getElementById("gridFolder");
-        if (!folder) return;
+        const trigger = document.getElementById("masterGlassBtn");
+        const overlay = document.getElementById("folderOverlay");
 
-        const start = (e) => {
+        // 1. 独立绑定左下角水晶按钮和遮罩的纯点击事件，绝不走手势逻辑
+        trigger.addEventListener("click", (e) => {
+            e.stopPropagation();
+            this.toggleFolder(true);
+        });
+        overlay.addEventListener("click", () => this.toggleFolder(false));
+
+        // 2. 改良版：左右划卡手势监听
+        app.addEventListener("touchstart", (e) => {
+            // 如果点在选项、悬浮球或文件夹内，不触发划卡判定
+            if (e.target.closest(".opt") || e.target.closest("#masterGlassBtn") || e.target.closest("#gridFolder")) return;
+            this.startX = e.touches[0].clientX;
+            this.startY = e.touches[0].clientY;
+            this.isScrolling = false;
+        }, { passive: true });
+
+        app.addEventListener("touchmove", (e) => {
+            if (!this.startX) return;
+            const moveX = e.touches[0].clientX;
+            const moveY = e.touches[0].clientY;
+            
+            // 如果垂直方向滑动的距离大于横向，认为是上下滚屏，放弃划卡
+            if (Math.abs(moveY - this.startY) > Math.abs(moveX - this.startX)) {
+                this.isScrolling = true;
+            }
+        }, { passive: true });
+
+        app.addEventListener("touchend", (e) => {
+            if (!this.startX || this.isScrolling) {
+                this.startX = 0; return;
+            }
+            const endX = e.changedTouches[0].clientX;
+            const deltaX = endX - this.startX;
+            const threshold = 60; // 必须划过 60 像素才触发
+
+            if (deltaX < -threshold && this.idx + 1 < this.activeBank.length) {
+                this.idx++; this.renderCard(true); // 下一题
+            } else if (deltaX > threshold && this.idx - 1 >= 0) {
+                this.idx--; this.renderCard(true); // 上一题
+            }
+            this.startX = 0;
+        });
+
+        // 3. 改良版：题号面板下拉收起手势
+        folder.addEventListener("touchstart", (e) => {
             if (document.getElementById("folderGrid").scrollTop > 0) return;
-            this.folderStartY = e.touches ? e.touches[0].clientY : e.clientY;
-            this.folderMoveY = this.folderStartY;
+            this.folderStartY = e.touches[0].clientY;
             folder.style.transition = "none"; 
-        };
+        }, { passive: true });
 
-        const move = (e) => {
+        folder.addEventListener("touchmove", (e) => {
             if (!this.folderStartY) return;
-            this.folderMoveY = e.touches ? e.touches[0].clientY : e.clientY;
+            this.folderMoveY = e.touches[0].clientY;
             const deltaY = this.folderMoveY - this.folderStartY;
             if (deltaY > 0) folder.style.transform = `translate3d(0, ${deltaY}px, 0)`;
-        };
+        }, { passive: true });
 
-        const end = () => {
+        folder.addEventListener("touchend", () => {
             if (!this.folderStartY) return;
             const deltaY = this.folderMoveY - this.folderStartY;
-            if (deltaY > 90) {
+            if (deltaY > 100) {
                 this.toggleFolder(false); 
             } else {
                 this.toggleFolder(true);  
             }
             this.folderStartY = 0; this.folderMoveY = 0;
-        };
-
-        folder.addEventListener("touchstart", start, { passive: true });
-        folder.addEventListener("touchmove", move, { passive: true });
-        folder.addEventListener("touchend", end);
-        folder.addEventListener("mousedown", start);
-        window.addEventListener("mousemove", move);
-        window.addEventListener("mouseup", end);
-    },
-
-    // 左右滑卡
-    bindSwipeEvents() {
-        const card = document.getElementById("app"); // 全局捕获
-
-        const start = (e) => {
-            if (e.target.classList.contains("opt") || e.target.closest(".glass-trigger") || e.target.closest(".grid-folder")) return;
-            this.startX = e.touches ? e.touches[0].clientX : e.clientX;
-            this.moveX = this.startX;
-        };
-
-        const move = (e) => {
-            if (!this.startX) return;
-            this.moveX = e.touches ? e.touches[0].clientX : e.clientX;
-        };
-
-        const end = () => {
-            if (!this.startX || !this.moveX) return;
-            const deltaX = this.moveX - this.startX;
-            const threshold = 60;
-
-            if (deltaX < -threshold && this.idx + 1 < this.activeBank.length) {
-                this.idx++;
-                this.renderCard(true); // 带动画切换
-            } else if (deltaX > threshold && this.idx - 1 >= 0) {
-                this.idx--;
-                this.renderCard(true); // 带动画切换
-            }
-            this.startX = 0; this.moveX = 0;
-        };
-
-        card.addEventListener("touchstart", start, { passive: true });
-        card.addEventListener("touchmove", move, { passive: true });
-        card.addEventListener("touchend", end);
-        card.addEventListener("mousedown", start);
-        window.addEventListener("mousemove", move);
-        window.addEventListener("mouseup", end);
+        });
     },
 
     renderGrid() {
@@ -230,12 +226,13 @@ window.QuizApp = {
                 d.classList.add("grid-active");
             }
 
-            d.onclick = (e) => {
+            // 题号小球纯点击响应
+            d.addEventListener("click", (e) => {
                 e.stopPropagation(); 
                 this.idx = i;
-                this.renderCard(false); // 跳转不拖沓，直接展现
+                this.renderCard(false); 
                 this.toggleFolder(false);
-            };
+            });
             grid.appendChild(d);
         });
     }
