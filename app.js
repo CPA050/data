@@ -87,7 +87,7 @@ window.QuizApp = {
         } else {
             card.innerHTML = htmlContent;
         }
-        this.renderGrid(); // 同步更新题号网格
+        this.renderGrid();
     },
 
     // 选择选项
@@ -118,7 +118,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 2. 题库管理（多用户，每个用户独立）
+    // 2. 题库管理（多用户，每个用户独立）—— 优化界面版
     // ------------------------------------------------------------
     async showManager() {
         const user = this.checkLogin();
@@ -127,13 +127,18 @@ window.QuizApp = {
         document.getElementById("app").style.display = "block";
         document.getElementById("app").className = "stage-container";
         document.getElementById("app").innerHTML = `
-            <div class="app-card">
-                <h2>📚 我的题库 (${user})</h2>
-                <div style="margin:15px 0;">
-                    <button onclick="QuizApp.showAddForm()" style="background:#34c759; color:#fff;">➕ 添加题目</button>
-                    <button onclick="window.location.reload()" style="background:#86868b; color:#fff;">返回首页</button>
+            <div class="app-card" style="padding:20px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <h2 style="margin:0; font-size:22px;">📚 我的题库</h2>
+                    <span style="font-size:14px; color:#86868b; background:rgba(0,0,0,0.05); padding:4px 12px; border-radius:20px;">👤 ${user}</span>
                 </div>
-                <div id="managerList" style="text-align:left; max-height: 400px; overflow-y: auto;">加载中...</div>
+                <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
+                    <button onclick="QuizApp.showAddForm()" style="flex:1; min-width:120px; background:#34c759; color:#fff; border:none; border-radius:12px; padding:12px 16px; font-size:15px; font-weight:600; cursor:pointer; box-shadow:0 4px 12px rgba(52,199,89,0.3); transition:0.2s;">➕ 添加题目</button>
+                    <button onclick="window.location.reload()" style="flex:1; min-width:120px; background:#86868b; color:#fff; border:none; border-radius:12px; padding:12px 16px; font-size:15px; font-weight:600; cursor:pointer; transition:0.2s;">🏠 返回首页</button>
+                </div>
+                <div id="managerList" style="text-align:left; max-height: 500px; overflow-y: auto; padding-right:4px;">
+                    <div style="text-align:center; padding:40px 0; color:#86868b;">加载中...</div>
+                </div>
             </div>
         `;
         await this.loadQuestionsForManage();
@@ -150,18 +155,38 @@ window.QuizApp = {
             const res = await fetch(`/api/questions?user_id=${encodeURIComponent(user)}`);
             const data = await res.json();
             if (!data || data.length === 0) {
-                list.innerHTML = "<div>暂无题目，点击「添加题目」创建第一道题。</div>";
+                list.innerHTML = `
+                    <div style="text-align:center; padding:50px 20px; background:rgba(255,255,255,0.3); border-radius:16px; border:2px dashed rgba(0,0,0,0.08);">
+                        <div style="font-size:48px; margin-bottom:12px;">📭</div>
+                        <div style="font-size:16px; color:#86868b;">暂无题目</div>
+                        <div style="font-size:14px; color:#a0a0a0; margin-top:4px;">点击「添加题目」创建第一道题</div>
+                    </div>
+                `;
                 return;
             }
-            list.innerHTML = data.map((q, i) => `
-                <div style="padding:10px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:8px;">
-                    <span style="flex:1;"><strong>${i+1}.</strong> ${q.q}</span>
-                    <button onclick="QuizApp.editQuestion(${q.id})" style="background:#0071e3; color:#fff; border:none; border-radius:8px; padding:4px 12px;">编辑</button>
-                    <button onclick="QuizApp.deleteQuestion(${q.id})" style="background:#ff3b30; color:#fff; border:none; border-radius:8px; padding:4px 12px;">删除</button>
+            const total = data.length;
+            list.innerHTML = `
+                <div style="font-size:13px; color:#86868b; margin-bottom:12px; padding:8px 12px; background:rgba(0,0,0,0.03); border-radius:8px;">
+                    共 <strong style="color:#1d1d1f;">${total}</strong> 道题
                 </div>
-            `).join('');
+                ${data.map((q, i) => `
+                    <div style="background:rgba(255,255,255,0.5); backdrop-filter:blur(10px); border-radius:14px; padding:14px 16px; margin-bottom:10px; border:1px solid rgba(255,255,255,0.6); box-shadow:0 2px 8px rgba(0,0,0,0.04); transition:0.2s; display:flex; align-items:center; gap:12px;">
+                        <div style="flex-shrink:0; width:28px; height:28px; background:#0071e3; color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600;">${i + 1}</div>
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-size:15px; font-weight:500; color:#1d1d1f; line-height:1.4; word-break:break-word;">${q.q}</div>
+                            <div style="font-size:12px; color:#86868b; margin-top:4px;">
+                                ${q.opts.length} 个选项 · 正确答案: ${q.opts[q.a] || q.a}
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:6px; flex-shrink:0;">
+                            <button onclick="QuizApp.editQuestion(${q.id})" style="background:#0071e3; color:#fff; border:none; border-radius:10px; padding:6px 14px; font-size:13px; font-weight:500; cursor:pointer; transition:0.2s;">✏️ 编辑</button>
+                            <button onclick="QuizApp.deleteQuestion(${q.id})" style="background:#ff3b30; color:#fff; border:none; border-radius:10px; padding:6px 14px; font-size:13px; font-weight:500; cursor:pointer; transition:0.2s;">🗑️ 删除</button>
+                        </div>
+                    </div>
+                `).join('')}
+            `;
         } catch (e) {
-            list.innerHTML = "加载失败：" + e.message;
+            list.innerHTML = `<div style="text-align:center; padding:40px; color:#ff3b30;">加载失败：${e.message}</div>`;
         }
     },
 
@@ -385,8 +410,6 @@ window.QuizApp = {
                 this.toggleFolder(false);
             });
         }
-        // 可选：触摸事件支持
-        // ...
     }
 };
 
