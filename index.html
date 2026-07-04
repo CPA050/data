@@ -20,6 +20,19 @@
             cursor: pointer;
         }
         .manager-btn { background: #5856d6; }
+        /* 退出按钮在状态栏内联，保持原样 */
+        .logout-btn {
+            display: none;
+            width: auto;
+            padding: 5px 12px;
+            margin-left: 10px;
+            font-size: 12px;
+            border: none;
+            border-radius: 8px;
+            background: #ff3b30;
+            color: #fff;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -27,14 +40,14 @@
     <div id="home">
         <div class="user-status-bar" id="userStatusBar" style="text-align: center; margin-bottom: 25px; font-size: 14px;">
             <span id="userInfoText" style="font-weight: 600; color: #86868b; cursor: pointer;" onclick="QuizApp.checkLogin()">👤 游客模式 (点击登录)</span>
-            <button onclick="QuizApp.logout()" class="logout-btn" style="display:none; width:auto; padding:5px 12px; margin-left:10px; font-size:12px; border:none; border-radius:8px; background:#ff3b30; color:#fff; cursor:pointer;">退出</button>
+            <button onclick="QuizApp.logout()" id="logoutBtn" class="logout-btn">退出</button>
         </div>
 
         <h1>工程造价 刷题系统</h1>
         
         <button onclick="QuizApp.start(false)">顺序刷题</button>
         <button onclick="QuizApp.start(true)">随机刷题</button>
-        <!-- 题库管理按钮：保留原样，使用模态框 -->
+        <!-- 题库管理按钮：使用模态框管理当前用户的题库 -->
         <button class="manager-btn" onclick="QuizApp.showManager()">题库管理</button>
 
         <div class="home-footer-links" style="margin-top: 30px; display: flex; justify-content: center; border-top: 1px solid rgba(0, 0, 0, 0.08); padding-top: 20px;">
@@ -50,7 +63,7 @@
 
     <div id="app" style="display:none;"></div>
 
-    <script src="questions.js"></script>
+    <!-- ✅ 已移除对 questions.js 的引用，因为题库现在从数据库动态加载 -->
     <script src="app.js"></script>
 
 </body>
