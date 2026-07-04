@@ -1,5 +1,5 @@
 /* ==========================================
-   🍏 刷题系统 5.0 · 顶级卡片转场与左下水晶球
+   🍏 刷题系统 5.1 · 终极全设备自适应与完美单页转场
    ========================================== */
 
 /* 全局基底 */
@@ -8,7 +8,7 @@ body {
     background: linear-gradient(135deg, #e0e5ec 0%, #eedee6 50%, #e4eaf5 100%) !important;
     color: #1d1d1f !important;
     margin: 0;
-    padding: 20px;
+    padding: 16px;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -18,136 +18,147 @@ body {
     overflow-x: hidden;
 }
 
-/* 🍏 容器（外层舞台）：负责全设备自适应 */
+/* 🍏 统一外层容器：自适应手机与电脑 */
 .stage-container {
     width: 100%;
-    max-width: 540px;
+    max-width: 480px; /* 电脑端黄金宽度 */
+    margin: 0 auto;
     position: relative;
     box-sizing: border-box;
 }
 
-/* 首页与主程序公共毛玻璃效果 */
-#home, .app-card {
+/* 首页基本样式 */
+#home {
     background: rgba(255, 255, 255, 0.45) !important;
     backdrop-filter: blur(25px) saturate(190%);
     -webkit-backdrop-filter: blur(25px) saturate(190%);
-    width: 100%;
     padding: 30px;
+    border-radius: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.5) !important; 
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.03);
+    box-sizing: border-box;
+}
+
+/* 🎬 核心：3D 舞台视口，锁死大小，防止题目溢出堆叠 */
+.card-scene {
+    width: 100%;
+    position: relative;
+    height: 520px; /* 无论电脑手机，统一固定舞台高度，完美实现“一题一页” */
+    perspective: 1000px;
+}
+
+/* 💎 独立题目卡片：绝对定位重叠，实现高级淡入淡出 */
+.app-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%; /* 填满舞台 */
+    padding: 25px;
+    background: rgba(255, 255, 255, 0.45) !important;
+    backdrop-filter: blur(25px) saturate(190%);
+    -webkit-backdrop-filter: blur(25px) saturate(190%);
     border-radius: 28px;
     border: 1px solid rgba(255, 255, 255, 0.5) !important; 
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.03),
                 inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
     box-sizing: border-box;
-}
-
-/* 🚀 核心：用于卡片整体滑屏的视口舞台 */
-.card-scene {
-    width: 100%;
-    position: relative;
-    perspective: 1000px; /* 为高级转场提供视距 */
-    overflow: hidden;
-    min-height: 480px; /* 保证电脑端也有舒适的最小高度 */
-}
-
-/* 💎 独立题目卡片：实现“一个消失、一个显现”的载体 */
-.app-card {
-    position: absolute;
-    top: 0;
-    left: 0;
-    opacity: 0;
-    pointer-events: none;
-    transform: translateX(50px); /* 默认从右侧来 */
-    /* 极致高级的转场曲线：结合透明度与位移 */
-    transition: transform 0.5s cubic-bezier(0.23, 1, 0.32, 1), 
-                opacity 0.5s cubic-bezier(0.23, 1, 0.32, 1);
     display: flex;
     flex-direction: column;
+    overflow-y: auto; /* 单个题目如果字数太多，允许在卡片内部滚动 */
+    
+    /* 核心：进出场动画初始状态 */
+    opacity: 0;
+    pointer-events: none;
+    transform: translate3d(60px, 0, 0); 
+    transition: transform 0.45s cubic-bezier(0.215, 0.610, 0.355, 1), 
+                opacity 0.45s cubic-bezier(0.215, 0.610, 0.355, 1);
 }
+/* 隐藏卡片内部滚动条 */
+.app-card::-webkit-scrollbar { width: 0; }
 
-/* 当前激活显示的卡片 */
+/* 🔥 当前呈现在用户眼前的唯一一张卡片 */
 .app-card.active-card {
-    position: relative; /* 撑开外层视口高度，完美自适应电脑 */
     opacity: 1;
     pointer-events: auto;
-    transform: translateX(0);
-    z-index: 2;
+    transform: translate3d(0, 0, 0);
+    z-index: 10;
 }
 
-/* 正在退出的卡片（向左滑走并淡出） */
+/* 往左划走消失（去下一题时，老卡片的动态） */
 .app-card.exit-left {
     opacity: 0;
-    transform: translateX(-50px);
+    pointer-events: none;
+    transform: translate3d(-60px, 0, 0);
     z-index: 1;
 }
 
-/* 正在退出的卡片（向右滑走并淡出） */
+/* 往右划走消失（回上一题时，老卡片的动态） */
 .app-card.exit-right {
     opacity: 0;
-    transform: translateX(50px);
+    pointer-events: none;
+    transform: translate3d(60px, 0, 0);
     z-index: 1;
 }
 
-/* 文本与基础控件 */
-h1 { text-align: center; color: #1d1d1f; font-size: 26px; font-weight: 700; margin-bottom: 30px; }
-h2 { font-size: 19px; font-weight: 600; color: #1d1d1f; line-height: 1.5; margin: 0 0 20px 0; }
-#top { font-size: 13px; font-weight: 600; color: #86868b; padding-bottom: 14px; border-bottom: 1px solid rgba(0, 0, 0, 0.06); margin-bottom: 20px; }
+/* 基础文字排版 */
+h1 { text-align: center; color: #1d1d1f; font-size: 25px; font-weight: 700; margin-bottom: 30px; }
+h2 { font-size: 18px; font-weight: 600; color: #1d1d1f; line-height: 1.5; margin: 0 0 16px 0; }
+#top { font-size: 13px; font-weight: 600; color: #86868b; padding-bottom: 12px; border-bottom: 1px solid rgba(0, 0, 0, 0.06); margin-bottom: 16px; flex-shrink: 0; }
 
-/* 按钮与选项 */
+/* 首页按钮 */
 button {
     display: block; width: 100%; padding: 16px; margin: 16px 0;
     background: #0071e3 !important; color: #ffffff !important; border: none !important;
     border-radius: 14px; font-size: 17px; font-weight: 600; cursor: pointer;
     box-shadow: 0 4px 12px rgba(0, 113, 227, 0.15); transition: all 0.25s;
 }
-button:hover { transform: scale(1.01); }
 #home button:nth-of-type(2) { background: rgba(0, 0, 0, 0.04) !important; color: #0071e3 !important; box-shadow: none; }
 
+/* 选项样式 */
 .opt {
     background: rgba(255, 255, 255, 0.5) !important; color: #1d1d1f !important;
     border: 1px solid rgba(255, 255, 255, 0.4) !important; border-radius: 14px;
-    padding: 16px 20px; margin: 10px 0; font-size: 16px; cursor: pointer;
+    padding: 15px 18px; margin: 8px 0; font-size: 15px; cursor: pointer;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.opt:hover { background: rgba(255, 255, 255, 0.8) !important; border-color: rgba(0, 113, 227, 0.3) !important; }
+.opt:hover { background: rgba(255, 255, 255, 0.8) !important; border-color: rgba(0, 113, 227, 0.2) !important; }
 .opt.correct { background: rgba(52, 199, 89, 0.15) !important; border-color: rgba(52, 199, 89, 0.4) !important; color: #1e7e34 !important; font-weight: 600; }
 .opt.wrong { background: rgba(255, 59, 48, 0.12) !important; border-color: rgba(255, 59, 48, 0.3) !important; color: #b3261e !important; font-weight: 600; }
 
 /* ==========================================
-   🔮 悬浮控制：左下角悬浮玻璃水晶球
+   🔮 悬浮控制：左下角固定悬浮玻璃球
    ========================================== */
 .glass-trigger {
     position: fixed;
-    left: 25px;
-    bottom: 25px;
-    width: 50px;
-    height: 50px;
+    left: 20px;
+    bottom: 20px;
+    width: 48px;
+    height: 48px;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.7) 0%, rgba(210, 225, 245, 0.5) 100%) !important;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(215, 225, 245, 0.55) 100%) !important;
     border: 1px solid rgba(255, 255, 255, 0.6) !important;
     backdrop-filter: blur(15px);
     -webkit-backdrop-filter: blur(15px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06),
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05),
                 inset 0 2px 4px rgba(255, 255, 255, 0.7) !important;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 999; /* 永远在最上层 */
-    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.2), box-shadow 0.3s;
+    z-index: 999;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.2);
 }
-.glass-trigger:hover {
-    transform: scale(1.1) rotate(45deg);
-    box-shadow: 0 10px 25px rgba(0, 113, 227, 0.15) !important;
-}
-.glass-trigger svg { width: 20px; height: 20px; fill: #0071e3; }
+.glass-trigger:hover { transform: scale(1.1) rotate(45deg); }
+.glass-trigger svg { width: 18px; height: 18px; fill: #0071e3; }
 
 /* ==========================================
-   🍏 iOS 文件夹式网格弹窗（硬件加速，极度丝滑）
+   🍏 iOS 文件夹式网格弹窗
    ========================================== */
 .grid-folder {
     position: fixed;
     bottom: 0; left: 0; width: 100%; height: 75vh;
-    background: rgba(245, 245, 247, 0.8) !important;
+    background: rgba(245, 245, 247, 0.82) !important;
     backdrop-filter: blur(35px) saturate(210%);
     -webkit-backdrop-filter: blur(35px) saturate(210%);
     border-radius: 30px 30px 0 0;
@@ -156,16 +167,10 @@ button:hover { transform: scale(1.01); }
     z-index: 1000;
     box-sizing: border-box; padding: 25px;
     display: flex; flex-direction: column;
-    
-    /* 🔴 关键改动：使用 transform 替代 bottom，走显卡加速，丝滑不掉帧 */
     transform: translateY(100%);
-    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform 0.45s cubic-bezier(0.25, 1, 0.5, 1);
 }
-
-/* 激活弹窗 */
-.grid-folder.active {
-    transform: translateY(0);
-}
+.grid-folder.active { transform: translateY(0); }
 
 .folder-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-shrink: 0; }
 .folder-title { font-size: 16px; font-weight: 600; color: #1d1d1f; }
@@ -177,7 +182,6 @@ button:hover { transform: scale(1.01); }
 }
 .folder-grid-content::-webkit-scrollbar { width: 0; }
 
-/* 经典正圆编号球 */
 .qbtn {
     aspect-ratio: 1; background: rgba(255, 255, 255, 0.6) !important;
     color: #1d1d1f !important; border: 1px solid rgba(0, 0, 0, 0.05) !important;
