@@ -1,5 +1,5 @@
 // ==========================================
-// 🚀 QuizApp 核心逻辑 5.1 · 单页重叠式舞台引擎
+// 🚀 QuizApp 核心逻辑 6.0 · 全手势与独立玻璃小球版
 // ==========================================
 
 window.QuizApp = {
@@ -7,9 +7,13 @@ window.QuizApp = {
     record: [],
     activeBank: [],
     
-    // 触屏滑动变量
+    // 触屏滑动卡片变量
     startX: 0,
     moveX: 0,
+
+    // 下拉收起面板手势变量
+    folderStartY: 0,
+    folderMoveY: 0,
 
     start(isRandom) {
         const bank = window.QUESTION_BANK || QUESTION_BANK;
@@ -26,26 +30,26 @@ window.QuizApp = {
         this.idx = 0;
         this.record = new Array(this.activeBank.length).fill(null);
 
-        // 隐藏主页
         document.getElementById("home").style.display = "none";
         
-        // 渲染基础外层架构
+        // 动态架设具有：遮罩层、无背景面板、手势触屏的完美 DOM 结构
         document.getElementById("app").innerHTML = `
+            <!-- 场景舞台 -->
             <div class="card-scene" id="cardScene"></div>
 
-            <!-- 左下角悬浮水晶球按钮 -->
+            <!-- 左下角悬浮控制按钮 -->
             <div class="glass-trigger" onclick="QuizApp.toggleFolder(true)">
                 <svg viewBox="0 0 24 24">
                     <path d="M4 6h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 12h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 18h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/>
                 </svg>
             </div>
 
-            <!-- 🍏 iOS 文件夹弹窗 -->
+            <!-- 空白区域遮罩（点击直接收回面板） -->
+            <div class="folder-overlay" id="folderOverlay" onclick="QuizApp.toggleFolder(false)"></div>
+
+            <!-- 🍏 iOS 无色背景题号文件夹（支持触屏向下滑动收回） -->
             <div class="grid-folder" id="gridFolder">
-                <div class="folder-header">
-                    <span class="folder-title">全部题目 (${this.activeBank.length})</span>
-                    <span class="folder-close" onclick="QuizApp.toggleFolder(false)">完成</span>
-                </div>
+                <div class="folder-drag-handle"></div>
                 <div class="folder-grid-content" id="folderGrid"></div>
             </div>
         `;
@@ -53,12 +57,13 @@ window.QuizApp = {
         document.getElementById("app").className = "stage-container";
         document.getElementById("app").style.display = "block";
 
-        this.renderCard();     // 初始化渲染第一张卡片
-        this.bindSwipeEvents(); // 注入滑动事件
-        this.renderGrid();     // 初始化网格
+        this.renderCard();          // 初次渲染第一张卡片
+        this.bindSwipeEvents();      // 绑定卡片左右划手势
+        this.bindFolderDragEvents(); // 绑定面板下拉收回手势
+        this.renderGrid();          // 初始化题号球
     },
 
-    // 渲染卡片：direction 可以是 "next"、"prev" 或不传
+    // 渲染卡片：完美的一题一页，绝不溢出跑偏
     renderCard(direction) {
         const scene = document.getElementById("cardScene");
         if (!scene) return;
@@ -68,15 +73,14 @@ window.QuizApp = {
         const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
         const acc = done ? Math.round(correct / done * 100) : 0;
 
-        // 1. 创建新卡片
         const newCard = document.createElement("div");
         newCard.className = "app-card";
         
-        // 如果是切题，先设置新卡片在空气中的进场初始偏移动画
+        // 设定新卡片滑入初始动画偏移量
         if (direction === "next") {
-            newCard.style.transform = "translate3d(60px, 0, 0)";
+            newCard.style.transform = "translate3d(100%, 0, 0)";
         } else if (direction === "prev") {
-            newCard.style.transform = "translate3d(-60px, 0, 0)";
+            newCard.style.transform = "translate3d(-100%, 0, 0)";
         } else {
             newCard.style.transform = "translate3d(0, 0, 0)";
         }
@@ -94,7 +98,6 @@ window.QuizApp = {
             }).join("")}
         `;
 
-        // 2. 让老卡片滑出并慢慢消失
         const oldCard = scene.querySelector(".active-card");
         if (oldCard) {
             oldCard.classList.remove("active-card");
@@ -103,11 +106,9 @@ window.QuizApp = {
             } else if (direction === "prev") {
                 oldCard.classList.add("exit-right");
             }
-            // 动画完成后销毁老卡片，保证页面永远干净
             setTimeout(() => oldCard.remove(), 450);
         }
 
-        // 3. 将新卡片推入舞台，触发淡入显现
         scene.appendChild(newCard);
         requestAnimationFrame(() => {
             newCard.classList.add("active-card");
@@ -130,7 +131,6 @@ window.QuizApp = {
 
         this.renderGrid();
 
-        // 自动切到下一题
         setTimeout(() => {
             if (this.idx + 1 < this.activeBank.length) {
                 this.idx++;
@@ -139,17 +139,73 @@ window.QuizApp = {
         }, 650);
     },
 
+    // 控制面板和空白遮罩的开启与关闭
     toggleFolder(show) {
         const folder = document.getElementById("gridFolder");
-        if (!folder) return;
+        const overlay = document.getElementById("folderOverlay");
+        if (!folder || !overlay) return;
+
         if (show) {
+            folder.style.transition = "transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)";
             folder.classList.add("active");
+            overlay.classList.add("active");
             this.renderGrid();
         } else {
+            folder.style.transition = "transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)";
+            folder.style.transform = ""; // 还原拖拽造成的位移影响
             folder.classList.remove("active");
+            overlay.classList.remove("active");
         }
     },
 
+    // 🍏 新增核心：处理题号面板“向下滑动（下拉手势）”自动收回逻辑
+    bindFolderDragEvents() {
+        const folder = document.getElementById("gridFolder");
+        if (!folder) return;
+
+        const start = (e) => {
+            // 如果是在题号列表内部向上滚动，不干扰其正常滑动
+            if (document.getElementById("folderGrid").scrollTop > 0) return;
+            
+            this.folderStartY = e.touches ? e.touches[0].clientY : e.clientY;
+            this.folderMoveY = this.folderStartY;
+            folder.style.transition = "none"; // 拖动时临时取消过渡实现极速跟手
+        };
+
+        const move = (e) => {
+            if (!this.folderStartY) return;
+            this.folderMoveY = e.touches ? e.touches[0].clientY : e.clientY;
+            const deltaY = this.folderMoveY - this.folderStartY;
+
+            if (deltaY > 0) { // 仅允许向下拖拽
+                folder.style.transform = `translate3d(0, ${deltaY}px, 0)`;
+            }
+        };
+
+        const end = () => {
+            if (!this.folderStartY) return;
+            const deltaY = this.folderMoveY - this.folderStartY;
+            const threshold = 100; // 下拉超过 100 像素即判定为收起手势
+
+            if (deltaY > threshold) {
+                this.toggleFolder(false); // 成功收起
+            } else {
+                this.toggleFolder(true);  // 没拉到位，优雅弹回顶部
+            }
+            this.folderStartY = 0;
+            this.folderMoveY = 0;
+        };
+
+        folder.addEventListener("touchstart", start, { passive: true });
+        folder.addEventListener("touchmove", move, { passive: true });
+        folder.addEventListener("touchend", end);
+
+        folder.addEventListener("mousedown", start);
+        window.addEventListener("mousemove", move);
+        window.addEventListener("mouseup", end);
+    },
+
+    // 绑定卡片手势
     bindSwipeEvents() {
         const scene = document.getElementById("cardScene");
         if (!scene) return;
@@ -168,7 +224,7 @@ window.QuizApp = {
         const end = () => {
             if (!this.startX || !this.moveX) return;
             const deltaX = this.moveX - this.startX;
-            const threshold = 50; 
+            const threshold = 50;
 
             if (deltaX < -threshold && this.idx + 1 < this.activeBank.length) {
                 this.idx++;
@@ -206,7 +262,8 @@ window.QuizApp = {
                 d.classList.add("grid-active");
             }
 
-            d.onclick = () => {
+            d.onclick = (e) => {
+                e.stopPropagation(); // 阻止冒泡
                 const direction = i > this.idx ? "next" : "prev";
                 this.idx = i;
                 this.renderCard(direction);
@@ -217,4 +274,4 @@ window.QuizApp = {
     }
 };
 
-console.log("🍏 终极自适应重叠式舞台转场引擎已启动");
+console.log("🍏 终极修复：卡片防跑偏与下拉收起引擎已启动");
