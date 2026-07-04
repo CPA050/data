@@ -6,7 +6,6 @@
     <title>工程造价刷题系统</title>
     <link rel="stylesheet" href="style.css" />
     <style>
-        /* 增加按钮样式以匹配你的原风格 */
         button {
             display: block;
             width: 80%;
@@ -34,11 +33,11 @@
         
         <button onclick="QuizApp.start(false)">顺序刷题</button>
         <button onclick="QuizApp.start(true)">随机刷题</button>
-        <!-- 新增题库管理按钮 -->
         <button class="manager-btn" onclick="QuizApp.showManager()">题库管理</button>
 
         <div class="home-footer-links" style="margin-top: 30px; display: flex; justify-content: center; border-top: 1px solid rgba(0, 0, 0, 0.08); padding-top: 20px;">
-            <a href="/wrong.html" class="glass-btn-link" onclick="return QuizApp.checkLogin()" style="display: inline-flex; align-items: center; text-decoration: none; color: #0071e3; font-size: 15px; font-weight: 500;">
+            <!-- ✅ 修改这里：href 改为 #，onclick 调用新方法 -->
+            <a href="#" class="glass-btn-link" onclick="return QuizApp.checkLoginBeforeGo('/wrong.html')" style="display: inline-flex; align-items: center; text-decoration: none; color: #0071e3; font-size: 15px; font-weight: 500;">
                 <svg viewBox="0 0 24 24" class="btn-icon" style="width:18px; height:18px; fill:#0071e3; margin-right:6px;">
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
                 </svg>
