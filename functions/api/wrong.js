@@ -12,28 +12,27 @@ export async function onRequestGet(context) {
     }
 
     try {
-        // 🔧 改动1：用 SELECT * 避免字段名硬编码
+        // 查询该用户的所有错题
         const { results } = await env.exam_db.prepare(
-            "SELECT * FROM wrong_questions WHERE user_id = ?"
+            "SELECT id, q, opts, a FROM wrong_questions WHERE user_id = ? ORDER BY created_at DESC"
         ).bind(userId).all();
 
-        // 如果没有数据，直接返回空数组
-        if (!results || results.length === 0) {
-            return new Response(JSON.stringify([]), {
-                headers: { 
-                    "Content-Type": "application/json;charset=UTF-8",
-                    "Cache-Control": "no-cache" 
-                }
-            });
-        }
-
-        // 🔧 改动2：动态映射，兼容常见字段名
-        const formattedResults = results.map(item => ({
-            id: item.id,
-            q: item.question || item.content || item.text || '',           // 题目
-            answer: item.correct_answer || item.answer || item.correct || '', // 正确答案
-            user_choice: item.user_answer || item.selected || item.user_choice || '' // 用户选择
-        }));
+        // 格式化输出给前端
+        const formattedResults = results.map(item => {
+            let optsArray = [];
+            try {
+                optsArray = JSON.parse(item.opts || '[]');
+            } catch (e) {
+                optsArray = [];
+            }
+            return {
+                id: item.id,
+                q: item.q,
+                answer: optsArray[item.a] || '',
+                user_choice: '', // 你的表没有存用户选择，留空
+                opts: optsArray
+            };
+        });
 
         return new Response(JSON.stringify(formattedResults), {
             headers: { 
@@ -43,7 +42,10 @@ export async function onRequestGet(context) {
         });
 
     } catch (err) {
-        return new Response(JSON.stringify({ error: err.message, stack: err.stack }), {
+        return new Response(JSON.stringify({ 
+            error: err.message, 
+            stack: err.stack 
+        }), {
             status: 500,
             headers: { "Content-Type": "application/json;charset=UTF-8" }
         });
