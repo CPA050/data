@@ -1,5 +1,5 @@
 // ==========================================
-// 🚀 QuizApp 10.0 · 完整版（含章节导航 + 所有功能）
+// 🚀 QuizApp 10.0 · 完整版（含章节导航）
 // ==========================================
 
 window.QuizApp = {
@@ -25,15 +25,15 @@ window.QuizApp = {
     _isRestoring: false,
     _isFinishing: false,
 
-    // 章节相关
+    // 🆕 章节相关
     _allChapters: [],
     _selectedChapters: [],
-    _allQuestions: [],
     _isChapterMode: false,
-    _currentQuestions: [],
+    _currentLimit: -1,
+    _isRandom: false,
 
     // ------------------------------------------------------------
-    // 1. 核心业务
+    // 1. 核心业务：加载并开始答题（已增加章节筛选）
     // ------------------------------------------------------------
     async start(isRandom, limit = -1, source = 'all', selectedChapters = null) {
         const user = this.getCurrentUser();
@@ -42,7 +42,9 @@ window.QuizApp = {
             this._source = source;
             this._isFinishing = false;
             this._isRandom = isRandom;
+            this._currentLimit = limit;
 
+            // 🆕 构建请求 URL（支持章节筛选）
             let url = `/api/questions?user_id=${encodeURIComponent(user)}`;
             if (selectedChapters && selectedChapters.length > 0) {
                 const chaptersParam = selectedChapters.map(c => encodeURIComponent(c)).join(',');
@@ -57,16 +59,16 @@ window.QuizApp = {
             const res = await fetch(url);
             const data = await res.json();
 
+            // 🆕 提取章节列表
             this._allChapters = data.chapters || [];
+            let bank = data.questions || data; // 兼容新旧格式
 
-            let bank = data.questions || [];
             if (!bank || bank.length === 0) {
                 alert("❌ 当前筛选范围没有题目，请调整章节选择。");
                 return;
             }
 
-            this._allQuestions = bank;
-
+            // 错题模式暂不支持章节筛选
             if (source === 'wrong') {
                 const wrongRes = await fetch(`/api/wrong?user_id=${encodeURIComponent(user)}`);
                 const wrongData = await wrongRes.json();
@@ -79,18 +81,17 @@ window.QuizApp = {
                     q: item.q,
                     opts: item.opts || [],
                     a: item.answer !== undefined ? item.opts.indexOf(item.answer) : 0,
-                    _wrongId: item.id,
-                    chapter: item.chapter || null
+                    _wrongId: item.id
                 }));
                 this._wrongIdMap = {};
                 bank.forEach(item => {
                     this._wrongIdMap[item.id] = item._wrongId;
                 });
-                this._isChapterMode = false;
             } else {
                 this._wrongIdMap = {};
             }
 
+            // 处理数量限制
             let selectedBank = [];
             if (limit === -1 || limit >= bank.length) {
                 selectedBank = bank;
@@ -128,9 +129,11 @@ window.QuizApp = {
             this._consecutiveWrong = 0;
             this._sessionId = Date.now() + '_' + Math.random().toString(36).substr(2, 6);
 
+            // 🆕 渲染界面（加入章节导航）
             document.getElementById("home").style.display = "none";
             document.getElementById("app").innerHTML = `
                 <div class="app-card" id="mainQuizCard">
+                    <!-- 章节导航 -->
                     <div class="chapter-nav" id="chapterNav">
                         <button class="chapter-btn active" data-chapter="全部" onclick="QuizApp.selectChapter('全部')">📚 全部</button>
                         ${this._allChapters.map(ch => `
@@ -165,56 +168,9 @@ window.QuizApp = {
         }
     },
 
-    // 章节选择
-    selectChapter(chapter) {
-        const allBtn = document.querySelector('.chapter-btn[data-chapter="全部"]');
-        const btns = document.querySelectorAll('.chapter-btn');
-
-        if (chapter === '全部') {
-            this._selectedChapters = [];
-            btns.forEach(btn => btn.classList.remove('active'));
-            if (allBtn) allBtn.classList.add('active');
-            this._isChapterMode = false;
-            this.start(this._isRandom || false, this._currentLimit || -1, this._source || 'all', null);
-            return;
-        }
-
-        const btn = document.querySelector(`.chapter-btn[data-chapter="${chapter}"]`);
-        if (!btn) return;
-
-        const isActive = btn.classList.contains('active');
-        if (isActive) {
-            btn.classList.remove('active');
-            this._selectedChapters = this._selectedChapters.filter(c => c !== chapter);
-        } else {
-            btn.classList.add('active');
-            this._selectedChapters.push(chapter);
-            if (allBtn) allBtn.classList.remove('active');
-        }
-
-        if (this._selectedChapters.length === 0) {
-            if (allBtn) allBtn.classList.add('active');
-            this._isChapterMode = false;
-            this.start(this._isRandom || false, this._currentLimit || -1, this._source || 'all', null);
-            return;
-        }
-
-        this._isChapterMode = true;
-        this.start(this._isRandom || false, this._currentLimit || -1, this._source || 'all', this._selectedChapters);
-    },
-
-    updateChapterButtons(selectedChapters) {
-        const btns = document.querySelectorAll('.chapter-btn');
-        btns.forEach(btn => {
-            const ch = btn.dataset.chapter;
-            if (ch === '全部') {
-                btn.classList.toggle('active', !selectedChapters || selectedChapters.length === 0);
-            } else {
-                btn.classList.toggle('active', selectedChapters && selectedChapters.includes(ch));
-            }
-        });
-    },
-
+    // ------------------------------------------------------------
+    // 2. 渲染题目卡片（改用 #quizContent）
+    // ------------------------------------------------------------
     renderCard(needAnimation) {
         const content = document.getElementById("quizContent");
         if (!content) return;
@@ -228,6 +184,7 @@ window.QuizApp = {
         const circumference = 94.2;
         const offset = circumference * (1 - percent / 100);
 
+        // 🆕 显示当前筛选信息
         let filterInfo = '';
         if (this._isChapterMode && this._selectedChapters.length > 0) {
             filterInfo = ` | 筛选: ${this._selectedChapters.join(' + ')}`;
@@ -279,9 +236,59 @@ window.QuizApp = {
         }
         this.renderGrid();
         this.saveSessionContext();
-        this.updateChapterButtons(this._selectedChapters);
+        // 🆕 更新章节按钮高亮
+        this.updateChapterButtons();
     },
 
+    // ------------------------------------------------------------
+    // 3. 章节选择（多选支持）
+    // ------------------------------------------------------------
+    selectChapter(chapter) {
+        const allBtn = document.querySelector('.chapter-btn[data-chapter="全部"]');
+        if (chapter === '全部') {
+            this._selectedChapters = [];
+            document.querySelectorAll('.chapter-btn').forEach(btn => btn.classList.remove('active'));
+            if (allBtn) allBtn.classList.add('active');
+            this._isChapterMode = false;
+            this.start(this._isRandom, this._currentLimit, this._source, null);
+            return;
+        }
+        const btn = document.querySelector(`.chapter-btn[data-chapter="${chapter}"]`);
+        if (!btn) return;
+        const isActive = btn.classList.contains('active');
+        if (isActive) {
+            btn.classList.remove('active');
+            this._selectedChapters = this._selectedChapters.filter(c => c !== chapter);
+        } else {
+            btn.classList.add('active');
+            this._selectedChapters.push(chapter);
+            if (allBtn) allBtn.classList.remove('active');
+        }
+        if (this._selectedChapters.length === 0) {
+            if (allBtn) allBtn.classList.add('active');
+            this._isChapterMode = false;
+            this.start(this._isRandom, this._currentLimit, this._source, null);
+            return;
+        }
+        this._isChapterMode = true;
+        this.start(this._isRandom, this._currentLimit, this._source, this._selectedChapters);
+    },
+
+    updateChapterButtons() {
+        const btns = document.querySelectorAll('.chapter-btn');
+        btns.forEach(btn => {
+            const ch = btn.dataset.chapter;
+            if (ch === '全部') {
+                btn.classList.toggle('active', !this._selectedChapters || this._selectedChapters.length === 0);
+            } else {
+                btn.classList.toggle('active', this._selectedChapters && this._selectedChapters.includes(ch));
+            }
+        });
+    },
+
+    // ------------------------------------------------------------
+    // 4. 其他核心方法（goHome, select, createRipple, finishBatch）
+    // ------------------------------------------------------------
     goHome() {
         this.clearSessionContext();
         window.location.href = '/';
@@ -424,7 +431,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 2. 题库管理
+    // 5. 题库管理（含章节输入）
     // ------------------------------------------------------------
     async showManager() {
         const user = this.checkLogin();
@@ -548,6 +555,7 @@ window.QuizApp = {
             alert("序号无效");
             return;
         }
+        // 🆕 增加章节输入
         const chapter = prompt("请输入章节名称（如：第1章 毛泽东思想，留空则不分类）：");
         this.submitQuestion({ q, opts, a, chapter: chapter || '' });
     },
@@ -613,6 +621,7 @@ window.QuizApp = {
             alert("序号无效");
             return;
         }
+        // 🆕 增加章节编辑
         const newChapter = prompt("编辑章节名称（留空则不修改）：", q.chapter || '');
         try {
             const updateRes = await fetch('/api/questions-update', {
@@ -620,7 +629,7 @@ window.QuizApp = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     user_id: user,
-                    id,
+                    id: id,
                     q: newQ,
                     opts: newOpts,
                     a: newA,
@@ -640,7 +649,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 3. 用户管理
+    // 6. 用户管理
     // ------------------------------------------------------------
     getCurrentUser() { return localStorage.getItem('quiz_user_id'); },
 
@@ -688,7 +697,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 4. 错题相关
+    // 7. 错题相关
     // ------------------------------------------------------------
     async uploadWrongQuestion(userId, q) {
         try {
@@ -711,7 +720,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 5. 导航网格
+    // 8. 导航网格
     // ------------------------------------------------------------
     toggleFolder(show) {
         const folder = document.getElementById('gridFolder');
@@ -822,7 +831,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 6. 事件绑定
+    // 9. 事件绑定
     // ------------------------------------------------------------
     bindGlobalEvents() {
         const btn = document.getElementById('masterGlassBtn');
@@ -924,7 +933,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 7. 主题系统
+    // 10. 主题系统
     // ------------------------------------------------------------
     setTheme(theme) {
         const body = document.body;
@@ -1061,7 +1070,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 8. 设置面板
+    // 11. 设置面板
     // ------------------------------------------------------------
     toggleSettings(force) {
         const modal = document.getElementById('settingsModal');
@@ -1139,7 +1148,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 9. Toast 提示
+    // 12. Toast
     // ------------------------------------------------------------
     showToast(message, duration = 2500) {
         const container = document.getElementById('toastContainer');
@@ -1159,7 +1168,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 10. 引导气泡
+    // 13. 引导气泡
     // ------------------------------------------------------------
     showTooltip(text, duration = 5000) {
         const bubble = document.getElementById('tooltipBubble');
@@ -1180,7 +1189,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 11. 快捷键帮助
+    // 14. 快捷键帮助
     // ------------------------------------------------------------
     openShortcutHelp() {
         document.getElementById('shortcutHelp').style.display = 'flex';
@@ -1191,7 +1200,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 12. 会话上下文
+    // 15. 会话上下文
     // ------------------------------------------------------------
     saveSessionContext() {
         if (this._isRestoring) return;
@@ -1301,7 +1310,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 13. 智能提示
+    // 16. 智能提示
     // ------------------------------------------------------------
     async checkSmartPrompts() {
         const user = this.getCurrentUser();
@@ -1343,7 +1352,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 14. 数量选择弹窗
+    // 17. 数量选择弹窗
     // ------------------------------------------------------------
     showQuantityModal(mode) {
         const modal = document.getElementById('quantityModal');
@@ -1447,7 +1456,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 15. 进度管理
+    // 18. 进度管理
     // ------------------------------------------------------------
     getProgress(user) {
         const key = `quiz_progress_${user}`;
@@ -1477,7 +1486,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 16. 初始化
+    // 19. 初始化
     // ------------------------------------------------------------
     async init() {
         this.updateUserUI();
