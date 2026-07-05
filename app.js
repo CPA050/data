@@ -1,5 +1,5 @@
 // ==========================================
-// 🚀 QuizApp 9.5 · 智能刷题 + 错题重练 + 体验优化 + 背景滑块
+// 🚀 QuizApp 9.6 · 完整版
 // ==========================================
 
 window.QuizApp = {
@@ -766,7 +766,7 @@ window.QuizApp = {
                     const current = localStorage.getItem('quiz_theme') || 'light';
                     const idx = themes.indexOf(current);
                     const next = themes[(idx + 1) % themes.length];
-                    this.setTheme(next);
+                    this.setThemeFromSettings(next);
                 }
                 if (key === '?' && !e.ctrlKey && !e.metaKey) {
                     e.preventDefault();
@@ -821,12 +821,11 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 7. 主题系统
+    // 7. 主题系统（完整版，含设置面板同步）
     // ------------------------------------------------------------
     setTheme(theme) {
         const body = document.body;
         body.classList.remove('theme-light','theme-dark','theme-eye','theme-custom','bg-image');
-        // 清除背景相关变量
         body.style.removeProperty('--custom-bg');
         body.style.removeProperty('--custom-bg-image');
         body.style.removeProperty('--bg-opacity');
@@ -835,9 +834,15 @@ window.QuizApp = {
         if (theme === 'light') { body.classList.add('theme-light'); localStorage.setItem('quiz_theme','light'); }
         else if (theme === 'dark') { body.classList.add('theme-dark'); localStorage.setItem('quiz_theme','dark'); }
         else if (theme === 'eye') { body.classList.add('theme-eye'); localStorage.setItem('quiz_theme','eye'); }
-        document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-        const map = { light: 'theme-btn-light', dark: 'theme-btn-dark', eye: 'theme-btn-eye' };
-        const target = document.querySelector(`.${map[theme]}`);
+
+        // 更新设置面板中的高亮
+        document.querySelectorAll('.theme-option-btn').forEach(btn => btn.classList.remove('active'));
+        const map = {
+            'light': 'settingsThemeLight',
+            'dark': 'settingsThemeDark',
+            'eye': 'settingsThemeEye'
+        };
+        const target = document.getElementById(map[theme]);
         if (target) target.classList.add('active');
 
         // 同步滑块
@@ -849,6 +854,12 @@ window.QuizApp = {
         document.getElementById('blurValue').textContent = '0px';
     },
 
+    setThemeFromSettings(theme) {
+        this.setTheme(theme);
+        // 关闭设置面板（可选，用户觉得需要就取消注释）
+        // this.toggleSettings(false);
+    },
+
     applyCustomBg(color) {
         const body = document.body;
         body.classList.remove('theme-light','theme-dark','theme-eye','bg-image');
@@ -856,13 +867,10 @@ window.QuizApp = {
         body.style.setProperty('--custom-bg', color);
         localStorage.setItem('quiz_theme','custom');
         localStorage.setItem('quiz_custom_bg', color);
-        // 清除图片背景相关
         body.style.removeProperty('--custom-bg-image');
         body.style.removeProperty('--bg-opacity');
         body.style.removeProperty('--bg-blur');
-        document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-        const target = document.querySelector('.theme-btn-custom');
-        if (target) target.classList.add('active');
+        document.querySelectorAll('.theme-option-btn').forEach(btn => btn.classList.remove('active'));
         const picker = document.getElementById('settingsBgPicker');
         if (picker) picker.value = color;
     },
@@ -884,16 +892,13 @@ window.QuizApp = {
                 body.classList.remove('theme-light','theme-dark','theme-eye','theme-custom');
                 body.classList.add('bg-image');
                 body.style.setProperty('--custom-bg-image', `url(${ev.target.result})`);
-                // 加载保存的透明度/模糊设置
                 const savedOpacity = localStorage.getItem('quiz_bg_opacity') || '100';
                 const savedBlur = localStorage.getItem('quiz_bg_blur') || '0';
                 body.style.setProperty('--bg-opacity', savedOpacity / 100);
                 body.style.setProperty('--bg-blur', savedBlur);
                 localStorage.setItem('quiz_theme','bg-image');
                 localStorage.setItem('quiz_bg_image', ev.target.result);
-                document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-                const target = document.querySelector('.theme-btn-image');
-                if (target) target.classList.add('active');
+                document.querySelectorAll('.theme-option-btn').forEach(btn => btn.classList.remove('active'));
                 // 同步滑块
                 const opacitySlider = document.getElementById('bgOpacitySlider');
                 const blurSlider = document.getElementById('bgBlurSlider');
@@ -908,7 +913,6 @@ window.QuizApp = {
         event.target.value = '';
     },
 
-    // 🆕 更新背景透明度
     updateBgOpacity(value) {
         const body = document.body;
         const opacity = value / 100;
@@ -917,7 +921,6 @@ window.QuizApp = {
         document.getElementById('opacityValue').textContent = value + '%';
     },
 
-    // 🆕 更新背景模糊
     updateBgBlur(value) {
         const body = document.body;
         body.style.setProperty('--bg-blur', value);
@@ -934,8 +937,8 @@ window.QuizApp = {
             const bg = localStorage.getItem('quiz_custom_bg');
             if (bg) {
                 this.applyCustomBg(bg);
-                // 如果是自定义背景，不应用透明度/模糊（这些只对图片生效）
             }
+            document.querySelectorAll('.theme-option-btn').forEach(btn => btn.classList.remove('active'));
         } else if (saved === 'bg-image') {
             const img = localStorage.getItem('quiz_bg_image');
             if (img) {
@@ -944,10 +947,6 @@ window.QuizApp = {
                 body.style.setProperty('--custom-bg-image', `url(${img})`);
                 body.style.setProperty('--bg-opacity', savedOpacity / 100);
                 body.style.setProperty('--bg-blur', savedBlur);
-                document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-                const target = document.querySelector('.theme-btn-image');
-                if (target) target.classList.add('active');
-                // 同步滑块
                 const opacitySlider = document.getElementById('bgOpacitySlider');
                 const blurSlider = document.getElementById('bgBlurSlider');
                 if (opacitySlider) opacitySlider.value = savedOpacity;
@@ -957,6 +956,7 @@ window.QuizApp = {
             } else {
                 this.setTheme('light');
             }
+            document.querySelectorAll('.theme-option-btn').forEach(btn => btn.classList.remove('active'));
         } else {
             this.setTheme(saved);
         }
@@ -1012,6 +1012,16 @@ window.QuizApp = {
                 blurSlider.value = savedBlur;
                 document.getElementById('blurValue').textContent = savedBlur + 'px';
             }
+            // 同步主题按钮高亮
+            const currentTheme = localStorage.getItem('quiz_theme') || 'light';
+            document.querySelectorAll('.theme-option-btn').forEach(btn => btn.classList.remove('active'));
+            const map = {
+                'light': 'settingsThemeLight',
+                'dark': 'settingsThemeDark',
+                'eye': 'settingsThemeEye'
+            };
+            const target = document.getElementById(map[currentTheme]);
+            if (target) target.classList.add('active');
         }
     },
 
