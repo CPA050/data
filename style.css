@@ -42,7 +42,7 @@ body {
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
     position: relative;
 }
 .settings-trigger {
@@ -102,34 +102,6 @@ body {
 .logout-btn:hover {
     background: rgba(255,59,48,0.25);
 }
-/* ===== 主题切换栏 ===== */
-.theme-bar {
-    display: flex;
-    gap: 8px;
-    justify-content: center;
-    margin-bottom: 16px;
-}
-.theme-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: 2px solid rgba(255,255,255,0.5);
-    cursor: pointer;
-    transition: 0.2s;
-    background: rgba(255,255,255,0.3);
-    backdrop-filter: blur(4px);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-}
-.theme-btn:hover {
-    transform: scale(1.08);
-}
-.theme-btn.active {
-    border-color: #0071e3;
-    box-shadow: 0 0 0 3px rgba(0,113,227,0.2);
-}
-.theme-btn-light { background: #f0f0f5; }
-.theme-btn-dark { background: #1a1a2e; }
-.theme-btn-eye { background: #f5e6d3; }
 
 /* ===== 标题 ===== */
 h1 {
@@ -687,7 +659,23 @@ body.theme-dark .group-progress { background: rgba(255,255,255,0.08); }
 body.theme-dark .toggle-slider { background: #555; }
 body.theme-dark .toggle-slider::before { background: #e0e0e0; }
 
-/* ===== 🆕 滑块样式 ===== */
+/* 🆕 主题选项按钮 */
+.theme-option-btn.active {
+    border-color: #0071e3 !important;
+    background: rgba(0,113,227,0.1) !important;
+    box-shadow: 0 0 0 3px rgba(0,113,227,0.15);
+}
+body.theme-dark .theme-option-btn {
+    color: #e0e0e0 !important;
+    border-color: rgba(255,255,255,0.08) !important;
+}
+body.theme-dark .theme-option-btn.active {
+    border-color: #4dabf7 !important;
+    background: rgba(77,171,247,0.15) !important;
+    box-shadow: 0 0 0 3px rgba(77,171,247,0.15);
+}
+
+/* ===== 滑块样式 ===== */
 input[type="range"] {
     -webkit-appearance: none;
     appearance: none;
@@ -921,7 +909,6 @@ body.theme-eye .app-card {
 body.theme-custom {
     background: var(--custom-bg) !important;
 }
-/* 🆕 背景图片 + 透明度 + 模糊 */
 body.bg-image {
     background: var(--custom-bg-image) !important;
     background-size: cover !important;
