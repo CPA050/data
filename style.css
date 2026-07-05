@@ -1,10 +1,10 @@
 /* ==========================================
-   🍏 刷题系统 7.5 · 苹果原生毛玻璃精修版
+   🍏 答题系统 · 完整样式
    ========================================== */
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
-    background: linear-gradient(135deg, #e0e5ec 0%, #eedee6 50%, #e4eaf5 100%) !important;
+    background: linear-gradient(135deg, #e0e5ec 0%, #e0e6 50%, #e4eaf5 100%) !important;
     color: #1d1d1f !important;
     margin: 0;
     padding: 16px;
@@ -14,6 +14,7 @@ body {
     min-height: 100vh;
     box-sizing: border-box;
     overflow-x: hidden;
+    transition: background 0.4s ease, color 0.3s ease;
 }
 
 .stage-container {
@@ -24,7 +25,6 @@ body {
     box-sizing: border-box;
 }
 
-/* 🚀 主卡片：通透毛玻璃 */
 #home, .app-card {
     background: rgba(255, 255, 255, 0.45) !important;
     backdrop-filter: blur(20px) saturate(190%);
@@ -32,12 +32,12 @@ body {
     width: 100%;
     padding: 26px;
     border-radius: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.5) !important; 
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04),
                 inset 0 1px 1px rgba(255, 255, 255, 0.4) !important;
     box-sizing: border-box;
     opacity: 1;
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transition: opacity 0.2s ease, transform 0.2s ease, background 0.3s ease;
 }
 
 .card-fade {
@@ -49,18 +49,15 @@ h1 { text-align: center; color: #1d1d1f; font-size: 24px; font-weight: 700; marg
 h2 { font-size: 18px; font-weight: 600; color: #1d1d1f; line-height: 1.5; margin: 0 0 18px 0; }
 #top { font-size: 13px; font-weight: 600; color: #86868b; padding-bottom: 12px; border-bottom: 1px solid rgba(0, 0, 0, 0.06); margin-bottom: 18px; }
 
-button {
-    display: block; width: 100%; padding: 16px; margin: 16px 0;
-    background: #0071e3 !important; color: #ffffff !important; border: none !important;
-    border-radius: 14px; font-size: 17px; font-weight: 600; cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.15); transition: all 0.2s;
-}
-#home button:nth-of-type(2) { background: rgba(0, 0, 0, 0.04) !important; color: #0071e3 !important; box-shadow: none; }
-
 .opt {
-    background: rgba(255, 255, 255, 0.45) !important; color: #1d1d1f !important;
-    border: 1px solid rgba(255, 255, 255, 0.3) !important; border-radius: 14px;
-    padding: 15px 18px; margin: 10px 0; font-size: 15px; cursor: pointer;
+    background: rgba(255, 255, 255, 0.45) !important;
+    color: #1d1d1f !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    border-radius: 14px;
+    padding: 15px 18px;
+    margin: 10px 0;
+    font-size: 15px;
+    cursor: pointer;
     transition: all 0.15s ease;
 }
 .opt:active { background: rgba(255, 255, 255, 0.75) !important; }
@@ -68,7 +65,7 @@ button {
 .opt.wrong { background: rgba(255, 59, 48, 0.12) !important; border-color: rgba(255, 59, 48, 0.3) !important; color: #b3261e !important; font-weight: 600; }
 
 /* ==========================================
-   🔮 左下角总按钮：顶级苹果毛玻璃水晶球
+   🔮 左下角总按钮
    ========================================== */
 .glass-trigger {
     position: fixed;
@@ -94,9 +91,8 @@ button {
 .glass-trigger svg { width: 18px; height: 18px; fill: #3a3a3c; }
 
 /* ==========================================
-   🍏 面板相关样式（纯透明背景 + 独立毛玻璃球）
+   🍏 面板样式
    ========================================== */
-
 .folder-overlay {
     position: fixed;
     top: 0; left: 0; width: 100%; height: 100%;
@@ -111,7 +107,7 @@ button {
 .grid-folder {
     position: fixed;
     bottom: 0; left: 0; width: 100%; height: 65vh;
-    background: transparent !important; /* 纯透明，直接露出最底层彩虹背景 */
+    background: transparent !important;
     z-index: 1001;
     box-sizing: border-box; padding: 25px;
     display: flex; flex-direction: column;
@@ -130,15 +126,14 @@ button {
 }
 .folder-grid-content::-webkit-scrollbar { width: 0; }
 
-/* 🌟 题号按钮：高逼格独立毛玻璃球 */
 .qbtn {
-    aspect-ratio: 1; 
+    aspect-ratio: 1;
     background: rgba(255, 255, 255, 0.55) !important;
     backdrop-filter: blur(15px) saturate(180%);
     -webkit-backdrop-filter: blur(15px) saturate(180%);
-    color: #1d1d1f !important; 
+    color: #1d1d1f !important;
     border: 1px solid rgba(255, 255, 255, 0.5) !important;
-    border-radius: 50%; 
+    border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     font-size: 15px; font-weight: 600; cursor: pointer;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02),
@@ -146,7 +141,106 @@ button {
     transition: transform 0.1s;
 }
 .qbtn:active { transform: scale(0.9); }
-
 .qbtn.grid-correct { background: rgba(52, 199, 89, 0.85) !important; color: #fff !important; border-color: transparent !important; }
 .qbtn.grid-wrong { background: rgba(255, 59, 48, 0.85) !important; color: #fff !important; border-color: transparent !important; }
 .qbtn.grid-active { border: 2px solid #0071e3 !important; color: #0071e3 !important; background: rgba(0, 113, 227, 0.1) !important; }
+
+/* ==========================================
+   🌙 主题样式
+   ========================================== */
+
+/* ----- 明亮模式（默认）----- */
+body.theme-light {
+    background: linear-gradient(135deg, #e0e5ec 0%, #e0e6 50%, #e4eaf5 100%) !important;
+    color: #1d1d1f !important;
+}
+
+/* ----- 夜间模式 ----- */
+body.theme-dark {
+    background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%) !important;
+    color: #e0e0e0 !important;
+}
+body.theme-dark .app-card,
+body.theme-dark #home {
+    background: rgba(30, 30, 60, 0.7) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: #e0e0e0 !important;
+}
+body.theme-dark .opt {
+    background: rgba(50, 50, 80, 0.5) !important;
+    color: #e0e0e0 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+body.theme-dark .opt.correct { background: rgba(52, 199, 89, 0.25) !important; color: #66d9a0 !important; }
+body.theme-dark .opt.wrong { background: rgba(255, 59, 48, 0.2) !important; color: #ff6b6b !important; }
+body.theme-dark #top { color: #aaa !important; border-color: rgba(255,255,255,0.06) !important; }
+body.theme-dark .glass-trigger { background: rgba(40, 40, 80, 0.6) !important; border-color: rgba(255,255,255,0.1) !important; }
+body.theme-dark .glass-trigger svg { fill: #ccc !important; }
+body.theme-dark h1, body.theme-dark h2 { color: #eee !important; }
+body.theme-dark .qbtn { background: rgba(50, 50, 80, 0.6) !important; color: #ccc !important; border-color: rgba(255,255,255,0.1) !important; }
+body.theme-dark .qbtn.grid-correct { background: rgba(52, 199, 89, 0.6) !important; color: #fff !important; }
+body.theme-dark .qbtn.grid-wrong { background: rgba(255, 59, 48, 0.6) !important; color: #fff !important; }
+body.theme-dark .qbtn.grid-active { border-color: #0071e3 !important; color: #4dabf7 !important; }
+body.theme-dark .grid-folder { background: rgba(20, 20, 40, 0.9) !important; }
+body.theme-dark .folder-overlay { background: rgba(0, 0, 0, 0.5) !important; }
+body.theme-dark button:not(.theme-btn):not(.logout-btn) { background: #2d2d5e !important; color: #e0e0e0 !important; }
+body.theme-dark .manager-btn { background: #5856d6 !important; }
+body.theme-dark a { color: #4dabf7 !important; }
+body.theme-dark #userInfoText { color: #aaa !important; }
+body.theme-dark .logout-btn { background: #ff3b30 !important; }
+
+/* ----- 护眼模式 ----- */
+body.theme-eye {
+    background: linear-gradient(135deg, #f5e6d3 0%, #f0dcc8 50%, #f5e6d3 100%) !important;
+    color: #3d2a1a !important;
+}
+body.theme-eye .app-card,
+body.theme-eye #home {
+    background: rgba(245, 235, 220, 0.7) !important;
+    border-color: rgba(180, 140, 100, 0.2) !important;
+}
+body.theme-eye .opt { background: rgba(255, 240, 220, 0.5) !important; color: #3d2a1a !important; }
+body.theme-eye .opt.correct { background: rgba(52, 199, 89, 0.2) !important; }
+body.theme-eye .opt.wrong { background: rgba(255, 59, 48, 0.15) !important; }
+body.theme-eye .glass-trigger { background: rgba(245, 235, 220, 0.7) !important; }
+
+/* ----- 自定义背景色 ----- */
+body.theme-custom {
+    background: var(--custom-bg, linear-gradient(135deg, #e0e5ec 0%, #e0e6 50%, #e4eaf5 100%)) !important;
+}
+body.theme-custom .app-card,
+body.theme-custom #home {
+    background: rgba(255, 255, 255, 0.55) !important;
+}
+
+/* ----- 自定义背景图 ----- */
+body.bg-image {
+    background: var(--custom-bg-image) !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-attachment: fixed !important;
+}
+body.bg-image .app-card,
+body.bg-image #home {
+    background: rgba(255, 255, 255, 0.6) !important;
+}
+body.theme-dark.bg-image .app-card,
+body.theme-dark.bg-image #home {
+    background: rgba(20, 20, 40, 0.7) !important;
+}
+body.theme-eye.bg-image .app-card,
+body.theme-eye.bg-image #home {
+    background: rgba(245, 235, 220, 0.7) !important;
+}
+
+/* ==========================================
+   📱 滚动条美化
+   ========================================== */
+#managerList::-webkit-scrollbar { width: 4px; }
+#managerList::-webkit-scrollbar-track { background: transparent; }
+#managerList::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.15); border-radius: 10px; }
+body.theme-dark #managerList::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); }
+
+#managerList button:hover { transform: scale(0.96); opacity: 0.9; }
+#managerList > div:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06); }
+body.theme-dark #managerList > div:hover { box-shadow: 0 4px 16px rgba(255, 255, 255, 0.06); }
