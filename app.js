@@ -196,11 +196,11 @@ window.QuizApp = {
 
             document.getElementById("home").style.display = "none";
             document.getElementById("app").innerHTML = `
+                <div class="chapter-nav" id="chapterNav">
+                    <button class="chapter-btn active" data-chapter="全部" onclick="QuizApp.selectChapter('全部')">📚 全部</button>
+                    ${chapterButtons}
+                </div>
                 <div class="app-card" id="mainQuizCard">
-                    <div class="chapter-nav" id="chapterNav">
-                        <button class="chapter-btn active" data-chapter="全部" onclick="QuizApp.selectChapter('全部')">📚 全部</button>
-                        ${chapterButtons}
-                    </div>
                     <div id="quizContent"></div>
                 </div>
                 <div class="glass-trigger" id="masterGlassBtn">
@@ -969,28 +969,25 @@ window.QuizApp = {
             }
         });
 
-        // 🆕 触摸滑动切换题目（在答题卡片上左/右滑动）
-        const card = document.getElementById('mainQuizCard');
-        if (card) {
+        // 🆕 触摸滑动切换题目（仅针对 quizContent，避免与章节导航冲突）
+        const content = document.getElementById('quizContent');
+        if (content) {
             let touchStartX = 0;
             let touchStartY = 0;
-            let isSwiping = false;
 
-            card.addEventListener('touchstart', (e) => {
+            content.addEventListener('touchstart', (e) => {
                 const touch = e.touches[0];
                 touchStartX = touch.clientX;
                 touchStartY = touch.clientY;
-                isSwiping = false;
             }, { passive: true });
 
-            card.addEventListener('touchmove', (e) => {
+            content.addEventListener('touchmove', (e) => {
                 if (!touchStartX) return;
                 const touch = e.touches[0];
                 const deltaX = touch.clientX - touchStartX;
                 const deltaY = touch.clientY - touchStartY;
                 // 横向滑动距离大于纵向，且超过阈值（40px）
                 if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 40) {
-                    isSwiping = true;
                     if (deltaX < 0) {
                         // 左滑 → 下一题
                         if (this.idx < this.activeBank.length - 1) {
@@ -1010,10 +1007,9 @@ window.QuizApp = {
                 }
             }, { passive: true });
 
-            card.addEventListener('touchend', () => {
+            content.addEventListener('touchend', () => {
                 touchStartX = 0;
                 touchStartY = 0;
-                isSwiping = false;
             }, { passive: true });
         }
 
@@ -1366,11 +1362,11 @@ window.QuizApp = {
 
             document.getElementById("home").style.display = "none";
             document.getElementById("app").innerHTML = `
+                <div class="chapter-nav" id="chapterNav">
+                    <button class="chapter-btn active" data-chapter="全部" onclick="QuizApp.selectChapter('全部')">📚 全部</button>
+                    ${chapterButtons}
+                </div>
                 <div class="app-card" id="mainQuizCard">
-                    <div class="chapter-nav" id="chapterNav">
-                        <button class="chapter-btn active" data-chapter="全部" onclick="QuizApp.selectChapter('全部')">📚 全部</button>
-                        ${chapterButtons}
-                    </div>
                     <div id="quizContent"></div>
                 </div>
                 <div class="glass-trigger" id="masterGlassBtn">
