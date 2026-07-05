@@ -22,13 +22,11 @@
             <button onclick="QuizApp.logout()" id="logoutBtn" class="logout-btn">退出</button>
         </div>
 
-        <!-- 主题切换（简化为小图标，保留在状态栏下方） -->
+        <!-- 主题切换（仅保留明亮/夜间/护眼，自定义移到设置） -->
         <div class="theme-bar">
             <button class="theme-btn theme-btn-light active" onclick="QuizApp.setTheme('light')" title="明亮"></button>
             <button class="theme-btn theme-btn-dark" onclick="QuizApp.setTheme('dark')" title="夜间"></button>
             <button class="theme-btn theme-btn-eye" onclick="QuizApp.setTheme('eye')" title="护眼"></button>
-            <button class="theme-btn theme-btn-custom" onclick="QuizApp.openBgPicker()" title="自定义颜色"></button>
-            <button class="theme-btn theme-btn-image" onclick="QuizApp.uploadBgImage()" title="自定义图片"></button>
         </div>
 
         <h1>📝 答题系统</h1>
@@ -80,8 +78,31 @@
                     <span class="setting-label">🎨 自定义背景色</span>
                     <input type="color" id="settingsBgPicker" value="#e0e5ec" onchange="QuizApp.applyCustomBgFromSettings(this.value)" />
                 </div>
-                <!-- 自动跳转延迟 -->
+                <!-- 自定义背景图片 -->
                 <div class="setting-item">
+                    <span class="setting-label">🖼️ 自定义背景图</span>
+                    <button onclick="QuizApp.uploadBgImage()" style="padding:6px 16px; background:rgba(0,113,227,0.15); color:#0071e3; border:1px solid rgba(0,113,227,0.2); border-radius:10px; cursor:pointer; font-size:13px;">选择图片</button>
+                </div>
+                <!-- 🆕 背景透明度滑块 -->
+                <div class="setting-item" style="flex-direction:column; align-items:stretch; gap:6px;">
+                    <div style="display:flex; justify-content:space-between;">
+                        <span class="setting-label">🔆 背景透明度</span>
+                        <span class="setting-label" id="opacityValue" style="color:#86868b; font-size:14px;">100%</span>
+                    </div>
+                    <input type="range" id="bgOpacitySlider" min="0" max="100" value="100"
+                           oninput="QuizApp.updateBgOpacity(this.value)" />
+                </div>
+                <!-- 🆕 背景模糊滑块 -->
+                <div class="setting-item" style="flex-direction:column; align-items:stretch; gap:6px; border-bottom: none;">
+                    <div style="display:flex; justify-content:space-between;">
+                        <span class="setting-label">🌫️ 背景模糊</span>
+                        <span class="setting-label" id="blurValue" style="color:#86868b; font-size:14px;">0px</span>
+                    </div>
+                    <input type="range" id="bgBlurSlider" min="0" max="20" value="0"
+                           oninput="QuizApp.updateBgBlur(this.value)" />
+                </div>
+                <!-- 自动跳转延迟 -->
+                <div class="setting-item" style="border-top: 1px solid rgba(0,0,0,0.05); margin-top: 4px;">
                     <span class="setting-label">⏱️ 自动跳转延迟</span>
                     <select id="delaySelect" onchange="QuizApp.setAutoDelay(parseInt(this.value))">
                         <option value="200">200ms</option>
@@ -100,8 +121,8 @@
                     </label>
                 </div>
                 <!-- 版本信息 -->
-                <div class="setting-item" style="border-bottom: none; margin-top: 8px;">
-                    <span class="setting-label" style="font-size: 12px; color: #86868b;">版本 9.3 · 已登录: <span id="settingsUser">-</span></span>
+                <div class="setting-item" style="border-bottom: none; margin-top: 4px;">
+                    <span class="setting-label" style="font-size: 12px; color: #86868b;">版本 9.5 · 已登录: <span id="settingsUser">-</span></span>
                 </div>
             </div>
         </div>
@@ -176,7 +197,6 @@
     </div>
 
     <!-- ===== 隐藏控件 ===== -->
-    <input type="color" id="bgColorPicker" style="display:none;" onchange="QuizApp.applyCustomBg(this.value)" />
     <input type="file" id="bgImageInput" accept="image/*" style="display:none;" onchange="QuizApp.handleBgImageUpload(event)" />
 
     <script src="app.js"></script>
