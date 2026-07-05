@@ -1,5 +1,5 @@
 // ==========================================
-// 🚀 QuizApp 9.3 · 智能刷题 + 错题重练 + 多端适配
+// 🚀 QuizApp 9.3 · 智能刷题 + 错题重练 + 多端适配 + 体验优化
 // ==========================================
 
 window.QuizApp = {
@@ -15,9 +15,17 @@ window.QuizApp = {
     lastSelected: 20,
     lastMode: 'sequential',
     _source: 'all', // 'all' | 'wrong'
+    _consecutiveCorrect: 0,
+    _consecutiveWrong: 0,
+    _autoDelay: 200,
+    _vibrationEnabled: true,
+    _streakAlertEnabled: true,
+    _toastTimer: null,
+    _sessionId: null,
+    _isRestoring: false,
 
     // ------------------------------------------------------------
-    // 1. 核心业务：加载并开始答题（支持 source 参数）
+    // 1. 核心业务：加载并开始答题
     // ------------------------------------------------------------
     async start(isRandom, limit = -1, source = 'all') {
         const user = this.getCurrentUser();
@@ -27,34 +35,28 @@ window.QuizApp = {
             this._source = source;
 
             if (source === 'wrong') {
-                // 从错题库加载
                 const wrongRes = await fetch(`/api/wrong?user_id=${encodeURIComponent(user)}`);
                 const wrongData = await wrongRes.json();
                 if (!wrongData || wrongData.length === 0) {
                     alert("🎉 暂无错题，继续加油！");
                     return;
                 }
-                // 映射为标准格式
                 bank = wrongData.map(item => ({
                     id: item.id,
                     q: item.q,
                     opts: item.opts || [],
                     a: item.answer !== undefined ? item.opts.indexOf(item.answer) : 0,
-                    _wrongId: item.id // 保留错题ID用于删除
+                    _wrongId: item.id
                 }));
-                // 如果没有 opts，尝试从 answer 反推
                 if (bank.length > 0 && bank[0].opts.length === 0) {
-                    // 如果只有 q 和 answer，无法反推，提示错误
                     alert("错题数据格式不完整，请重新添加错题。");
                     return;
                 }
-                // 保存错题ID映射
                 this._wrongIdMap = {};
                 bank.forEach(item => {
                     this._wrongIdMap[item.id] = item._wrongId;
                 });
             } else {
-                // 从主题库加载
                 const res = await fetch(`/api/questions?user_id=${encodeURIComponent(user)}`);
                 bank = await res.json();
                 if (!bank || bank.length === 0) {
@@ -99,6 +101,11 @@ window.QuizApp = {
             this.activeBank = selectedBank;
             this.idx = 0;
             this.record = new Array(this.activeBank.length).fill(null);
+            this._consecutiveCorrect = 0;
+            this._consecutiveWrong = 0;
+
+            // 生成会话 ID
+            this._sessionId = Date.now() + '_' + Math.random().toString(36).substr(2, 6);
 
             document.getElementById("home").style.display = "none";
             document.getElementById("app").innerHTML = `
@@ -121,6 +128,12 @@ window.QuizApp = {
             this._currentLimit = limit;
             this._isRandom = isRandom;
 
+            // 保存会话上下文
+            this.saveSessionContext();
+
+            // 检查智能提示
+            this.checkSmartPrompts();
+
         } catch (err) {
             alert("加载题库失败：" + err.message);
         }
@@ -133,13 +146,37 @@ window.QuizApp = {
         const done = this.record.filter(x => x !== null).length;
         const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
         const acc = done ? Math.round(correct / done * 100) : 0;
+        const total = this.activeBank.length;
+        const remaining = total - done;
+        const percent = total > 0 ? Math.round(done / total * 100) : 0;
+        const circumference = 94.2;
+        const offset = circumference * (1 - percent / 100);
+
+        // 数字滚动效果
+        const accDisplay = this._lastAcc !== undefined ? this.animateNumber(this._lastAcc, acc) : acc;
+        this._lastAcc = acc;
 
         const htmlContent = `
             <div id="top">
-                <span>正确率: ${acc}% | 进度: ${done}/${this.activeBank.length}</span>
-                <button onclick="window.location.href='/'" style="background:rgba(255,255,255,0.2); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.3); border-radius:30px; padding:4px 14px; font-size:13px; font-weight:500; color:#0071e3; cursor:pointer;">🏠 返回</button>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:13px; font-weight:600; color:#86868b;">正确率: <span id="accDisplay">${acc}</span>%</span>
+                    <span style="font-size:13px; font-weight:600; color:#86868b;">| 进度: ${done}/${total}</span>
+                    ${remaining > 0 ? `<span style="font-size:12px; color:#aaa; margin-left:4px;">(还剩 ${remaining} 题)</span>` : ''}
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <button onclick="window.location.href='/'" style="background:rgba(255,255,255,0.2); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.3); border-radius:30px; padding:4px 14px; font-size:13px; font-weight:500; color:#0071e3; cursor:pointer;">🏠 返回</button>
+                    <div class="progress-ring">
+                        <svg width="36" height="36">
+                            <circle class="bg" cx="18" cy="18" r="15"/>
+                            <circle class="fg" cx="18" cy="18" r="15"
+                                    stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"/>
+                        </svg>
+                    </div>
+                </div>
             </div>
-            <h2>Q${this.idx + 1}. ${q.q}</h2>
+            <h2 style="transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);">
+                Q${this.idx + 1}. ${q.q}
+            </h2>
             ${q.opts.map((o, oIdx) => {
                 let cls = "opt";
                 if (this.record[this.idx] !== null) {
@@ -148,15 +185,44 @@ window.QuizApp = {
                 }
                 return `<div class="${cls}" onclick="QuizApp.select(${oIdx}, this)">${o}</div>`;
             }).join("")}
+            <div class="group-progress">
+                <div class="bar" style="width: ${percent}%;"></div>
+            </div>
         `;
 
         if (needAnimation) {
             card.classList.add("card-fade");
-            setTimeout(() => { card.innerHTML = htmlContent; card.classList.remove("card-fade"); }, 180);
+            setTimeout(() => {
+                card.innerHTML = htmlContent;
+                card.classList.remove("card-fade");
+                // 触发数字滚动
+                this.animateNumberElement('accDisplay', acc);
+            }, 180);
         } else {
             card.innerHTML = htmlContent;
+            this.animateNumberElement('accDisplay', acc);
         }
         this.renderGrid();
+        // 保存会话上下文
+        this.saveSessionContext();
+    },
+
+    animateNumberElement(id, target) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const current = parseInt(el.textContent) || 0;
+        if (current === target) return;
+        const duration = 400;
+        const startTime = performance.now();
+        const startVal = current;
+        const step = (timestamp) => {
+            const progress = Math.min((timestamp - startTime) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const val = Math.round(startVal + (target - startVal) * eased);
+            el.textContent = val;
+            if (progress < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
     },
 
     select(oIdx, element) {
@@ -164,13 +230,35 @@ window.QuizApp = {
         const q = this.activeBank[this.idx];
         this.record[this.idx] = oIdx;
         const isCorrect = (oIdx === q.a);
+
+        // 触感反馈
+        if (this._vibrationEnabled && navigator.vibrate) {
+            if (isCorrect) navigator.vibrate(10);
+            else navigator.vibrate([10, 50, 10]);
+        }
+
+        // 连续计数
         if (isCorrect) {
+            this._consecutiveCorrect++;
+            this._consecutiveWrong = 0;
+            if (this._streakAlertEnabled && this._consecutiveCorrect === 5) {
+                this.showToast("🔥 状态不错！连续答对 5 题！");
+            }
+            if (this._streakAlertEnabled && this._consecutiveCorrect === 10) {
+                this.showToast("🔥 太棒了！连续答对 10 题！");
+            }
             element.classList.add("correct");
         } else {
+            this._consecutiveWrong++;
+            this._consecutiveCorrect = 0;
+            if (this._streakAlertEnabled && this._consecutiveWrong === 3) {
+                this.showToast("💪 别灰心，再想想！");
+            }
             element.classList.add("wrong");
+            // 波纹效果
+            this.createRipple(element);
             const opts = element.parentNode.querySelectorAll(".opt");
             if (opts[q.a]) opts[q.a].classList.add("correct");
-            // 只有从主题库刷题才记录错题
             if (this._source === 'all') {
                 const user = this.getCurrentUser();
                 if (user) this.uploadWrongQuestion(user, q);
@@ -180,10 +268,13 @@ window.QuizApp = {
 
         const allDone = this.record.every(v => v !== null);
         if (allDone) {
-            setTimeout(() => this.finishBatch(), 600);
+            // 选完最后一题，立即弹出结果（无延迟）
+            setTimeout(() => this.finishBatch(), 300);
             return;
         }
 
+        // 选完非最后一道题，200ms 后自动跳转
+        const delay = this._autoDelay || 200;
         setTimeout(() => {
             if (this.idx + 1 < this.activeBank.length) {
                 this.idx++;
@@ -191,7 +282,19 @@ window.QuizApp = {
             } else {
                 this.finishBatch();
             }
-        }, 500);
+        }, delay);
+    },
+
+    createRipple(element) {
+        const rect = element.getBoundingClientRect();
+        const ripple = document.createElement('span');
+        ripple.className = 'ripple';
+        const size = Math.max(rect.width, rect.height);
+        ripple.style.width = ripple.style.height = size + 'px';
+        ripple.style.left = (event.clientX - rect.left - size / 2) + 'px';
+        ripple.style.top = (event.clientY - rect.top - size / 2) + 'px';
+        element.appendChild(ripple);
+        setTimeout(() => ripple.remove(), 600);
     },
 
     finishBatch() {
@@ -201,28 +304,24 @@ window.QuizApp = {
         const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
         const acc = total > 0 ? Math.round(correct / total * 100) : 0;
 
-        // 处理顺序模式断点
         if (!this._isRandom && this._totalBank && this._pendingStart !== undefined && this._source === 'all') {
             const newIndex = this._pendingStart + this.activeBank.length;
             if (newIndex >= this._totalBank.length) {
                 this.saveProgress(user, { sequential_index: 0 });
-                alert("🎉 恭喜！你已经刷完所有题目！");
+                this.showToast("🎉 恭喜！你已经刷完所有题目！");
             } else {
                 this.saveProgress(user, { sequential_index: newIndex });
             }
         }
 
-        // 保存最近做过的题（用于随机去重）
         const recentIds = this.activeBank.map(q => q.id);
         this.saveRecentQuestions(user, recentIds);
 
-        // 🆕 错题重练模式：删除已做对的错题
         if (this._source === 'wrong') {
             const correctIds = this.activeBank
                 .filter((q, i) => this.record[i] !== null && this.record[i] === q.a)
                 .map(q => q.id);
             if (correctIds.length > 0) {
-                // 批量删除错题
                 const deletePromises = correctIds.map(id => {
                     const wrongId = this._wrongIdMap[id] || id;
                     return this.deleteWrongQuestion(wrongId, user);
@@ -231,13 +330,14 @@ window.QuizApp = {
                     console.log(`已移除 ${correctIds.length} 道错题`);
                 }).catch(err => console.error('删除错题失败:', err));
             }
-            // 检查是否还有剩余错题
-            const wrongCount = this.activeBank.filter((q, i) => this.record[i] !== null && this.record[i] !== q.a).length;
-            const remaining = this.activeBank.length - correct.length;
+            const remaining = this.activeBank.length - correct;
             if (remaining === 0) {
-                setTimeout(() => alert("🎉 所有错题已消灭！"), 300);
+                setTimeout(() => this.showToast("🎉 所有错题已消灭！"), 300);
             }
         }
+
+        // 清除会话上下文
+        this.clearSessionContext();
 
         const modeLabel = this._source === 'wrong' ? '错题重练' : '刷题';
         const msg = `✅ ${modeLabel}完成！\n共 ${total} 题，正确率 ${acc}%`;
@@ -273,7 +373,7 @@ window.QuizApp = {
                 <div style="margin-bottom: 12px;">
                     <input id="searchInput" type="text" placeholder="🔍 搜索题目..."
                            style="width:100%; padding:10px 14px; border:1px solid rgba(0,0,0,0.08); border-radius:10px; font-size:15px; background:rgba(255,255,255,0.5); outline:none; transition:0.2s;"
-                           oninput="QuizApp.loadQuestionsForManageWithSearch()" />
+                           oninput="QuizApp.debounceSearch()" />
                 </div>
                 <div id="managerList" style="text-align:left; max-height: 400px; overflow-y: auto; padding-right:4px;">
                     <div style="text-align:center; padding:40px 0; color:#86868b;">加载中...</div>
@@ -281,6 +381,14 @@ window.QuizApp = {
             </div>
         `;
         await this.loadQuestionsForManageWithSearch();
+    },
+
+    _searchTimer: null,
+    debounceSearch() {
+        clearTimeout(this._searchTimer);
+        this._searchTimer = setTimeout(() => {
+            this.loadQuestionsForManageWithSearch();
+        }, 300);
     },
 
     async loadQuestionsForManageWithSearch() {
@@ -481,10 +589,12 @@ window.QuizApp = {
         const user = this.getCurrentUser();
         const info = document.getElementById('userInfoText');
         const btn = document.getElementById('logoutBtn');
+        const settingsUser = document.getElementById('settingsUser');
         if (info) {
             info.textContent = user ? `🍏 已登录: ${user}` : `👤 游客模式`;
             if (btn) btn.style.display = user ? 'inline-block' : 'none';
         }
+        if (settingsUser) settingsUser.textContent = user || '未登录';
     },
 
     // ------------------------------------------------------------
@@ -547,7 +657,80 @@ window.QuizApp = {
             html += `<div class="${cls}" onclick="QuizApp.jumpToQuestion(${i})">${i + 1}</div>`;
         }
         container.innerHTML = html;
+        this.updateSidebarGrid();
     },
+
+    // 多端适配：更新侧边栏题号网格
+    updateSidebarGrid() {
+        // 检查是否有侧边栏容器
+        let sidebar = document.querySelector('.grid-sidebar');
+        const card = document.querySelector('#mainQuizCard');
+        if (!card) return;
+
+        // 如果是大屏模式（宽度 > 640px），自动插入侧边栏
+        if (window.innerWidth >= 640) {
+            if (!sidebar) {
+                sidebar = document.createElement('div');
+                sidebar.className = 'grid-sidebar';
+                // 插入到卡片中 h2 之前
+                const h2 = card.querySelector('h2');
+                if (h2) card.insertBefore(sidebar, h2);
+            }
+            // 渲染侧边栏内容
+            const total = this.activeBank.length;
+            let html = '';
+            for (let i = 0; i < total; i++) {
+                const status = this.record[i];
+                let cls = 'qbtn-mini';
+                if (status !== null) {
+                    cls += (status === this.activeBank[i].a) ? ' correct' : ' wrong';
+                }
+                if (i === this.idx) cls += ' active';
+                html += `<div class="${cls}" onclick="QuizApp.jumpToQuestion(${i})" title="第 ${i+1} 题">${i + 1}</div>`;
+            }
+            sidebar.innerHTML = html;
+        } else {
+            if (sidebar) sidebar.remove();
+        }
+
+        // 更新统计面板（大屏）
+        this.updateStatsPanel();
+    },
+
+    updateStatsPanel() {
+        let panel = document.querySelector('.stats-panel');
+        const card = document.querySelector('#mainQuizCard');
+        if (!card) return;
+
+        const done = this.record.filter(x => x !== null).length;
+        const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
+        const acc = done ? Math.round(correct / done * 100) : 0;
+        const total = this.activeBank.length;
+        const remaining = total - done;
+
+        if (window.innerWidth >= 1024) {
+            if (!panel) {
+                panel = document.createElement('div');
+                panel.className = 'stats-panel';
+                // 插入到卡片末尾
+                card.appendChild(panel);
+            }
+            panel.innerHTML = `
+                <div class="stat-item"><span>📊 进度</span><span class="stat-value">${done}/${total}</span></div>
+                <div class="stat-item"><span>✅ 正确率</span><span class="stat-value">${acc}%</span></div>
+                <div class="stat-item"><span>⏳ 剩余</span><span class="stat-value">${remaining} 题</span></div>
+                <div class="stat-item"><span>🔥 连续答对</span><span class="stat-value">${this._consecutiveCorrect || 0}</span></div>
+                <div class="shortcut-hint">
+                    ⌨️ 快捷键<br>
+                    <kbd>1-4</kbd> 选答案 <kbd>Enter</kbd> 确认<br>
+                    <kbd>←</kbd> <kbd>→</kbd> 切换 <kbd>Esc</kbd> 关闭
+                </div>
+            `;
+        } else {
+            if (panel) panel.remove();
+        }
+    },
+
     jumpToQuestion(index) {
         if (index < 0 || index >= this.activeBank.length) return;
         this.idx = index;
@@ -556,7 +739,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 6. 事件绑定
+    // 6. 事件绑定（含键盘快捷键）
     // ------------------------------------------------------------
     bindGlobalEvents() {
         const btn = document.getElementById('masterGlassBtn');
@@ -572,35 +755,106 @@ window.QuizApp = {
                 this.toggleFolder(false);
             });
         }
-        // 键盘快捷键（桌面端）
+
+        // 键盘快捷键（仅在答题界面生效）
         document.addEventListener('keydown', (e) => {
-            // 仅在答题界面生效
-            if (document.getElementById('app').style.display === 'none') return;
-            // 1-4 选择选项
+            const app = document.getElementById('app');
+            if (app.style.display === 'none') {
+                // 首页快捷键
+                const key = e.key.toLowerCase();
+                if (key === 's' && !e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                    this.showQuantityModal('sequential');
+                }
+                if (key === 'r' && !e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                    this.showQuantityModal('random');
+                }
+                if (key === 'w' && !e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                    this.showQuantityModal('wrong');
+                }
+                if (key === 'm' && !e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                    this.showManager();
+                }
+                if (key === 'h' && !e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                    window.location.href = '/';
+                }
+                if (key === 't' && !e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                    const themes = ['light', 'dark', 'eye'];
+                    const current = localStorage.getItem('quiz_theme') || 'light';
+                    const idx = themes.indexOf(current);
+                    const next = themes[(idx + 1) % themes.length];
+                    this.setTheme(next);
+                }
+                if (key === '?' && !e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                    this.openShortcutHelp();
+                }
+                if (key === 'f' && !e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                    if (!document.fullscreenElement) {
+                        document.documentElement.requestFullscreen?.();
+                    } else {
+                        document.exitFullscreen?.();
+                    }
+                }
+                return;
+            }
+
+            // 答题界面快捷键
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            // 1-4 选答案
             const num = parseInt(e.key);
             if (num >= 1 && num <= 4) {
                 const opts = document.querySelectorAll('.opt:not(.correct):not(.wrong)');
                 if (opts[num - 1]) opts[num - 1].click();
             }
-            // Enter 确认（跳下一题）
+
+            // Enter 确认/下一题
             if (e.key === 'Enter') {
-                const nextBtn = document.querySelector('#top button');
-                if (nextBtn && nextBtn.textContent.includes('下一题')) nextBtn.click();
+                // 如果有未选的选项，不做任何事
+                const unselected = document.querySelectorAll('.opt:not(.correct):not(.wrong)');
+                if (unselected.length > 0) {
+                    // 如果有选项被选中（高亮），自动点击第一个未选
+                    // 但这里简化：如果当前有已选但未确认，自动跳转
+                }
             }
-            // Esc 关闭弹窗
-            if (e.key === 'Escape') {
-                this.closeQuantityModal();
-                this.toggleFolder(false);
-            }
+
             // ← → 切换题目
             if (e.key === 'ArrowLeft' && this.idx > 0) {
+                e.preventDefault();
                 this.idx--;
                 this.renderCard(true);
             }
             if (e.key === 'ArrowRight' && this.idx < this.activeBank.length - 1) {
+                e.preventDefault();
                 this.idx++;
                 this.renderCard(true);
             }
+
+            // Esc 关闭弹窗/导航
+            if (e.key === 'Escape') {
+                this.closeQuantityModal();
+                this.toggleFolder(false);
+                this.closeShortcutHelp();
+                this.toggleSettings(false);
+            }
+
+            // ? 显示快捷键
+            if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                this.openShortcutHelp();
+            }
+        });
+
+        // 窗口 resize 更新侧边栏
+        window.addEventListener('resize', () => {
+            this.updateSidebarGrid();
         });
     },
 
@@ -617,6 +871,12 @@ window.QuizApp = {
         const map = { light: 'theme-btn-light', dark: 'theme-btn-dark', eye: 'theme-btn-eye' };
         const target = document.querySelector(`.${map[theme]}`);
         if (target) target.classList.add('active');
+        // 更新设置面板中的颜色选择器
+        const picker = document.getElementById('settingsBgPicker');
+        if (picker && theme === 'custom') {
+            const bg = localStorage.getItem('quiz_custom_bg') || '#e0e5ec';
+            picker.value = bg;
+        }
     },
     openBgPicker() {
         document.getElementById('bgColorPicker').click();
@@ -631,6 +891,11 @@ window.QuizApp = {
         document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
         const target = document.querySelector('.theme-btn-custom');
         if (target) target.classList.add('active');
+        const picker = document.getElementById('settingsBgPicker');
+        if (picker) picker.value = color;
+    },
+    applyCustomBgFromSettings(color) {
+        this.applyCustomBg(color);
     },
     uploadBgImage() {
         document.getElementById('bgImageInput').click();
@@ -672,10 +937,280 @@ window.QuizApp = {
         } else {
             this.setTheme(saved);
         }
+        // 同步设置面板
+        const picker = document.getElementById('settingsBgPicker');
+        if (picker && saved === 'custom') {
+            const bg = localStorage.getItem('quiz_custom_bg') || '#e0e5ec';
+            picker.value = bg;
+        }
     },
 
     // ------------------------------------------------------------
-    // 8. 数量选择弹窗（支持 sequential / random / wrong）
+    // 8. 设置面板
+    // ------------------------------------------------------------
+    toggleSettings(force) {
+        const modal = document.getElementById('settingsModal');
+        if (!modal) return;
+        if (force === false) {
+            modal.style.display = 'none';
+            return;
+        }
+        const isOpen = modal.style.display === 'flex';
+        modal.style.display = isOpen ? 'none' : 'flex';
+        // 同步设置
+        if (!isOpen) {
+            const vibToggle = document.getElementById('vibrationToggle');
+            if (vibToggle) vibToggle.checked = this._vibrationEnabled;
+            const delaySelect = document.getElementById('delaySelect');
+            if (delaySelect) delaySelect.value = this._autoDelay;
+            const streakToggle = document.getElementById('streakToggle');
+            if (streakToggle) streakToggle.checked = this._streakAlertEnabled;
+            const settingsUser = document.getElementById('settingsUser');
+            if (settingsUser) settingsUser.textContent = this.getCurrentUser() || '未登录';
+            const picker = document.getElementById('settingsBgPicker');
+            if (picker) {
+                const saved = localStorage.getItem('quiz_theme');
+                if (saved === 'custom') {
+                    const bg = localStorage.getItem('quiz_custom_bg') || '#e0e5ec';
+                    picker.value = bg;
+                } else {
+                    picker.value = '#e0e5ec';
+                }
+            }
+        }
+    },
+
+    setVibration(enabled) {
+        this._vibrationEnabled = enabled;
+        localStorage.setItem('quiz_vibration', enabled ? '1' : '0');
+        this.showToast(enabled ? '📳 震动已开启' : '📳 震动已关闭');
+    },
+
+    setAutoDelay(delay) {
+        this._autoDelay = delay;
+        localStorage.setItem('quiz_auto_delay', String(delay));
+        this.showToast(`⏱️ 跳转延迟已设为 ${delay}ms`);
+    },
+
+    setStreakAlert(enabled) {
+        this._streakAlertEnabled = enabled;
+        localStorage.setItem('quiz_streak_alert', enabled ? '1' : '0');
+        this.showToast(enabled ? '🔥 连续提示已开启' : '🔥 连续提示已关闭');
+    },
+
+    loadSettings() {
+        const vib = localStorage.getItem('quiz_vibration');
+        if (vib !== null) this._vibrationEnabled = vib === '1';
+        const delay = localStorage.getItem('quiz_auto_delay');
+        if (delay !== null) this._autoDelay = parseInt(delay) || 200;
+        const streak = localStorage.getItem('quiz_streak_alert');
+        if (streak !== null) this._streakAlertEnabled = streak === '1';
+    },
+
+    // ------------------------------------------------------------
+    // 9. Toast 提示
+    // ------------------------------------------------------------
+    showToast(message, duration = 2500) {
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+        const item = document.createElement('div');
+        item.className = 'toast-item';
+        item.textContent = message;
+        container.appendChild(item);
+        clearTimeout(this._toastTimer);
+        this._toastTimer = setTimeout(() => {
+            item.classList.add('out');
+            setTimeout(() => item.remove(), 300);
+        }, duration);
+        // 最多保留 3 个 Toast
+        while (container.children.length > 3) {
+            container.firstChild.remove();
+        }
+    },
+
+    // ------------------------------------------------------------
+    // 10. 引导气泡
+    // ------------------------------------------------------------
+    showTooltip(text, duration = 5000) {
+        const bubble = document.getElementById('tooltipBubble');
+        const textEl = document.getElementById('tooltipText');
+        if (!bubble || !textEl) return;
+        textEl.textContent = text;
+        bubble.style.display = 'flex';
+        clearTimeout(this._tooltipTimer);
+        this._tooltipTimer = setTimeout(() => {
+            bubble.style.display = 'none';
+        }, duration);
+    },
+
+    dismissTooltip() {
+        const bubble = document.getElementById('tooltipBubble');
+        if (bubble) bubble.style.display = 'none';
+        localStorage.setItem('quiz_tooltip_dismissed', '1');
+    },
+
+    // ------------------------------------------------------------
+    // 11. 快捷键帮助
+    // ------------------------------------------------------------
+    openShortcutHelp() {
+        document.getElementById('shortcutHelp').style.display = 'flex';
+    },
+
+    closeShortcutHelp() {
+        document.getElementById('shortcutHelp').style.display = 'none';
+    },
+
+    // ------------------------------------------------------------
+    // 12. 会话上下文（Session 恢复）
+    // ------------------------------------------------------------
+    saveSessionContext() {
+        if (this._isRestoring) return;
+        if (!this.activeBank || this.activeBank.length === 0) return;
+        const user = this.getCurrentUser();
+        if (!user) return;
+        const context = {
+            sessionId: this._sessionId,
+            questionIds: this.activeBank.map(q => q.id),
+            records: this.record.slice(),
+            currentIndex: this.idx,
+            mode: this.lastMode,
+            source: this._source,
+            limit: this._currentLimit,
+            isRandom: this._isRandom,
+            totalBank: this._totalBank,
+            pendingStart: this._pendingStart,
+            timestamp: Date.now()
+        };
+        localStorage.setItem(`quiz_session_${user}`, JSON.stringify(context));
+    },
+
+    clearSessionContext() {
+        const user = this.getCurrentUser();
+        if (!user) return;
+        localStorage.removeItem(`quiz_session_${user}`);
+    },
+
+    async restoreSession() {
+        const user = this.getCurrentUser();
+        if (!user) return false;
+        const data = localStorage.getItem(`quiz_session_${user}`);
+        if (!data) return false;
+        const context = JSON.parse(data);
+        // 检查是否过期（超过 24 小时）
+        if (Date.now() - context.timestamp > 24 * 60 * 60 * 1000) {
+            localStorage.removeItem(`quiz_session_${user}`);
+            return false;
+        }
+        // 检查题目是否还存在（简单检查：尝试加载第一题）
+        try {
+            const res = await fetch(`/api/questions?user_id=${encodeURIComponent(user)}`);
+            const bank = await res.json();
+            const validIds = new Set(bank.map(q => q.id));
+            const allExist = context.questionIds.every(id => validIds.has(id));
+            if (!allExist) {
+                localStorage.removeItem(`quiz_session_${user}`);
+                return false;
+            }
+        } catch (e) {
+            return false;
+        }
+
+        // 恢复答题状态
+        this._isRestoring = true;
+        this.activeBank = context.questionIds.map(id => ({ id })); // placeholder
+        // 实际需要重新加载完整数据
+        try {
+            const res = await fetch(`/api/questions?user_id=${encodeURIComponent(user)}`);
+            const bank = await res.json();
+            const idMap = {};
+            bank.forEach(q => idMap[q.id] = q);
+            this.activeBank = context.questionIds.map(id => idMap[id]).filter(q => q);
+            this.record = context.records.slice(0, this.activeBank.length);
+            this.idx = Math.min(context.currentIndex, this.activeBank.length - 1);
+            this.lastMode = context.mode || 'sequential';
+            this._source = context.source || 'all';
+            this._currentLimit = context.limit || 20;
+            this._isRandom = context.isRandom || false;
+            this._totalBank = context.totalBank;
+            this._pendingStart = context.pendingStart;
+            this._sessionId = context.sessionId;
+
+            // 重新渲染界面
+            document.getElementById("home").style.display = "none";
+            document.getElementById("app").innerHTML = `
+                <div class="app-card" id="mainQuizCard"></div>
+                <div class="glass-trigger" id="masterGlassBtn">
+                    <svg viewBox="0 0 24 24"><path d="M4 6h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 12h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 18h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/></svg>
+                </div>
+                <div class="folder-overlay" id="folderOverlay"></div>
+                <div class="grid-folder" id="gridFolder">
+                    <div class="folder-drag-handle"></div>
+                    <div class="folder-grid-content" id="folderGrid"></div>
+                </div>
+            `;
+            document.getElementById("app").className = "stage-container";
+            document.getElementById("app").style.display = "block";
+            this.renderCard(false);
+            this.bindGlobalEvents();
+            this.renderGrid();
+            this.folderVisible = false;
+
+            this._isRestoring = false;
+            this.showToast(`📂 已恢复上次答题（第 ${this.idx + 1}/${this.activeBank.length} 题）`, 3000);
+            return true;
+        } catch (e) {
+            this._isRestoring = false;
+            localStorage.removeItem(`quiz_session_${user}`);
+            return false;
+        }
+    },
+
+    // ------------------------------------------------------------
+    // 13. 智能提示与引导
+    // ------------------------------------------------------------
+    async checkSmartPrompts() {
+        const user = this.getCurrentUser();
+        if (!user) return;
+
+        // 检查是否首次使用
+        const hasUsed = localStorage.getItem('quiz_has_used');
+        if (!hasUsed) {
+            setTimeout(() => {
+                this.showTooltip('👋 点击【顺序刷题】开始学习', 4000);
+                localStorage.setItem('quiz_has_used', '1');
+            }, 1000);
+            return;
+        }
+
+        // 检查错题数量
+        try {
+            const res = await fetch(`/api/wrong?user_id=${encodeURIComponent(user)}`);
+            const wrongData = await res.json();
+            if (wrongData && wrongData.length >= 10) {
+                const dismissed = localStorage.getItem('quiz_wrong_prompt_dismissed');
+                if (!dismissed) {
+                    setTimeout(() => {
+                        this.showTooltip(`💡 您有 ${wrongData.length} 道错题，试试【错题重练】吧`, 4000);
+                        localStorage.setItem('quiz_wrong_prompt_dismissed', '1');
+                    }, 2000);
+                }
+            }
+        } catch (e) {}
+
+        // 检查题库是否为空
+        try {
+            const res = await fetch(`/api/questions?user_id=${encodeURIComponent(user)}`);
+            const data = await res.json();
+            if (!data || data.length === 0) {
+                setTimeout(() => {
+                    this.showTooltip('📭 题库为空，先去【题库管理】添加题目吧', 4000);
+                }, 1500);
+            }
+        } catch (e) {}
+    },
+
+    // ------------------------------------------------------------
+    // 14. 数量选择弹窗
     // ------------------------------------------------------------
     showQuantityModal(mode) {
         const modal = document.getElementById('quantityModal');
@@ -683,7 +1218,6 @@ window.QuizApp = {
         const user = this.getCurrentUser();
         if (!user) { alert("请先登录"); return; }
 
-        // 根据模式设置标题和提示
         const titleMap = {
             'sequential': '📋 选择刷题数量',
             'random': '🎲 选择随机数量',
@@ -691,7 +1225,6 @@ window.QuizApp = {
         };
         document.getElementById('modalTitle').textContent = titleMap[mode] || '📋 选择数量';
 
-        // 错题模式：从错题库获取总数
         const fetchUrl = mode === 'wrong'
             ? `/api/wrong?user_id=${encodeURIComponent(user)}`
             : `/api/questions?user_id=${encodeURIComponent(user)}`;
@@ -784,7 +1317,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 9. 进度管理
+    // 15. 进度管理
     // ------------------------------------------------------------
     getProgress(user) {
         const key = `quiz_progress_${user}`;
@@ -811,15 +1344,24 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 10. 初始化
+    // 16. 初始化
     // ------------------------------------------------------------
-    init() {
+    async init() {
         this.updateUserUI();
         this.loadTheme();
+        this.loadSettings();
+
         const saved = localStorage.getItem('quiz_last_selected');
         if (saved) {
             const num = parseInt(saved);
             if (!isNaN(num)) this.lastSelected = num;
+        }
+
+        // 检查并恢复会话
+        const restored = await this.restoreSession();
+        if (!restored) {
+            // 如果没有恢复，显示智能提示
+            setTimeout(() => this.checkSmartPrompts(), 1500);
         }
     }
 };
