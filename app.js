@@ -1,5 +1,5 @@
 // ==========================================
-// 🚀 QuizApp 10.5 · 带触摸滑动 & 网格自动关闭
+// 🚀 QuizApp 10.6 · 带收藏功能
 // ==========================================
 
 window.QuizApp = {
@@ -38,6 +38,10 @@ window.QuizApp = {
     _pendingLimit: 0,
     _totalBank: [],
     _wrongIdMap: {},
+
+    // ===== 🆕 收藏相关 =====
+    _favorites: [],          // 收藏的题目 ID 列表
+    _isFavoritesMode: false, // 是否处于收藏刷题模式
 
     // ------------------------------------------------------------
     // 用户管理
@@ -90,6 +94,93 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
+    // ===== 🆕 加载收藏列表 =====
+    // ------------------------------------------------------------
+    async loadFavorites() {
+        const user = this.getCurrentUser();
+        if (!user) {
+            this._favorites = [];
+            return;
+        }
+        try {
+            const res = await fetch(`/api/favorites?user_id=${encodeURIComponent(user)}`);
+            const data = await res.json();
+            this._favorites = data.map(q => q.id);
+        } catch (e) {
+            this._favorites = [];
+            console.error('加载收藏失败:', e);
+        }
+    },
+
+    // ------------------------------------------------------------
+    // ===== 🆕 开始收藏刷题 =====
+    // ------------------------------------------------------------
+    async startFavorites() {
+        const user = this.getCurrentUser();
+        if (!user) {
+            alert("请先登录");
+            return;
+        }
+        await this.loadFavorites();
+        if (this._favorites.length === 0) {
+            alert("⭐ 暂无收藏题目");
+            return;
+        }
+        // 获取收藏题目的完整数据
+        const res = await fetch(`/api/favorites?user_id=${encodeURIComponent(user)}`);
+        const bank = await res.json();
+        if (!bank || bank.length === 0) {
+            alert("⭐ 暂无收藏题目");
+            return;
+        }
+        this._isFavoritesMode = true;
+        this._source = 'favorites';
+        this.startFromBank(bank, false);
+    },
+
+    // ===== 🆕 从给定题库开始刷题（不经过 API） =====
+    startFromBank(bank, isRandom = false) {
+        if (!bank || bank.length === 0) {
+            alert("没有题目");
+            return;
+        }
+        this.activeBank = bank;
+        this.idx = 0;
+        this.record = new Array(this.activeBank.length).fill(null);
+        this._consecutiveCorrect = 0;
+        this._consecutiveWrong = 0;
+        this._sessionId = Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+        this._isRandom = isRandom;
+        this._currentLimit = bank.length;
+
+        // 渲染界面（无章节导航，显示“收藏”）
+        document.getElementById("home").style.display = "none";
+        document.getElementById("app").innerHTML = `
+            <div class="chapter-nav" id="chapterNav">
+                <button class="chapter-btn active" data-chapter="全部" onclick="QuizApp.selectChapter('全部')">⭐ 收藏（${bank.length}题）</button>
+            </div>
+            <div class="app-card" id="mainQuizCard">
+                <div id="quizContent"></div>
+            </div>
+            <div class="glass-trigger" id="masterGlassBtn">
+                <svg viewBox="0 0 24 24"><path d="M4 6h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 12h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 18h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/></svg>
+            </div>
+            <div class="folder-overlay" id="folderOverlay"></div>
+            <div class="grid-folder" id="gridFolder">
+                <div class="folder-drag-handle"></div>
+                <div class="folder-grid-content" id="folderGrid"></div>
+            </div>
+        `;
+        document.getElementById("app").className = "stage-container";
+        document.getElementById("app").style.display = "block";
+        this.renderCard(false);
+        this.bindGlobalEvents();
+        this.renderGrid();
+        this.folderVisible = false;
+        this.saveSessionContext();
+    },
+
+    // ------------------------------------------------------------
     // 核心：开始刷题（智能隐藏无效章节）
     // ------------------------------------------------------------
     async start(isRandom, limit = -1, source = 'all', selectedChapters = null) {
@@ -100,6 +191,9 @@ window.QuizApp = {
             this._isFinishing = false;
             this._isRandom = isRandom;
             this._currentLimit = limit;
+
+            // 🆕 加载收藏列表
+            await this.loadFavorites();
 
             let url = `/api/questions?user_id=${encodeURIComponent(user)}`;
             if (selectedChapters && selectedChapters.length > 0) {
@@ -276,7 +370,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 🆕 渲染卡片（增加方向参数，实现滑动动画）
+    // 🆕 渲染卡片（增加方向参数，实现滑动动画 + 收藏星标）
     // ------------------------------------------------------------
     renderCard(needAnimation, direction = 'none') {
         const content = document.getElementById("quizContent");
@@ -297,15 +391,25 @@ window.QuizApp = {
             filterInfo = ` | 筛选: ${this._selectedChapters.join(' + ')}`;
         }
 
+        // ===== 🆕 收藏星标状态 =====
+        const isFav = this._favorites.includes(q.id);
+        const starHtml = `
+            <button onclick="QuizApp.toggleFavorite(${q.id}, this)" 
+                    style="background:transparent; border:none; font-size:22px; cursor:pointer; color:${isFav ? '#f5a623' : '#ccc'}; transition:0.2s; padding:0 4px; line-height:1;">
+                ${isFav ? '⭐' : '☆'}
+            </button>
+        `;
+
         const htmlContent = `
             <div id="top">
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; flex:1;">
                     <span style="font-size:13px; font-weight:600; color:#86868b;">正确率: <span id="accDisplay">${acc}</span>%</span>
                     <span style="font-size:13px; font-weight:600; color:#86868b;">| 进度: ${done}/${total}</span>
                     ${remaining > 0 ? `<span style="font-size:12px; color:#aaa; margin-left:4px;">(还剩 ${remaining} 题)</span>` : ''}
                     ${filterInfo ? `<span style="font-size:12px; color:#0071e3; margin-left:4px;">${filterInfo}</span>` : ''}
                 </div>
-                <div style="display:flex; align-items:center; gap:8px;">
+                <div style="display:flex; align-items:center; gap:6px;">
+                    ${starHtml}
                     <button onclick="QuizApp.goHome()" style="background:rgba(255,255,255,0.2); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.3); border-radius:30px; padding:4px 14px; font-size:13px; font-weight:500; color:#0071e3; cursor:pointer;">🏠 返回</button>
                     <div class="progress-ring">
                         <svg width="36" height="36">
@@ -528,6 +632,17 @@ window.QuizApp = {
         const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
         const acc = total > 0 ? Math.round(correct / total * 100) : 0;
 
+        // 如果是收藏模式，提示并返回收藏列表
+        if (this._isFavoritesMode) {
+            const msg = `✅ 收藏刷题完成！\n共 ${total} 题，正确率 ${acc}%`;
+            if (confirm(msg + "\n\n点击「确定」返回收藏列表，点击「取消」返回首页")) {
+                this.startFavorites();
+            } else {
+                this.goHome();
+            }
+            return;
+        }
+
         if (!this._isRandom && this._totalBank && this._pendingStart !== undefined && this._source === 'all') {
             const newIndex = this._pendingStart + this.activeBank.length;
             if (newIndex >= this._totalBank.length) {
@@ -579,6 +694,60 @@ window.QuizApp = {
     goHome() {
         this.clearSessionContext();
         window.location.href = '/';
+    },
+
+    // ===== 🆕 切换收藏状态 =====
+    async toggleFavorite(questionId, btn) {
+        const user = this.getCurrentUser();
+        if (!user) {
+            alert("请先登录");
+            return;
+        }
+        const isFav = this._favorites.includes(questionId);
+        const url = isFav ? '/api/favorites-remove' : '/api/favorites-add';
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: user, question_id: questionId })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                if (isFav) {
+                    this._favorites = this._favorites.filter(id => id !== questionId);
+                    btn.textContent = '☆';
+                    btn.style.color = '#ccc';
+                    this.showToast('已取消收藏', 1500);
+                    // 如果当前在收藏模式且取消收藏，则移除该题并刷新列表
+                    if (this._isFavoritesMode) {
+                        // 从 activeBank 中移除该题
+                        const idx = this.activeBank.findIndex(item => item.id === questionId);
+                        if (idx !== -1) {
+                            this.activeBank.splice(idx, 1);
+                            this.record.splice(idx, 1);
+                            if (this.idx >= this.activeBank.length) {
+                                this.idx = this.activeBank.length - 1;
+                            }
+                            if (this.activeBank.length === 0) {
+                                alert('⭐ 收藏已清空，返回首页');
+                                this.goHome();
+                                return;
+                            }
+                            this.renderCard(true);
+                        }
+                    }
+                } else {
+                    this._favorites.push(questionId);
+                    btn.textContent = '⭐';
+                    btn.style.color = '#f5a623';
+                    this.showToast('已收藏 ⭐', 1500);
+                }
+            } else {
+                alert('操作失败：' + (data.error || '未知错误'));
+            }
+        } catch (e) {
+            alert('请求失败：' + e.message);
+        }
     },
 
     // ------------------------------------------------------------
