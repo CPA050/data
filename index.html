@@ -6,7 +6,6 @@
     <title>答题系统</title>
     <link rel="stylesheet" href="style.css" />
     <style>
-        /* 增加按钮样式以匹配你的原风格 */
         button {
             display: block;
             width: 80%;
@@ -20,7 +19,6 @@
             cursor: pointer;
         }
         .manager-btn { background: #5856d6; }
-        /* 退出按钮在状态栏内联，保持原样 */
         .logout-btn {
             display: none;
             width: auto;
@@ -33,25 +31,55 @@
             color: #fff;
             cursor: pointer;
         }
+        .theme-btns {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+        .theme-btn {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: 0.2s;
+            padding: 0;
+            margin: 0;
+        }
+        .theme-btn:hover { transform: scale(1.1); }
+        .theme-btn.active { border-color: #0071e3; box-shadow: 0 0 0 3px rgba(0,113,227,0.3); }
+        .theme-btn-light { background: #f5f5f5; }
+        .theme-btn-dark { background: #1a1a2e; }
+        .theme-btn-eye { background: #f5e6d3; }
+        .theme-btn-custom { background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red); }
+        .theme-btn-image { background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23666"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>') center/70% no-repeat #e0e0e0; }
     </style>
 </head>
 <body>
 
     <div id="home">
-        <div class="user-status-bar" id="userStatusBar" style="text-align: center; margin-bottom: 25px; font-size: 14px;">
+        <div class="user-status-bar" id="userStatusBar" style="text-align: center; margin-bottom: 15px; font-size: 14px;">
             <span id="userInfoText" style="font-weight: 600; color: #86868b; cursor: pointer;" onclick="QuizApp.checkLogin()">👤 游客模式 (点击登录)</span>
             <button onclick="QuizApp.logout()" id="logoutBtn" class="logout-btn">退出</button>
+            <div class="theme-btns">
+                <button class="theme-btn theme-btn-light active" onclick="QuizApp.setTheme('light')" title="明亮模式"></button>
+                <button class="theme-btn theme-btn-dark" onclick="QuizApp.setTheme('dark')" title="夜间模式"></button>
+                <button class="theme-btn theme-btn-eye" onclick="QuizApp.setTheme('eye')" title="护眼模式"></button>
+                <button class="theme-btn theme-btn-custom" onclick="QuizApp.openBgPicker()" title="自定义背景色"></button>
+                <button class="theme-btn theme-btn-image" onclick="QuizApp.uploadBgImage()" title="自定义背景图"></button>
+            </div>
         </div>
 
-        <h1>答题系统</h1>
+        <h1>📝 答题系统</h1>
         
         <button onclick="QuizApp.start(false)">顺序刷题</button>
         <button onclick="QuizApp.start(true)">随机刷题</button>
-        <!-- 题库管理按钮：使用模态框管理当前用户的题库 -->
-        <button class="manager-btn" onclick="QuizApp.showManager()">题库管理</button>
+        <button class="manager-btn" onclick="QuizApp.showManager()">📚 题库管理</button>
 
         <div class="home-footer-links" style="margin-top: 30px; display: flex; justify-content: center; border-top: 1px solid rgba(0, 0, 0, 0.08); padding-top: 20px;">
-            <!-- 我的错题库：跳转到独立页面 wrong.html -->
             <a href="/wrong.html" class="glass-btn-link" onclick="return QuizApp.checkLoginBeforeGo('/wrong.html')" style="display: inline-flex; align-items: center; text-decoration: none; color: #0071e3; font-size: 15px; font-weight: 500;">
                 <svg viewBox="0 0 24 24" class="btn-icon" style="width:18px; height:18px; fill:#0071e3; margin-right:6px;">
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
@@ -63,7 +91,9 @@
 
     <div id="app" style="display:none;"></div>
 
-    <!-- ✅ 已移除对 questions.js 的引用，因为题库现在从数据库动态加载 -->
+    <input type="color" id="bgColorPicker" style="display:none;" onchange="QuizApp.applyCustomBg(this.value)" />
+    <input type="file" id="bgImageInput" accept="image/*" style="display:none;" onchange="QuizApp.handleBgImageUpload(event)" />
+
     <script src="app.js"></script>
 
 </body>
