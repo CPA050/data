@@ -3,7 +3,6 @@ export async function onRequestGet(context) {
     const { env } = context;
     const url = new URL(context.request.url);
     const userId = url.searchParams.get("user_id");
-    // 🆕 新增章节筛选参数，多个章节用逗号分隔
     const chaptersParam = url.searchParams.get("chapters");
 
     if (!userId) {
@@ -14,7 +13,6 @@ export async function onRequestGet(context) {
         let sql = "SELECT id, q, opts, a, chapter FROM questions WHERE user_id = ?";
         let params = [userId];
 
-        // 🆕 如果传了 chapters 参数，按章节筛选
         if (chaptersParam && chaptersParam.trim() !== '') {
             const chapters = decodeURIComponent(chaptersParam).split(',').filter(c => c.trim() !== '');
             if (chapters.length > 0) {
@@ -36,7 +34,7 @@ export async function onRequestGet(context) {
             chapter: item.chapter || null
         }));
 
-        // 🆕 同时返回所有可用的章节列表（用于显示按钮）
+        // 获取所有章节列表
         const allChaptersRes = await env.exam_db.prepare(
             "SELECT DISTINCT chapter FROM questions WHERE user_id = ? ORDER BY chapter"
         ).bind(userId).all();
@@ -52,7 +50,7 @@ export async function onRequestGet(context) {
             headers: { "Content-Type": "application/json;charset=UTF-8" }
         });
     } catch (err) {
-        return new Response(JSON.stringify({ error: err.message, stack: err.stack }), {
+        return new Response(JSON.stringify({ error: err.message }), {
             status: 500,
             headers: { "Content-Type": "application/json" }
         });
