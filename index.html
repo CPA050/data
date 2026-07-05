@@ -22,12 +22,7 @@
             <button onclick="QuizApp.logout()" id="logoutBtn" class="logout-btn">退出</button>
         </div>
 
-        <!-- 主题切换（仅保留明亮/夜间/护眼，自定义移到设置） -->
-        <div class="theme-bar">
-            <button class="theme-btn theme-btn-light active" onclick="QuizApp.setTheme('light')" title="明亮"></button>
-            <button class="theme-btn theme-btn-dark" onclick="QuizApp.setTheme('dark')" title="夜间"></button>
-            <button class="theme-btn theme-btn-eye" onclick="QuizApp.setTheme('eye')" title="护眼"></button>
-        </div>
+        <!-- ✅ 已移除主题切换栏，所有主题管理移至设置面板 -->
 
         <h1>📝 答题系统</h1>
 
@@ -65,6 +60,15 @@
                 <button class="modal-close" onclick="QuizApp.toggleSettings()">✕</button>
             </div>
             <div class="modal-body settings-body">
+                <!-- 🆕 主题切换（明亮/夜间/护眼） -->
+                <div class="setting-item" style="flex-direction:column; align-items:stretch; gap:8px; border-bottom: 1px solid rgba(0,0,0,0.05);">
+                    <span class="setting-label" style="margin-bottom:4px;">🎨 主题模式</span>
+                    <div style="display:flex; gap:10px;">
+                        <button onclick="QuizApp.setThemeFromSettings('light')" id="settingsThemeLight" class="theme-option-btn active" style="flex:1; padding:10px 0; border-radius:12px; border:2px solid rgba(0,0,0,0.06); background:rgba(255,255,255,0.3); backdrop-filter:blur(4px); cursor:pointer; font-size:14px; font-weight:500; color:#1d1d1f; transition:0.2s;">☀️ 明亮</button>
+                        <button onclick="QuizApp.setThemeFromSettings('dark')" id="settingsThemeDark" class="theme-option-btn" style="flex:1; padding:10px 0; border-radius:12px; border:2px solid rgba(0,0,0,0.06); background:rgba(255,255,255,0.3); backdrop-filter:blur(4px); cursor:pointer; font-size:14px; font-weight:500; color:#1d1d1f; transition:0.2s;">🌙 夜间</button>
+                        <button onclick="QuizApp.setThemeFromSettings('eye')" id="settingsThemeEye" class="theme-option-btn" style="flex:1; padding:10px 0; border-radius:12px; border:2px solid rgba(0,0,0,0.06); background:rgba(255,255,255,0.3); backdrop-filter:blur(4px); cursor:pointer; font-size:14px; font-weight:500; color:#1d1d1f; transition:0.2s;">👁️ 护眼</button>
+                    </div>
+                </div>
                 <!-- 震动开关 -->
                 <div class="setting-item">
                     <span class="setting-label">📳 震动反馈</span>
@@ -83,7 +87,7 @@
                     <span class="setting-label">🖼️ 自定义背景图</span>
                     <button onclick="QuizApp.uploadBgImage()" style="padding:6px 16px; background:rgba(0,113,227,0.15); color:#0071e3; border:1px solid rgba(0,113,227,0.2); border-radius:10px; cursor:pointer; font-size:13px;">选择图片</button>
                 </div>
-                <!-- 🆕 背景透明度滑块 -->
+                <!-- 背景透明度滑块 -->
                 <div class="setting-item" style="flex-direction:column; align-items:stretch; gap:6px;">
                     <div style="display:flex; justify-content:space-between;">
                         <span class="setting-label">🔆 背景透明度</span>
@@ -92,7 +96,7 @@
                     <input type="range" id="bgOpacitySlider" min="0" max="100" value="100"
                            oninput="QuizApp.updateBgOpacity(this.value)" />
                 </div>
-                <!-- 🆕 背景模糊滑块 -->
+                <!-- 背景模糊滑块 -->
                 <div class="setting-item" style="flex-direction:column; align-items:stretch; gap:6px; border-bottom: none;">
                     <div style="display:flex; justify-content:space-between;">
                         <span class="setting-label">🌫️ 背景模糊</span>
@@ -122,7 +126,7 @@
                 </div>
                 <!-- 版本信息 -->
                 <div class="setting-item" style="border-bottom: none; margin-top: 4px;">
-                    <span class="setting-label" style="font-size: 12px; color: #86868b;">版本 9.5 · 已登录: <span id="settingsUser">-</span></span>
+                    <span class="setting-label" style="font-size: 12px; color: #86868b;">版本 9.6 · 已登录: <span id="settingsUser">-</span></span>
                 </div>
             </div>
         </div>
