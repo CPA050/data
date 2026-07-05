@@ -1272,3 +1272,48 @@ body.theme-dark .chapter-btn.active {
 .chapter-btn.active { background: #0071e3; color: #fff; border-color: #0071e3; box-shadow: 0 2px 8px rgba(0,113,227,0.2); }
 body.theme-dark .chapter-btn { background: rgba(50,50,80,0.3); border-color: rgba(255,255,255,0.06); color: #aaa; }
 body.theme-dark .chapter-btn.active { background: #0071e3; color: #fff; }
+/* ===== 滑动切换动画 ===== */
+#quizContent {
+    transition: none; /* 由类控制 */
+}
+/* 滑出左 */
+.slide-out-left {
+    animation: slideOutLeft 0.25s ease forwards;
+}
+@keyframes slideOutLeft {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(-60px); opacity: 0; }
+}
+/* 滑出右 */
+.slide-out-right {
+    animation: slideOutRight 0.25s ease forwards;
+}
+@keyframes slideOutRight {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(60px); opacity: 0; }
+}
+/* 滑入左（新卡片从左侧出现） */
+.slide-in-left {
+    animation: slideInLeft 0.3s ease forwards;
+}
+@keyframes slideInLeft {
+    from { transform: translateX(-60px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+/* 滑入右（新卡片从右侧出现） */
+.slide-in-right {
+    animation: slideInRight 0.3s ease forwards;
+}
+@keyframes slideInRight {
+    from { transform: translateX(60px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+/* 保留原来的淡入淡出（用于无方向跳转） */
+.card-fade {
+    animation: cardFade 0.18s ease forwards;
+}
+@keyframes cardFade {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
+}
