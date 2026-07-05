@@ -1,5 +1,5 @@
 // ==========================================
-// 🚀 QuizApp 10.0 · 完整版（含章节导航）
+// 🚀 QuizApp 10.4 · 完整功能版（智能章节显示）
 // ==========================================
 
 window.QuizApp = {
@@ -25,15 +25,72 @@ window.QuizApp = {
     _isRestoring: false,
     _isFinishing: false,
 
-    // 🆕 章节相关
+    // 章节相关
     _allChapters: [],
     _selectedChapters: [],
     _isChapterMode: false,
     _currentLimit: -1,
     _isRandom: false,
 
+    // 其他内部变量
+    _selectTimer: null,
+    _pendingStart: 0,
+    _pendingLimit: 0,
+    _totalBank: [],
+    _wrongIdMap: {},
+
     // ------------------------------------------------------------
-    // 1. 核心业务：加载并开始答题（已增加章节筛选）
+    // 用户管理
+    // ------------------------------------------------------------
+    getCurrentUser() {
+        return localStorage.getItem('quiz_user_id');
+    },
+
+    checkLogin() {
+        let user = this.getCurrentUser();
+        if (!user) {
+            user = prompt("🍏 请输入您的用户名：");
+            if (user) {
+                localStorage.setItem('quiz_user_id', user.trim());
+                this.updateUserUI();
+                return user.trim();
+            }
+            return null;
+        }
+        return user;
+    },
+
+    logout() {
+        if (confirm("确定退出吗？")) {
+            localStorage.removeItem('quiz_user_id');
+            this.clearSessionContext();
+            this.updateUserUI();
+            alert("已退出");
+            window.location.reload();
+        }
+    },
+
+    updateUserUI() {
+        const user = this.getCurrentUser();
+        const info = document.getElementById('userInfoText');
+        const btn = document.getElementById('logoutBtn');
+        const settingsUser = document.getElementById('settingsUser');
+        if (info) {
+            info.textContent = user ? `🍏 已登录: ${user}` : `👤 游客模式`;
+            if (btn) btn.style.display = user ? 'inline-block' : 'none';
+        }
+        if (settingsUser) settingsUser.textContent = user || '未登录';
+    },
+
+    checkLoginBeforeGo(targetUrl) {
+        const user = this.getCurrentUser();
+        if (!user) { alert("请先登录"); return false; }
+        window.location.href = targetUrl;
+        return false;
+    },
+
+    // ------------------------------------------------------------
+    // 核心：开始刷题（智能隐藏无效章节）
     // ------------------------------------------------------------
     async start(isRandom, limit = -1, source = 'all', selectedChapters = null) {
         const user = this.getCurrentUser();
@@ -44,7 +101,6 @@ window.QuizApp = {
             this._isRandom = isRandom;
             this._currentLimit = limit;
 
-            // 🆕 构建请求 URL（支持章节筛选）
             let url = `/api/questions?user_id=${encodeURIComponent(user)}`;
             if (selectedChapters && selectedChapters.length > 0) {
                 const chaptersParam = selectedChapters.map(c => encodeURIComponent(c)).join(',');
@@ -58,17 +114,19 @@ window.QuizApp = {
 
             const res = await fetch(url);
             const data = await res.json();
+            // 过滤无效章节（null、undefined、空字符串、"其他"）
+            const allChapters = (data.chapters || [])
+                .filter(ch => ch && ch.trim() !== '' && ch !== '其他');
+            this._allChapters = allChapters;
 
-            // 🆕 提取章节列表
-            this._allChapters = data.chapters || [];
-            let bank = data.questions || data; // 兼容新旧格式
+            let bank = data.questions || data;
 
             if (!bank || bank.length === 0) {
                 alert("❌ 当前筛选范围没有题目，请调整章节选择。");
                 return;
             }
 
-            // 错题模式暂不支持章节筛选
+            // 错题模式
             if (source === 'wrong') {
                 const wrongRes = await fetch(`/api/wrong?user_id=${encodeURIComponent(user)}`);
                 const wrongData = await wrongRes.json();
@@ -91,7 +149,7 @@ window.QuizApp = {
                 this._wrongIdMap = {};
             }
 
-            // 处理数量限制
+            // 数量限制
             let selectedBank = [];
             if (limit === -1 || limit >= bank.length) {
                 selectedBank = bank;
@@ -129,16 +187,19 @@ window.QuizApp = {
             this._consecutiveWrong = 0;
             this._sessionId = Date.now() + '_' + Math.random().toString(36).substr(2, 6);
 
-            // 🆕 渲染界面（加入章节导航）
+            // 渲染界面（章节导航：只有有效章节才显示按钮）
+            const chapterButtons = this._allChapters.length > 0
+                ? this._allChapters.map(ch => `
+                    <button class="chapter-btn" data-chapter="${ch}" onclick="QuizApp.selectChapter('${ch}')">${ch}</button>
+                `).join('')
+                : '';
+
             document.getElementById("home").style.display = "none";
             document.getElementById("app").innerHTML = `
                 <div class="app-card" id="mainQuizCard">
-                    <!-- 章节导航 -->
                     <div class="chapter-nav" id="chapterNav">
                         <button class="chapter-btn active" data-chapter="全部" onclick="QuizApp.selectChapter('全部')">📚 全部</button>
-                        ${this._allChapters.map(ch => `
-                            <button class="chapter-btn" data-chapter="${ch}" onclick="QuizApp.selectChapter('${ch}')">${ch}</button>
-                        `).join('')}
+                        ${chapterButtons}
                     </div>
                     <div id="quizContent"></div>
                 </div>
@@ -169,79 +230,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 2. 渲染题目卡片（改用 #quizContent）
-    // ------------------------------------------------------------
-    renderCard(needAnimation) {
-        const content = document.getElementById("quizContent");
-        if (!content) return;
-        const q = this.activeBank[this.idx];
-        const done = this.record.filter(x => x !== null).length;
-        const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
-        const acc = done ? Math.round(correct / done * 100) : 0;
-        const total = this.activeBank.length;
-        const remaining = total - done;
-        const percent = total > 0 ? Math.round(done / total * 100) : 0;
-        const circumference = 94.2;
-        const offset = circumference * (1 - percent / 100);
-
-        // 🆕 显示当前筛选信息
-        let filterInfo = '';
-        if (this._isChapterMode && this._selectedChapters.length > 0) {
-            filterInfo = ` | 筛选: ${this._selectedChapters.join(' + ')}`;
-        }
-
-        const htmlContent = `
-            <div id="top">
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                    <span style="font-size:13px; font-weight:600; color:#86868b;">正确率: <span id="accDisplay">${acc}</span>%</span>
-                    <span style="font-size:13px; font-weight:600; color:#86868b;">| 进度: ${done}/${total}</span>
-                    ${remaining > 0 ? `<span style="font-size:12px; color:#aaa; margin-left:4px;">(还剩 ${remaining} 题)</span>` : ''}
-                    ${filterInfo ? `<span style="font-size:12px; color:#0071e3; margin-left:4px;">${filterInfo}</span>` : ''}
-                </div>
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <button onclick="QuizApp.goHome()" style="background:rgba(255,255,255,0.2); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.3); border-radius:30px; padding:4px 14px; font-size:13px; font-weight:500; color:#0071e3; cursor:pointer;">🏠 返回</button>
-                    <div class="progress-ring">
-                        <svg width="36" height="36">
-                            <circle class="bg" cx="18" cy="18" r="15"/>
-                            <circle class="fg" cx="18" cy="18" r="15"
-                                    stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"/>
-                        </svg>
-                    </div>
-                </div>
-            </div>
-            <h2 style="transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);">
-                Q${this.idx + 1}. ${q.q}
-            </h2>
-            ${q.opts.map((o, oIdx) => {
-                let cls = "opt";
-                if (this.record[this.idx] !== null) {
-                    if (oIdx === q.a) cls += " correct";
-                    else if (oIdx === this.record[this.idx]) cls += " wrong";
-                }
-                return `<div class="${cls}" onclick="QuizApp.select(${oIdx}, this)">${o}</div>`;
-            }).join("")}
-            <div class="group-progress">
-                <div class="bar" style="width: ${percent}%;"></div>
-            </div>
-        `;
-
-        if (needAnimation) {
-            content.classList.add("card-fade");
-            setTimeout(() => {
-                content.innerHTML = htmlContent;
-                content.classList.remove("card-fade");
-            }, 180);
-        } else {
-            content.innerHTML = htmlContent;
-        }
-        this.renderGrid();
-        this.saveSessionContext();
-        // 🆕 更新章节按钮高亮
-        this.updateChapterButtons();
-    },
-
-    // ------------------------------------------------------------
-    // 3. 章节选择（多选支持）
+    // 章节选择（多选，但只有有效章节可被选中）
     // ------------------------------------------------------------
     selectChapter(chapter) {
         const allBtn = document.querySelector('.chapter-btn[data-chapter="全部"]');
@@ -287,13 +276,141 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 4. 其他核心方法（goHome, select, createRipple, finishBatch）
+    // 渲染卡片
     // ------------------------------------------------------------
-    goHome() {
-        this.clearSessionContext();
-        window.location.href = '/';
+    renderCard(needAnimation) {
+        const content = document.getElementById("quizContent");
+        if (!content) return;
+        const q = this.activeBank[this.idx];
+        const done = this.record.filter(x => x !== null).length;
+        const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
+        const acc = done ? Math.round(correct / done * 100) : 0;
+        const total = this.activeBank.length;
+        const remaining = total - done;
+        const percent = total > 0 ? Math.round(done / total * 100) : 0;
+        const circumference = 94.2;
+        const offset = circumference * (1 - percent / 100);
+
+        let filterInfo = '';
+        if (this._isChapterMode && this._selectedChapters.length > 0) {
+            filterInfo = ` | 筛选: ${this._selectedChapters.join(' + ')}`;
+        }
+
+        const htmlContent = `
+            <div id="top">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <span style="font-size:13px; font-weight:600; color:#86868b;">正确率: <span id="accDisplay">${acc}</span>%</span>
+                    <span style="font-size:13px; font-weight:600; color:#86868b;">| 进度: ${done}/${total}</span>
+                    ${remaining > 0 ? `<span style="font-size:12px; color:#aaa; margin-left:4px;">(还剩 ${remaining} 题)</span>` : ''}
+                    ${filterInfo ? `<span style="font-size:12px; color:#0071e3; margin-left:4px;">${filterInfo}</span>` : ''}
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <button onclick="QuizApp.goHome()" style="background:rgba(255,255,255,0.2); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.3); border-radius:30px; padding:4px 14px; font-size:13px; font-weight:500; color:#0071e3; cursor:pointer;">🏠 返回</button>
+                    <div class="progress-ring">
+                        <svg width="36" height="36">
+                            <circle class="bg" cx="18" cy="18" r="15"/>
+                            <circle class="fg" cx="18" cy="18" r="15"
+                                    stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            <h2>Q${this.idx + 1}. ${q.q}</h2>
+            ${q.opts.map((o, oIdx) => {
+                let cls = "opt";
+                if (this.record[this.idx] !== null) {
+                    if (oIdx === q.a) cls += " correct";
+                    else if (oIdx === this.record[this.idx]) cls += " wrong";
+                }
+                return `<div class="${cls}" onclick="QuizApp.select(${oIdx}, this)">${o}</div>`;
+            }).join("")}
+            <div class="group-progress">
+                <div class="bar" style="width: ${percent}%;"></div>
+            </div>
+        `;
+
+        if (needAnimation) {
+            content.classList.add("card-fade");
+            setTimeout(() => {
+                content.innerHTML = htmlContent;
+                content.classList.remove("card-fade");
+            }, 180);
+        } else {
+            content.innerHTML = htmlContent;
+        }
+        this.renderGrid();
+        this.saveSessionContext();
+        this.updateChapterButtons();
+        // 安全大屏适配
+        this.safeUpdateSidebar();
+        this.safeUpdateStats();
     },
 
+    // ------------------------------------------------------------
+    // 安全的大屏适配（无 insertBefore 错误）
+    // ------------------------------------------------------------
+    safeUpdateSidebar() {
+        const card = document.getElementById('mainQuizCard');
+        if (!card) return;
+        const oldSidebar = document.querySelector('.grid-sidebar');
+        if (oldSidebar) oldSidebar.remove();
+
+        if (window.innerWidth < 640) return;
+        const h2 = card.querySelector('h2');
+        if (!h2) return;
+
+        const sidebar = document.createElement('div');
+        sidebar.className = 'grid-sidebar';
+        const total = this.activeBank.length;
+        if (total === 0) return;
+
+        let html = '';
+        for (let i = 0; i < total; i++) {
+            const status = this.record[i];
+            let cls = 'qbtn-mini';
+            if (status !== null) {
+                cls += (status === this.activeBank[i].a) ? ' correct' : ' wrong';
+            }
+            if (i === this.idx) cls += ' active';
+            html += `<div class="${cls}" onclick="QuizApp.jumpToQuestion(${i})" title="第 ${i+1} 题">${i + 1}</div>`;
+        }
+        sidebar.innerHTML = html;
+        h2.parentNode.insertBefore(sidebar, h2);
+    },
+
+    safeUpdateStats() {
+        const card = document.getElementById('mainQuizCard');
+        if (!card) return;
+        const oldPanel = document.querySelector('.stats-panel');
+        if (oldPanel) oldPanel.remove();
+
+        if (window.innerWidth < 1024) return;
+
+        const done = this.record.filter(x => x !== null).length;
+        const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
+        const acc = done ? Math.round(correct / done * 100) : 0;
+        const total = this.activeBank.length;
+        const remaining = total - done;
+
+        const panel = document.createElement('div');
+        panel.className = 'stats-panel';
+        panel.innerHTML = `
+            <div class="stat-item"><span>📊 进度</span><span class="stat-value">${done}/${total}</span></div>
+            <div class="stat-item"><span>✅ 正确率</span><span class="stat-value">${acc}%</span></div>
+            <div class="stat-item"><span>⏳ 剩余</span><span class="stat-value">${remaining} 题</span></div>
+            <div class="stat-item"><span>🔥 连续答对</span><span class="stat-value">${this._consecutiveCorrect || 0}</span></div>
+            <div class="shortcut-hint">
+                ⌨️ 快捷键<br>
+                <kbd>1-4</kbd> 选答案 <kbd>Enter</kbd> 确认<br>
+                <kbd>←</kbd> <kbd>→</kbd> 切换 <kbd>Esc</kbd> 关闭
+            </div>
+        `;
+        card.appendChild(panel);
+    },
+
+    // ------------------------------------------------------------
+    // 选择选项 + 自动跳转（修复）
+    // ------------------------------------------------------------
     select(oIdx, element) {
         if (this.record[this.idx] !== null) return;
         if (this._isFinishing) return;
@@ -337,9 +454,7 @@ window.QuizApp = {
         const allDone = this.record.every(v => v !== null);
         if (allDone) {
             this._isFinishing = true;
-            setTimeout(() => {
-                this.finishBatch();
-            }, 300);
+            setTimeout(() => this.finishBatch(), 300);
             return;
         }
 
@@ -430,8 +545,13 @@ window.QuizApp = {
         }
     },
 
+    goHome() {
+        this.clearSessionContext();
+        window.location.href = '/';
+    },
+
     // ------------------------------------------------------------
-    // 5. 题库管理（含章节输入）
+    // 题库管理（完整）
     // ------------------------------------------------------------
     async showManager() {
         const user = this.checkLogin();
@@ -555,7 +675,6 @@ window.QuizApp = {
             alert("序号无效");
             return;
         }
-        // 🆕 增加章节输入
         const chapter = prompt("请输入章节名称（如：第1章 毛泽东思想，留空则不分类）：");
         this.submitQuestion({ q, opts, a, chapter: chapter || '' });
     },
@@ -621,7 +740,6 @@ window.QuizApp = {
             alert("序号无效");
             return;
         }
-        // 🆕 增加章节编辑
         const newChapter = prompt("编辑章节名称（留空则不修改）：", q.chapter || '');
         try {
             const updateRes = await fetch('/api/questions-update', {
@@ -649,55 +767,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 6. 用户管理
-    // ------------------------------------------------------------
-    getCurrentUser() { return localStorage.getItem('quiz_user_id'); },
-
-    checkLogin() {
-        let user = this.getCurrentUser();
-        if (!user) {
-            user = prompt("🍏 请输入您的用户名：");
-            if (user) {
-                localStorage.setItem('quiz_user_id', user.trim());
-                this.updateUserUI();
-                return user.trim();
-            }
-            return null;
-        }
-        return user;
-    },
-
-    logout() {
-        if (confirm("确定退出吗？")) {
-            localStorage.removeItem('quiz_user_id');
-            this.clearSessionContext();
-            this.updateUserUI();
-            alert("已退出");
-            window.location.reload();
-        }
-    },
-
-    checkLoginBeforeGo(targetUrl) {
-        const user = this.getCurrentUser();
-        if (!user) { alert("请先登录"); return false; }
-        window.location.href = targetUrl;
-        return false;
-    },
-
-    updateUserUI() {
-        const user = this.getCurrentUser();
-        const info = document.getElementById('userInfoText');
-        const btn = document.getElementById('logoutBtn');
-        const settingsUser = document.getElementById('settingsUser');
-        if (info) {
-            info.textContent = user ? `🍏 已登录: ${user}` : `👤 游客模式`;
-            if (btn) btn.style.display = user ? 'inline-block' : 'none';
-        }
-        if (settingsUser) settingsUser.textContent = user || '未登录';
-    },
-
-    // ------------------------------------------------------------
-    // 7. 错题相关
+    // 错题相关
     // ------------------------------------------------------------
     async uploadWrongQuestion(userId, q) {
         try {
@@ -720,7 +790,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 8. 导航网格
+    // 导航网格
     // ------------------------------------------------------------
     toggleFolder(show) {
         const folder = document.getElementById('gridFolder');
@@ -757,81 +827,16 @@ window.QuizApp = {
             html += `<div class="${cls}" onclick="QuizApp.jumpToQuestion(${i})">${i + 1}</div>`;
         }
         container.innerHTML = html;
-        this.updateSidebarGrid();
-    },
-
-    updateSidebarGrid() {
-        let sidebar = document.querySelector('.grid-sidebar');
-        const card = document.querySelector('#mainQuizCard');
-        if (!card) return;
-
-        if (window.innerWidth >= 640) {
-            if (!sidebar) {
-                sidebar = document.createElement('div');
-                sidebar.className = 'grid-sidebar';
-                const h2 = card.querySelector('h2');
-                if (h2) card.insertBefore(sidebar, h2);
-            }
-            const total = this.activeBank.length;
-            let html = '';
-            for (let i = 0; i < total; i++) {
-                const status = this.record[i];
-                let cls = 'qbtn-mini';
-                if (status !== null) {
-                    cls += (status === this.activeBank[i].a) ? ' correct' : ' wrong';
-                }
-                if (i === this.idx) cls += ' active';
-                html += `<div class="${cls}" onclick="QuizApp.jumpToQuestion(${i})" title="第 ${i+1} 题">${i + 1}</div>`;
-            }
-            sidebar.innerHTML = html;
-        } else {
-            if (sidebar) sidebar.remove();
-        }
-        this.updateStatsPanel();
-    },
-
-    updateStatsPanel() {
-        let panel = document.querySelector('.stats-panel');
-        const card = document.querySelector('#mainQuizCard');
-        if (!card) return;
-
-        const done = this.record.filter(x => x !== null).length;
-        const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
-        const acc = done ? Math.round(correct / done * 100) : 0;
-        const total = this.activeBank.length;
-        const remaining = total - done;
-
-        if (window.innerWidth >= 1024) {
-            if (!panel) {
-                panel = document.createElement('div');
-                panel.className = 'stats-panel';
-                card.appendChild(panel);
-            }
-            panel.innerHTML = `
-                <div class="stat-item"><span>📊 进度</span><span class="stat-value">${done}/${total}</span></div>
-                <div class="stat-item"><span>✅ 正确率</span><span class="stat-value">${acc}%</span></div>
-                <div class="stat-item"><span>⏳ 剩余</span><span class="stat-value">${remaining} 题</span></div>
-                <div class="stat-item"><span>🔥 连续答对</span><span class="stat-value">${this._consecutiveCorrect || 0}</span></div>
-                <div class="shortcut-hint">
-                    ⌨️ 快捷键<br>
-                    <kbd>1-4</kbd> 选答案 <kbd>Enter</kbd> 确认<br>
-                    <kbd>←</kbd> <kbd>→</kbd> 切换 <kbd>Esc</kbd> 关闭
-                </div>
-            `;
-        } else {
-            if (panel) panel.remove();
-        }
     },
 
     jumpToQuestion(index) {
         if (index < 0 || index >= this.activeBank.length) return;
         this.idx = index;
-        this.toggleFolder(false);
         this.renderCard(true);
     },
 
     // ------------------------------------------------------------
-    // 9. 事件绑定
+    // 事件绑定（含键盘快捷键）
     // ------------------------------------------------------------
     bindGlobalEvents() {
         const btn = document.getElementById('masterGlassBtn');
@@ -928,12 +933,13 @@ window.QuizApp = {
         });
 
         window.addEventListener('resize', () => {
-            this.updateSidebarGrid();
+            this.safeUpdateSidebar();
+            this.safeUpdateStats();
         });
     },
 
     // ------------------------------------------------------------
-    // 10. 主题系统
+    // 主题系统（完整）
     // ------------------------------------------------------------
     setTheme(theme) {
         const body = document.body;
@@ -943,9 +949,9 @@ window.QuizApp = {
         body.style.removeProperty('--bg-opacity');
         body.style.removeProperty('--bg-blur');
 
-        if (theme === 'light') { body.classList.add('theme-light'); localStorage.setItem('quiz_theme', 'light'); } else if (theme === 'dark') { body.classList.add('theme-dark');
-            localStorage.setItem('quiz_theme', 'dark'); } else if (theme === 'eye') { body.classList.add('theme-eye');
-            localStorage.setItem('quiz_theme', 'eye'); }
+        if (theme === 'light') { body.classList.add('theme-light'); localStorage.setItem('quiz_theme', 'light'); }
+        else if (theme === 'dark') { body.classList.add('theme-dark'); localStorage.setItem('quiz_theme', 'dark'); }
+        else if (theme === 'eye') { body.classList.add('theme-eye'); localStorage.setItem('quiz_theme', 'eye'); }
 
         document.querySelectorAll('.theme-option-btn').forEach(btn => btn.classList.remove('active'));
         const map = { light: 'settingsThemeLight', dark: 'settingsThemeDark', eye: 'settingsThemeEye' };
@@ -1070,7 +1076,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 11. 设置面板
+    // 设置面板
     // ------------------------------------------------------------
     toggleSettings(force) {
         const modal = document.getElementById('settingsModal');
@@ -1148,7 +1154,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 12. Toast
+    // Toast / 引导 / 快捷键
     // ------------------------------------------------------------
     showToast(message, duration = 2500) {
         const container = document.getElementById('toastContainer');
@@ -1167,9 +1173,6 @@ window.QuizApp = {
         }
     },
 
-    // ------------------------------------------------------------
-    // 13. 引导气泡
-    // ------------------------------------------------------------
     showTooltip(text, duration = 5000) {
         const bubble = document.getElementById('tooltipBubble');
         const textEl = document.getElementById('tooltipText');
@@ -1188,9 +1191,6 @@ window.QuizApp = {
         localStorage.setItem('quiz_tooltip_dismissed', '1');
     },
 
-    // ------------------------------------------------------------
-    // 14. 快捷键帮助
-    // ------------------------------------------------------------
     openShortcutHelp() {
         document.getElementById('shortcutHelp').style.display = 'flex';
     },
@@ -1200,7 +1200,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 15. 会话上下文
+    // 会话上下文
     // ------------------------------------------------------------
     saveSessionContext() {
         if (this._isRestoring) return;
@@ -1272,14 +1272,19 @@ window.QuizApp = {
             this._sessionId = context.sessionId;
             this._isFinishing = false;
 
+            // 重新渲染界面（保留章节按钮逻辑）
+            const chapterButtons = this._allChapters.length > 0
+                ? this._allChapters.map(ch => `
+                    <button class="chapter-btn" data-chapter="${ch}" onclick="QuizApp.selectChapter('${ch}')">${ch}</button>
+                `).join('')
+                : '';
+
             document.getElementById("home").style.display = "none";
             document.getElementById("app").innerHTML = `
                 <div class="app-card" id="mainQuizCard">
                     <div class="chapter-nav" id="chapterNav">
                         <button class="chapter-btn active" data-chapter="全部" onclick="QuizApp.selectChapter('全部')">📚 全部</button>
-                        ${this._allChapters.map(ch => `
-                            <button class="chapter-btn" data-chapter="${ch}" onclick="QuizApp.selectChapter('${ch}')">${ch}</button>
-                        `).join('')}
+                        ${chapterButtons}
                     </div>
                     <div id="quizContent"></div>
                 </div>
@@ -1310,7 +1315,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 16. 智能提示
+    // 智能提示
     // ------------------------------------------------------------
     async checkSmartPrompts() {
         const user = this.getCurrentUser();
@@ -1352,7 +1357,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 17. 数量选择弹窗
+    // 数量选择弹窗
     // ------------------------------------------------------------
     showQuantityModal(mode) {
         const modal = document.getElementById('quantityModal');
@@ -1456,7 +1461,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 18. 进度管理
+    // 进度管理
     // ------------------------------------------------------------
     getProgress(user) {
         const key = `quiz_progress_${user}`;
@@ -1486,7 +1491,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 19. 初始化
+    // 初始化
     // ------------------------------------------------------------
     async init() {
         this.updateUserUI();
