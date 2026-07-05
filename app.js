@@ -1,5 +1,5 @@
 // ==========================================
-// 🚀 QuizApp 10.4 · 完整功能版（智能章节显示）
+// 🚀 QuizApp 10.5 · 带触摸滑动 & 网格自动关闭
 // ==========================================
 
 window.QuizApp = {
@@ -276,11 +276,12 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 渲染卡片
+    // 🆕 渲染卡片（增加方向参数，实现滑动动画）
     // ------------------------------------------------------------
-    renderCard(needAnimation) {
+    renderCard(needAnimation, direction = 'none') {
         const content = document.getElementById("quizContent");
         if (!content) return;
+
         const q = this.activeBank[this.idx];
         const done = this.record.filter(x => x !== null).length;
         const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
@@ -329,19 +330,49 @@ window.QuizApp = {
             </div>
         `;
 
-        if (needAnimation) {
-            content.classList.add("card-fade");
+        // 🆕 滑动动画处理
+        if (needAnimation && direction !== 'none') {
+            // 移除所有动画类
+            content.classList.remove('slide-in-right', 'slide-in-left', 'slide-out-right', 'slide-out-left');
+            void content.offsetWidth; // 强制回流
+
+            if (direction === 'right') {
+                // 下一题：当前卡片向左滑出，新卡片从右侧滑入
+                content.classList.add('slide-out-left');
+                setTimeout(() => {
+                    content.innerHTML = htmlContent;
+                    content.classList.remove('slide-out-left');
+                    content.classList.add('slide-in-right');
+                    setTimeout(() => {
+                        content.classList.remove('slide-in-right');
+                    }, 350);
+                }, 250);
+            } else if (direction === 'left') {
+                // 上一题：当前卡片向右滑出，新卡片从左侧滑入
+                content.classList.add('slide-out-right');
+                setTimeout(() => {
+                    content.innerHTML = htmlContent;
+                    content.classList.remove('slide-out-right');
+                    content.classList.add('slide-in-left');
+                    setTimeout(() => {
+                        content.classList.remove('slide-in-left');
+                    }, 350);
+                }, 250);
+            }
+        } else if (needAnimation) {
+            // 无方向动画（淡入淡出，用于首次加载或点击跳转）
+            content.classList.add('card-fade');
             setTimeout(() => {
                 content.innerHTML = htmlContent;
-                content.classList.remove("card-fade");
+                content.classList.remove('card-fade');
             }, 180);
         } else {
             content.innerHTML = htmlContent;
         }
+
         this.renderGrid();
         this.saveSessionContext();
         this.updateChapterButtons();
-        // 安全大屏适配
         this.safeUpdateSidebar();
         this.safeUpdateStats();
     },
@@ -409,7 +440,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 选择选项 + 自动跳转（修复）
+    // 🆕 选择选项 + 自动跳转（带方向）
     // ------------------------------------------------------------
     select(oIdx, element) {
         if (this.record[this.idx] !== null) return;
@@ -468,7 +499,7 @@ window.QuizApp = {
             }
             if (this.idx + 1 < this.activeBank.length) {
                 this.idx++;
-                this.renderCard(true);
+                this.renderCard(true, 'right');
             } else {
                 this._isFinishing = true;
                 this.finishBatch();
@@ -829,14 +860,20 @@ window.QuizApp = {
         container.innerHTML = html;
     },
 
+    // ------------------------------------------------------------
+    // 🆕 跳转题目（点击题号时，增加方向参数并自动关闭网格）
+    // ------------------------------------------------------------
     jumpToQuestion(index) {
         if (index < 0 || index >= this.activeBank.length) return;
+        const direction = index > this.idx ? 'right' : 'left';
         this.idx = index;
-        this.renderCard(true);
+        // 强制关闭网格
+        this.toggleFolder(false);
+        this.renderCard(true, direction);
     },
 
     // ------------------------------------------------------------
-    // 事件绑定（含键盘快捷键）
+    // 🆕 事件绑定（含键盘 + 触摸滑动）
     // ------------------------------------------------------------
     bindGlobalEvents() {
         const btn = document.getElementById('masterGlassBtn');
@@ -911,12 +948,12 @@ window.QuizApp = {
             if (e.key === 'ArrowLeft' && this.idx > 0) {
                 e.preventDefault();
                 this.idx--;
-                this.renderCard(true);
+                this.renderCard(true, 'left');
             }
             if (e.key === 'ArrowRight' && this.idx < this.activeBank.length - 1) {
                 e.preventDefault();
                 this.idx++;
-                this.renderCard(true);
+                this.renderCard(true, 'right');
             }
 
             if (e.key === 'Escape') {
@@ -931,6 +968,54 @@ window.QuizApp = {
                 this.openShortcutHelp();
             }
         });
+
+        // 🆕 触摸滑动切换题目（在答题卡片上左/右滑动）
+        const card = document.getElementById('mainQuizCard');
+        if (card) {
+            let touchStartX = 0;
+            let touchStartY = 0;
+            let isSwiping = false;
+
+            card.addEventListener('touchstart', (e) => {
+                const touch = e.touches[0];
+                touchStartX = touch.clientX;
+                touchStartY = touch.clientY;
+                isSwiping = false;
+            }, { passive: true });
+
+            card.addEventListener('touchmove', (e) => {
+                if (!touchStartX) return;
+                const touch = e.touches[0];
+                const deltaX = touch.clientX - touchStartX;
+                const deltaY = touch.clientY - touchStartY;
+                // 横向滑动距离大于纵向，且超过阈值（40px）
+                if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 40) {
+                    isSwiping = true;
+                    if (deltaX < 0) {
+                        // 左滑 → 下一题
+                        if (this.idx < this.activeBank.length - 1) {
+                            this.idx++;
+                            this.renderCard(true, 'right');
+                        }
+                    } else {
+                        // 右滑 → 上一题
+                        if (this.idx > 0) {
+                            this.idx--;
+                            this.renderCard(true, 'left');
+                        }
+                    }
+                    // 重置起点，防止连续触发
+                    touchStartX = touch.clientX;
+                    touchStartY = touch.clientY;
+                }
+            }, { passive: true });
+
+            card.addEventListener('touchend', () => {
+                touchStartX = 0;
+                touchStartY = 0;
+                isSwiping = false;
+            }, { passive: true });
+        }
 
         window.addEventListener('resize', () => {
             this.safeUpdateSidebar();
