@@ -1398,3 +1398,70 @@ body.theme-dark .chapter-btn.active { background: #0071e3; color: #fff; }
         padding: 38px 40px;
     }
 }
+/* ============================================================
+   🖥️ 电脑端强制宽屏适配
+   ============================================================ */
+
+@media (min-width: 1024px) {
+    #home, #app, .app-card {
+        max-width: 100% !important;   /* 取消宽度限制 */
+        width: 100% !important;
+        padding: 32px 40px !important;
+    }
+    #app .app-card {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important; /* 双栏布局，充分利用空间 */
+        gap: 30px !important;
+        align-items: start !important;
+    }
+    #app .app-card #top {
+        grid-column: 1 / -1 !important;
+    }
+    #app .app-card h2 {
+        grid-column: 1 !important;
+    }
+    #app .app-card .opt {
+        grid-column: 1 !important;
+    }
+    .opt {
+        padding: 18px 24px !important;
+        font-size: 17px !important;
+    }
+    h2 {
+        font-size: 22px !important;
+    }
+    /* 右侧统计面板 */
+    .stats-panel {
+        display: block !important;
+        grid-column: 2 !important;
+        grid-row: 2 / span 10 !important;
+        padding: 16px 20px !important;
+        background: rgba(255,255,255,0.3) !important;
+        border-radius: 16px !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+    }
+    .stats-panel .stat-item {
+        padding: 10px 0 !important;
+        border-bottom: 1px solid rgba(0,0,0,0.05) !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        font-size: 15px !important;
+    }
+    .stats-panel .stat-item:last-child {
+        border-bottom: none !important;
+    }
+    .stats-panel .stat-value {
+        font-weight: 600 !important;
+        color: #0071e3 !important;
+    }
+    .glass-trigger {
+        left: 32px !important;
+        bottom: 32px !important;
+        width: 60px !important;
+        height: 60px !important;
+    }
+    .glass-btn {
+        padding: 16px 24px !important;
+        font-size: 17px !important;
+    }
+}
