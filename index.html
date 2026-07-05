@@ -13,13 +13,16 @@
 
     <!-- ===== 首页 ===== -->
     <div id="home">
-        <!-- 状态栏 -->
+        <!-- 状态栏：左上角设置按钮 + 状态信息 -->
         <div class="status-bar" id="userStatusBar">
+            <button class="settings-trigger" onclick="QuizApp.toggleSettings()" title="设置">
+                <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            </button>
             <span id="userInfoText" class="user-info" onclick="QuizApp.checkLogin()">👤 游客模式</span>
             <button onclick="QuizApp.logout()" id="logoutBtn" class="logout-btn">退出</button>
         </div>
 
-        <!-- 主题切换 -->
+        <!-- 主题切换（简化为小图标，保留在状态栏下方） -->
         <div class="theme-bar">
             <button class="theme-btn theme-btn-light active" onclick="QuizApp.setTheme('light')" title="明亮"></button>
             <button class="theme-btn theme-btn-dark" onclick="QuizApp.setTheme('dark')" title="夜间"></button>
@@ -30,14 +33,13 @@
 
         <h1>📝 答题系统</h1>
 
-        <!-- 主功能按钮（毛玻璃高级版） -->
+        <!-- 主功能按钮 -->
         <button class="glass-btn primary" onclick="QuizApp.showQuantityModal('sequential')">
             <span class="btn-icon">▶</span> 顺序刷题
         </button>
         <button class="glass-btn primary" onclick="QuizApp.showQuantityModal('random')">
             <span class="btn-icon">🎲</span> 随机刷题
         </button>
-        <!-- 🆕 错题重练按钮 -->
         <button class="glass-btn danger" onclick="QuizApp.showQuantityModal('wrong')">
             <span class="btn-icon">❌</span> 错题重练
         </button>
@@ -56,6 +58,54 @@
 
     <!-- ===== 应用容器（答题 & 管理） ===== -->
     <div id="app" style="display:none;"></div>
+
+    <!-- ===== 设置面板（毛玻璃弹窗） ===== -->
+    <div id="settingsModal" class="modal-overlay" style="display:none;">
+        <div class="modal-card settings-card">
+            <div class="modal-header">
+                <span class="modal-title">⚙️ 设置</span>
+                <button class="modal-close" onclick="QuizApp.toggleSettings()">✕</button>
+            </div>
+            <div class="modal-body settings-body">
+                <!-- 震动开关 -->
+                <div class="setting-item">
+                    <span class="setting-label">📳 震动反馈</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="vibrationToggle" onchange="QuizApp.setVibration(this.checked)" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <!-- 背景颜色 -->
+                <div class="setting-item">
+                    <span class="setting-label">🎨 自定义背景色</span>
+                    <input type="color" id="settingsBgPicker" value="#e0e5ec" onchange="QuizApp.applyCustomBgFromSettings(this.value)" />
+                </div>
+                <!-- 自动跳转延迟 -->
+                <div class="setting-item">
+                    <span class="setting-label">⏱️ 自动跳转延迟</span>
+                    <select id="delaySelect" onchange="QuizApp.setAutoDelay(parseInt(this.value))">
+                        <option value="200">200ms</option>
+                        <option value="400">400ms</option>
+                        <option value="600">600ms</option>
+                        <option value="800">800ms</option>
+                        <option value="1000">1000ms</option>
+                    </select>
+                </div>
+                <!-- 连续答对提示 -->
+                <div class="setting-item">
+                    <span class="setting-label">🔥 连续答对提示</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="streakToggle" checked onchange="QuizApp.setStreakAlert(this.checked)" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <!-- 版本信息 -->
+                <div class="setting-item" style="border-bottom: none; margin-top: 8px;">
+                    <span class="setting-label" style="font-size: 12px; color: #86868b;">版本 9.3 · 已登录: <span id="settingsUser">-</span></span>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- ===== 毛玻璃数量选择弹窗 ===== -->
     <div id="quantityModal" class="modal-overlay" style="display:none;">
@@ -83,6 +133,44 @@
             </div>
             <div class="modal-footer">
                 <button class="modal-start-btn" onclick="QuizApp.startWithQuantity()">▶ 开始刷题</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Toast 提示容器 ===== -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- ===== 引导气泡 ===== -->
+    <div id="tooltipBubble" class="tooltip-bubble" style="display:none;">
+        <span id="tooltipText"></span>
+        <button class="tooltip-close" onclick="QuizApp.dismissTooltip()">✕</button>
+    </div>
+
+    <!-- ===== 快捷键帮助弹窗 ===== -->
+    <div id="shortcutHelp" class="modal-overlay" style="display:none;">
+        <div class="modal-card" style="max-width: 480px;">
+            <div class="modal-header">
+                <span class="modal-title">⌨️ 快捷键</span>
+                <button class="modal-close" onclick="QuizApp.closeShortcutHelp()">✕</button>
+            </div>
+            <div class="modal-body" style="font-size:14px; line-height:1.8;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 16px;">
+                    <span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> 选选项</span>
+                    <span><kbd>Enter</kbd> 确认/下一题</span>
+                    <span><kbd>←</kbd> <kbd>→</kbd> 切换题目</span>
+                    <span><kbd>Esc</kbd> 关闭弹窗</span>
+                    <span><kbd>R</kbd> 随机刷题</span>
+                    <span><kbd>S</kbd> 顺序刷题</span>
+                    <span><kbd>W</kbd> 错题重练</span>
+                    <span><kbd>M</kbd> 题库管理</span>
+                    <span><kbd>H</kbd> 返回首页</span>
+                    <span><kbd>T</kbd> 切换主题</span>
+                    <span><kbd>F</kbd> 全屏模式</span>
+                    <span><kbd>?</kbd> 显示帮助</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-start-btn" onclick="QuizApp.closeShortcutHelp()" style="background:rgba(0,113,227,0.15); color:#0071e3;">知道了</button>
             </div>
         </div>
     </div>
