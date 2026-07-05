@@ -1,5 +1,5 @@
 // ==========================================
-// 🚀 QuizApp 9.0 · 多用户题库管理 + 错题闭环
+// 🚀 QuizApp 9.0 · 多用户题库管理 + 错题闭环 + 主题系统 + 搜索
 // ==========================================
 
 window.QuizApp = {
@@ -116,7 +116,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 2. 题库管理（优化自适应+退出登录）
+    // 2. 题库管理（含搜索功能）
     // ------------------------------------------------------------
     async showManager() {
         const user = this.checkLogin();
@@ -134,24 +134,33 @@ window.QuizApp = {
                     <button onclick="QuizApp.showAddForm()" style="flex:1; min-width:120px; background:#34c759; color:#fff; border:none; border-radius:12px; padding:12px 16px; font-size:15px; font-weight:600; cursor:pointer; box-shadow:0 4px 12px rgba(52,199,89,0.3); transition:0.2s;">➕ 添加题目</button>
                     <button onclick="window.location.reload()" style="flex:1; min-width:120px; background:#86868b; color:#fff; border:none; border-radius:12px; padding:12px 16px; font-size:15px; font-weight:600; cursor:pointer; transition:0.2s;">🏠 返回首页</button>
                 </div>
-                <div id="managerList" style="text-align:left; max-height: 500px; overflow-y: auto; padding-right:4px;">
+                <div style="margin-bottom: 12px;">
+                    <input id="searchInput" type="text" placeholder="🔍 搜索题目..." 
+                           style="width:100%; padding:10px 14px; border:1px solid rgba(0,0,0,0.08); border-radius:10px; font-size:15px; background:rgba(255,255,255,0.5); outline:none; transition:0.2s;"
+                           oninput="QuizApp.loadQuestionsForManageWithSearch()" />
+                </div>
+                <div id="managerList" style="text-align:left; max-height: 400px; overflow-y: auto; padding-right:4px;">
                     <div style="text-align:center; padding:40px 0; color:#86868b;">加载中...</div>
                 </div>
             </div>
         `;
-        await this.loadQuestionsForManage();
+        await this.loadQuestionsForManageWithSearch();
     },
 
-    async loadQuestionsForManage() {
+    async loadQuestionsForManageWithSearch() {
         const user = this.getCurrentUser();
         if (!user) {
             alert("请先登录");
             return;
         }
         const list = document.getElementById("managerList");
+        const searchInput = document.getElementById("searchInput");
+        const keyword = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
         try {
             const res = await fetch(`/api/questions?user_id=${encodeURIComponent(user)}`);
             const data = await res.json();
+
             if (!data || data.length === 0) {
                 list.innerHTML = `
                     <div style="text-align:center; padding:50px 20px; background:rgba(255,255,255,0.3); border-radius:16px; border:2px dashed rgba(0,0,0,0.08);">
@@ -162,12 +171,34 @@ window.QuizApp = {
                 `;
                 return;
             }
+
+            let filteredData = data;
+            if (keyword) {
+                filteredData = data.filter(item =>
+                    item.q.toLowerCase().includes(keyword) ||
+                    item.opts.some(opt => opt.toLowerCase().includes(keyword))
+                );
+            }
+
+            if (filteredData.length === 0) {
+                list.innerHTML = `
+                    <div style="text-align:center; padding:40px 20px; color:#86868b;">
+                        🔍 没有找到与「${keyword}」匹配的题目
+                    </div>
+                `;
+                return;
+            }
+
             const total = data.length;
+            const filteredTotal = filteredData.length;
+            const searchInfo = keyword ? `（筛选结果 ${filteredTotal}/${total} 道）` : '';
+
             list.innerHTML = `
-                <div style="font-size:13px; color:#86868b; margin-bottom:12px; padding:8px 12px; background:rgba(0,0,0,0.03); border-radius:8px;">
-                    共 <strong style="color:#1d1d1f;">${total}</strong> 道题
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; color:#86868b; margin-bottom:12px; padding:8px 12px; background:rgba(0,0,0,0.03); border-radius:8px; flex-wrap:wrap; gap:4px;">
+                    <span>共 <strong style="color:#1d1d1f;">${total}</strong> 道题 ${searchInfo}</span>
+                    ${keyword ? `<span onclick="document.getElementById('searchInput').value='';QuizApp.loadQuestionsForManageWithSearch();" style="color:#0071e3; cursor:pointer;">✕ 清除筛选</span>` : ''}
                 </div>
-                ${data.map((q, i) => `
+                ${filteredData.map((q, i) => `
                     <div style="background:rgba(255,255,255,0.5); backdrop-filter:blur(10px); border-radius:14px; padding:12px 14px; margin-bottom:10px; border:1px solid rgba(255,255,255,0.6); box-shadow:0 2px 8px rgba(0,0,0,0.04); transition:0.2s; display:flex; flex-wrap:wrap; align-items:center; gap:8px;">
                         <div style="flex-shrink:0; width:28px; height:28px; background:#0071e3; color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600;">${i + 1}</div>
                         <div style="flex:1; min-width:150px;">
@@ -216,7 +247,7 @@ window.QuizApp = {
             const result = await res.json();
             if (result.ok) {
                 alert("添加成功！");
-                this.loadQuestionsForManage();
+                this.loadQuestionsForManageWithSearch();
             } else {
                 alert("添加失败：" + (result.error || ''));
             }
@@ -238,7 +269,7 @@ window.QuizApp = {
             const result = await res.json();
             if (result.ok) {
                 alert("删除成功");
-                this.loadQuestionsForManage();
+                this.loadQuestionsForManageWithSearch();
             } else {
                 alert("删除失败：" + (result.error || ''));
             }
@@ -273,7 +304,7 @@ window.QuizApp = {
             const result = await updateRes.json();
             if (result.ok) {
                 alert("更新成功！");
-                this.loadQuestionsForManage();
+                this.loadQuestionsForManageWithSearch();
             } else {
                 alert("更新失败：" + (result.error || ''));
             }
@@ -303,7 +334,6 @@ window.QuizApp = {
         return user;
     },
 
-    // ✅ 新增：退出登录方法
     logout() {
         if (confirm("确定要退出登录吗？")) {
             localStorage.removeItem('quiz_user_id');
@@ -323,7 +353,6 @@ window.QuizApp = {
         return false;
     },
 
-    // ✅ 修改：更新用户界面，显示/隐藏退出按钮
     updateUserUI() {
         const user = this.getCurrentUser();
         const infoText = document.getElementById('userInfoText');
@@ -428,10 +457,99 @@ window.QuizApp = {
                 this.toggleFolder(false);
             });
         }
+    },
+
+    // ------------------------------------------------------------
+    // 7. 🎨 主题管理（夜间/护眼/自定义背景）
+    // ------------------------------------------------------------
+    setTheme(theme) {
+        const body = document.body;
+        body.classList.remove('theme-light', 'theme-dark', 'theme-eye', 'theme-custom', 'bg-image');
+
+        if (theme === 'light') {
+            body.classList.add('theme-light');
+            localStorage.setItem('quiz_theme', 'light');
+        } else if (theme === 'dark') {
+            body.classList.add('theme-dark');
+            localStorage.setItem('quiz_theme', 'dark');
+        } else if (theme === 'eye') {
+            body.classList.add('theme-eye');
+            localStorage.setItem('quiz_theme', 'eye');
+        }
+
+        document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+        const btnMap = { light: 'theme-btn-light', dark: 'theme-btn-dark', eye: 'theme-btn-eye' };
+        const activeBtn = document.querySelector(`.${btnMap[theme]}`);
+        if (activeBtn) activeBtn.classList.add('active');
+    },
+
+    openBgPicker() {
+        const picker = document.getElementById('bgColorPicker');
+        if (picker) picker.click();
+    },
+
+    applyCustomBg(color) {
+        const body = document.body;
+        body.classList.remove('theme-light', 'theme-dark', 'theme-eye', 'bg-image');
+        body.classList.add('theme-custom');
+        body.style.setProperty('--custom-bg', color);
+        localStorage.setItem('quiz_theme', 'custom');
+        localStorage.setItem('quiz_custom_bg', color);
+
+        document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+        const customBtn = document.querySelector('.theme-btn-custom');
+        if (customBtn) customBtn.classList.add('active');
+    },
+
+    uploadBgImage() {
+        const input = document.getElementById('bgImageInput');
+        if (input) input.click();
+    },
+
+    handleBgImageUpload(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const body = document.body;
+                body.classList.remove('theme-light', 'theme-dark', 'theme-eye', 'theme-custom');
+                body.classList.add('bg-image');
+                body.style.setProperty('--custom-bg-image', `url(${ev.target.result})`);
+                localStorage.setItem('quiz_theme', 'bg-image');
+                localStorage.setItem('quiz_bg_image', ev.target.result);
+
+                document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+                const imageBtn = document.querySelector('.theme-btn-image');
+                if (imageBtn) imageBtn.classList.add('active');
+            };
+            reader.readAsDataURL(file);
+        }
+        event.target.value = '';
+    },
+
+    loadTheme() {
+        const savedTheme = localStorage.getItem('quiz_theme') || 'light';
+        const customBg = localStorage.getItem('quiz_custom_bg');
+        const bgImage = localStorage.getItem('quiz_bg_image');
+
+        if (savedTheme === 'custom' && customBg) {
+            this.applyCustomBg(customBg);
+        } else if (savedTheme === 'bg-image' && bgImage) {
+            const body = document.body;
+            body.classList.remove('theme-light', 'theme-dark', 'theme-eye', 'theme-custom');
+            body.classList.add('bg-image');
+            body.style.setProperty('--custom-bg-image', `url(${bgImage})`);
+            document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+            const imageBtn = document.querySelector('.theme-btn-image');
+            if (imageBtn) imageBtn.classList.add('active');
+        } else {
+            this.setTheme(savedTheme);
+        }
     }
 };
 
-// 页面加载后刷新用户状态
+// 页面加载后刷新用户状态 & 加载主题
 window.addEventListener('DOMContentLoaded', () => {
     QuizApp.updateUserUI();
+    QuizApp.loadTheme();
 });
