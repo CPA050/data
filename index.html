@@ -31,11 +31,15 @@
         <h1>📝 答题系统</h1>
 
         <!-- 主功能按钮（毛玻璃高级版） -->
-        <button class="glass-btn primary" onclick="QuizApp.showQuantityModal(false)">
+        <button class="glass-btn primary" onclick="QuizApp.showQuantityModal('sequential')">
             <span class="btn-icon">▶</span> 顺序刷题
         </button>
-        <button class="glass-btn primary" onclick="QuizApp.showQuantityModal(true)">
+        <button class="glass-btn primary" onclick="QuizApp.showQuantityModal('random')">
             <span class="btn-icon">🎲</span> 随机刷题
+        </button>
+        <!-- 🆕 错题重练按钮 -->
+        <button class="glass-btn danger" onclick="QuizApp.showQuantityModal('wrong')">
+            <span class="btn-icon">❌</span> 错题重练
         </button>
         <button class="glass-btn secondary" onclick="QuizApp.showManager()">
             <span class="btn-icon">📚</span> 题库管理
@@ -57,11 +61,11 @@
     <div id="quantityModal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
             <div class="modal-header">
-                <span class="modal-title">📋 选择刷题数量</span>
+                <span class="modal-title" id="modalTitle">📋 选择刷题数量</span>
                 <button class="modal-close" onclick="QuizApp.closeQuantityModal()">✕</button>
             </div>
             <div class="modal-body">
-                <div class="modal-info">
+                <div class="modal-info" id="modalInfo">
                     你的题库共 <strong id="totalCount">0</strong> 道题
                 </div>
                 <div class="preset-grid">
