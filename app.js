@@ -1,5 +1,5 @@
 // ==========================================
-// 🚀 QuizApp 9.3 · 智能刷题 + 错题重练 + 多端适配 + 体验优化
+// 🚀 QuizApp 9.5 · 智能刷题 + 错题重练 + 体验优化 + 背景滑块
 // ==========================================
 
 window.QuizApp = {
@@ -14,7 +14,7 @@ window.QuizApp = {
     folderVisible: false,
     lastSelected: 20,
     lastMode: 'sequential',
-    _source: 'all', // 'all' | 'wrong'
+    _source: 'all',
     _consecutiveCorrect: 0,
     _consecutiveWrong: 0,
     _autoDelay: 200,
@@ -23,6 +23,7 @@ window.QuizApp = {
     _toastTimer: null,
     _sessionId: null,
     _isRestoring: false,
+    _isFinishing: false,
 
     // ------------------------------------------------------------
     // 1. 核心业务：加载并开始答题
@@ -33,6 +34,7 @@ window.QuizApp = {
         try {
             let bank = [];
             this._source = source;
+            this._isFinishing = false;
 
             if (source === 'wrong') {
                 const wrongRes = await fetch(`/api/wrong?user_id=${encodeURIComponent(user)}`);
@@ -103,8 +105,6 @@ window.QuizApp = {
             this.record = new Array(this.activeBank.length).fill(null);
             this._consecutiveCorrect = 0;
             this._consecutiveWrong = 0;
-
-            // 生成会话 ID
             this._sessionId = Date.now() + '_' + Math.random().toString(36).substr(2, 6);
 
             document.getElementById("home").style.display = "none";
@@ -128,10 +128,7 @@ window.QuizApp = {
             this._currentLimit = limit;
             this._isRandom = isRandom;
 
-            // 保存会话上下文
             this.saveSessionContext();
-
-            // 检查智能提示
             this.checkSmartPrompts();
 
         } catch (err) {
@@ -152,10 +149,6 @@ window.QuizApp = {
         const circumference = 94.2;
         const offset = circumference * (1 - percent / 100);
 
-        // 数字滚动效果
-        const accDisplay = this._lastAcc !== undefined ? this.animateNumber(this._lastAcc, acc) : acc;
-        this._lastAcc = acc;
-
         const htmlContent = `
             <div id="top">
                 <div style="display:flex; align-items:center; gap:8px;">
@@ -164,7 +157,7 @@ window.QuizApp = {
                     ${remaining > 0 ? `<span style="font-size:12px; color:#aaa; margin-left:4px;">(还剩 ${remaining} 题)</span>` : ''}
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
-                    <button onclick="window.location.href='/'" style="background:rgba(255,255,255,0.2); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.3); border-radius:30px; padding:4px 14px; font-size:13px; font-weight:500; color:#0071e3; cursor:pointer;">🏠 返回</button>
+                    <button onclick="QuizApp.goHome()" style="background:rgba(255,255,255,0.2); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.3); border-radius:30px; padding:4px 14px; font-size:13px; font-weight:500; color:#0071e3; cursor:pointer;">🏠 返回</button>
                     <div class="progress-ring">
                         <svg width="36" height="36">
                             <circle class="bg" cx="18" cy="18" r="15"/>
@@ -195,49 +188,32 @@ window.QuizApp = {
             setTimeout(() => {
                 card.innerHTML = htmlContent;
                 card.classList.remove("card-fade");
-                // 触发数字滚动
-                this.animateNumberElement('accDisplay', acc);
             }, 180);
         } else {
             card.innerHTML = htmlContent;
-            this.animateNumberElement('accDisplay', acc);
         }
         this.renderGrid();
-        // 保存会话上下文
         this.saveSessionContext();
     },
 
-    animateNumberElement(id, target) {
-        const el = document.getElementById(id);
-        if (!el) return;
-        const current = parseInt(el.textContent) || 0;
-        if (current === target) return;
-        const duration = 400;
-        const startTime = performance.now();
-        const startVal = current;
-        const step = (timestamp) => {
-            const progress = Math.min((timestamp - startTime) / duration, 1);
-            const eased = 1 - Math.pow(1 - progress, 3);
-            const val = Math.round(startVal + (target - startVal) * eased);
-            el.textContent = val;
-            if (progress < 1) requestAnimationFrame(step);
-        };
-        requestAnimationFrame(step);
+    goHome() {
+        this.clearSessionContext();
+        window.location.href = '/';
     },
 
     select(oIdx, element) {
         if (this.record[this.idx] !== null) return;
+        if (this._isFinishing) return;
+
         const q = this.activeBank[this.idx];
         this.record[this.idx] = oIdx;
         const isCorrect = (oIdx === q.a);
 
-        // 触感反馈
         if (this._vibrationEnabled && navigator.vibrate) {
             if (isCorrect) navigator.vibrate(10);
             else navigator.vibrate([10, 50, 10]);
         }
 
-        // 连续计数
         if (isCorrect) {
             this._consecutiveCorrect++;
             this._consecutiveWrong = 0;
@@ -255,7 +231,6 @@ window.QuizApp = {
                 this.showToast("💪 别灰心，再想想！");
             }
             element.classList.add("wrong");
-            // 波纹效果
             this.createRipple(element);
             const opts = element.parentNode.querySelectorAll(".opt");
             if (opts[q.a]) opts[q.a].classList.add("correct");
@@ -268,18 +243,26 @@ window.QuizApp = {
 
         const allDone = this.record.every(v => v !== null);
         if (allDone) {
-            // 选完最后一题，立即弹出结果（无延迟）
-            setTimeout(() => this.finishBatch(), 300);
+            this._isFinishing = true;
+            setTimeout(() => {
+                this.finishBatch();
+            }, 300);
             return;
         }
 
-        // 选完非最后一道题，200ms 后自动跳转
         const delay = this._autoDelay || 200;
-        setTimeout(() => {
+        clearTimeout(this._selectTimer);
+        this._selectTimer = setTimeout(() => {
+            if (this.record.every(v => v !== null)) {
+                this._isFinishing = true;
+                this.finishBatch();
+                return;
+            }
             if (this.idx + 1 < this.activeBank.length) {
                 this.idx++;
                 this.renderCard(true);
             } else {
+                this._isFinishing = true;
                 this.finishBatch();
             }
         }, delay);
@@ -298,6 +281,8 @@ window.QuizApp = {
     },
 
     finishBatch() {
+        if (this._isFinishing) return;
+        this._isFinishing = true;
         const user = this.getCurrentUser();
         if (!user) return;
         const total = this.record.length;
@@ -336,7 +321,6 @@ window.QuizApp = {
             }
         }
 
-        // 清除会话上下文
         this.clearSessionContext();
 
         const modeLabel = this._source === 'wrong' ? '错题重练' : '刷题';
@@ -345,18 +329,21 @@ window.QuizApp = {
             const limit = this._currentLimit || 20;
             const isRandom = this._isRandom || false;
             const source = this._source || 'all';
+            this._isFinishing = false;
             this.start(isRandom, limit, source);
         } else {
+            this._isFinishing = false;
             window.location.reload();
         }
     },
 
     // ------------------------------------------------------------
-    // 2. 题库管理（完整保留）
+    // 2. 题库管理
     // ------------------------------------------------------------
     async showManager() {
         const user = this.checkLogin();
         if (!user) return;
+        this.clearSessionContext();
         document.getElementById("home").style.display = "none";
         document.getElementById("app").style.display = "block";
         document.getElementById("app").className = "stage-container";
@@ -368,7 +355,7 @@ window.QuizApp = {
                 </div>
                 <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
                     <button onclick="QuizApp.showAddForm()" style="flex:1; min-width:120px; background:#34c759; color:#fff; border:none; border-radius:12px; padding:12px 16px; font-size:15px; font-weight:600; cursor:pointer; box-shadow:0 4px 12px rgba(52,199,89,0.3); transition:0.2s;">➕ 添加题目</button>
-                    <button onclick="window.location.reload()" style="flex:1; min-width:120px; background:#86868b; color:#fff; border:none; border-radius:12px; padding:12px 16px; font-size:15px; font-weight:600; cursor:pointer; transition:0.2s;">🏠 返回首页</button>
+                    <button onclick="QuizApp.goHome()" style="flex:1; min-width:120px; background:#86868b; color:#fff; border:none; border-radius:12px; padding:12px 16px; font-size:15px; font-weight:600; cursor:pointer; transition:0.2s;">🏠 返回首页</button>
                 </div>
                 <div style="margin-bottom: 12px;">
                     <input id="searchInput" type="text" placeholder="🔍 搜索题目..."
@@ -574,6 +561,7 @@ window.QuizApp = {
     logout() {
         if (confirm("确定退出吗？")) {
             localStorage.removeItem('quiz_user_id');
+            this.clearSessionContext();
             this.updateUserUI();
             alert("已退出");
             window.location.reload();
@@ -660,23 +648,18 @@ window.QuizApp = {
         this.updateSidebarGrid();
     },
 
-    // 多端适配：更新侧边栏题号网格
     updateSidebarGrid() {
-        // 检查是否有侧边栏容器
         let sidebar = document.querySelector('.grid-sidebar');
         const card = document.querySelector('#mainQuizCard');
         if (!card) return;
 
-        // 如果是大屏模式（宽度 > 640px），自动插入侧边栏
         if (window.innerWidth >= 640) {
             if (!sidebar) {
                 sidebar = document.createElement('div');
                 sidebar.className = 'grid-sidebar';
-                // 插入到卡片中 h2 之前
                 const h2 = card.querySelector('h2');
                 if (h2) card.insertBefore(sidebar, h2);
             }
-            // 渲染侧边栏内容
             const total = this.activeBank.length;
             let html = '';
             for (let i = 0; i < total; i++) {
@@ -692,8 +675,6 @@ window.QuizApp = {
         } else {
             if (sidebar) sidebar.remove();
         }
-
-        // 更新统计面板（大屏）
         this.updateStatsPanel();
     },
 
@@ -712,7 +693,6 @@ window.QuizApp = {
             if (!panel) {
                 panel = document.createElement('div');
                 panel.className = 'stats-panel';
-                // 插入到卡片末尾
                 card.appendChild(panel);
             }
             panel.innerHTML = `
@@ -739,7 +719,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 6. 事件绑定（含键盘快捷键）
+    // 6. 事件绑定
     // ------------------------------------------------------------
     bindGlobalEvents() {
         const btn = document.getElementById('masterGlassBtn');
@@ -756,11 +736,9 @@ window.QuizApp = {
             });
         }
 
-        // 键盘快捷键（仅在答题界面生效）
         document.addEventListener('keydown', (e) => {
             const app = document.getElementById('app');
             if (app.style.display === 'none') {
-                // 首页快捷键
                 const key = e.key.toLowerCase();
                 if (key === 's' && !e.ctrlKey && !e.metaKey) {
                     e.preventDefault();
@@ -780,7 +758,7 @@ window.QuizApp = {
                 }
                 if (key === 'h' && !e.ctrlKey && !e.metaKey) {
                     e.preventDefault();
-                    window.location.href = '/';
+                    this.goHome();
                 }
                 if (key === 't' && !e.ctrlKey && !e.metaKey) {
                     e.preventDefault();
@@ -805,27 +783,14 @@ window.QuizApp = {
                 return;
             }
 
-            // 答题界面快捷键
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-            // 1-4 选答案
             const num = parseInt(e.key);
             if (num >= 1 && num <= 4) {
                 const opts = document.querySelectorAll('.opt:not(.correct):not(.wrong)');
                 if (opts[num - 1]) opts[num - 1].click();
             }
 
-            // Enter 确认/下一题
-            if (e.key === 'Enter') {
-                // 如果有未选的选项，不做任何事
-                const unselected = document.querySelectorAll('.opt:not(.correct):not(.wrong)');
-                if (unselected.length > 0) {
-                    // 如果有选项被选中（高亮），自动点击第一个未选
-                    // 但这里简化：如果当前有已选但未确认，自动跳转
-                }
-            }
-
-            // ← → 切换题目
             if (e.key === 'ArrowLeft' && this.idx > 0) {
                 e.preventDefault();
                 this.idx--;
@@ -837,7 +802,6 @@ window.QuizApp = {
                 this.renderCard(true);
             }
 
-            // Esc 关闭弹窗/导航
             if (e.key === 'Escape') {
                 this.closeQuantityModal();
                 this.toggleFolder(false);
@@ -845,14 +809,12 @@ window.QuizApp = {
                 this.toggleSettings(false);
             }
 
-            // ? 显示快捷键
             if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
                 e.preventDefault();
                 this.openShortcutHelp();
             }
         });
 
-        // 窗口 resize 更新侧边栏
         window.addEventListener('resize', () => {
             this.updateSidebarGrid();
         });
@@ -864,6 +826,12 @@ window.QuizApp = {
     setTheme(theme) {
         const body = document.body;
         body.classList.remove('theme-light','theme-dark','theme-eye','theme-custom','bg-image');
+        // 清除背景相关变量
+        body.style.removeProperty('--custom-bg');
+        body.style.removeProperty('--custom-bg-image');
+        body.style.removeProperty('--bg-opacity');
+        body.style.removeProperty('--bg-blur');
+
         if (theme === 'light') { body.classList.add('theme-light'); localStorage.setItem('quiz_theme','light'); }
         else if (theme === 'dark') { body.classList.add('theme-dark'); localStorage.setItem('quiz_theme','dark'); }
         else if (theme === 'eye') { body.classList.add('theme-eye'); localStorage.setItem('quiz_theme','eye'); }
@@ -871,16 +839,16 @@ window.QuizApp = {
         const map = { light: 'theme-btn-light', dark: 'theme-btn-dark', eye: 'theme-btn-eye' };
         const target = document.querySelector(`.${map[theme]}`);
         if (target) target.classList.add('active');
-        // 更新设置面板中的颜色选择器
-        const picker = document.getElementById('settingsBgPicker');
-        if (picker && theme === 'custom') {
-            const bg = localStorage.getItem('quiz_custom_bg') || '#e0e5ec';
-            picker.value = bg;
-        }
+
+        // 同步滑块
+        const opacitySlider = document.getElementById('bgOpacitySlider');
+        const blurSlider = document.getElementById('bgBlurSlider');
+        if (opacitySlider) opacitySlider.value = 100;
+        if (blurSlider) blurSlider.value = 0;
+        document.getElementById('opacityValue').textContent = '100%';
+        document.getElementById('blurValue').textContent = '0px';
     },
-    openBgPicker() {
-        document.getElementById('bgColorPicker').click();
-    },
+
     applyCustomBg(color) {
         const body = document.body;
         body.classList.remove('theme-light','theme-dark','theme-eye','bg-image');
@@ -888,18 +856,25 @@ window.QuizApp = {
         body.style.setProperty('--custom-bg', color);
         localStorage.setItem('quiz_theme','custom');
         localStorage.setItem('quiz_custom_bg', color);
+        // 清除图片背景相关
+        body.style.removeProperty('--custom-bg-image');
+        body.style.removeProperty('--bg-opacity');
+        body.style.removeProperty('--bg-blur');
         document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
         const target = document.querySelector('.theme-btn-custom');
         if (target) target.classList.add('active');
         const picker = document.getElementById('settingsBgPicker');
         if (picker) picker.value = color;
     },
+
     applyCustomBgFromSettings(color) {
         this.applyCustomBg(color);
     },
+
     uploadBgImage() {
         document.getElementById('bgImageInput').click();
     },
+
     handleBgImageUpload(event) {
         const file = event.target.files[0];
         if (file) {
@@ -909,35 +884,83 @@ window.QuizApp = {
                 body.classList.remove('theme-light','theme-dark','theme-eye','theme-custom');
                 body.classList.add('bg-image');
                 body.style.setProperty('--custom-bg-image', `url(${ev.target.result})`);
+                // 加载保存的透明度/模糊设置
+                const savedOpacity = localStorage.getItem('quiz_bg_opacity') || '100';
+                const savedBlur = localStorage.getItem('quiz_bg_blur') || '0';
+                body.style.setProperty('--bg-opacity', savedOpacity / 100);
+                body.style.setProperty('--bg-blur', savedBlur);
                 localStorage.setItem('quiz_theme','bg-image');
                 localStorage.setItem('quiz_bg_image', ev.target.result);
                 document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
                 const target = document.querySelector('.theme-btn-image');
                 if (target) target.classList.add('active');
+                // 同步滑块
+                const opacitySlider = document.getElementById('bgOpacitySlider');
+                const blurSlider = document.getElementById('bgBlurSlider');
+                if (opacitySlider) opacitySlider.value = savedOpacity;
+                if (blurSlider) blurSlider.value = savedBlur;
+                document.getElementById('opacityValue').textContent = savedOpacity + '%';
+                document.getElementById('blurValue').textContent = savedBlur + 'px';
+                this.showToast('🖼️ 背景图片已更新');
             };
             reader.readAsDataURL(file);
         }
         event.target.value = '';
     },
+
+    // 🆕 更新背景透明度
+    updateBgOpacity(value) {
+        const body = document.body;
+        const opacity = value / 100;
+        body.style.setProperty('--bg-opacity', opacity);
+        localStorage.setItem('quiz_bg_opacity', value);
+        document.getElementById('opacityValue').textContent = value + '%';
+    },
+
+    // 🆕 更新背景模糊
+    updateBgBlur(value) {
+        const body = document.body;
+        body.style.setProperty('--bg-blur', value);
+        localStorage.setItem('quiz_bg_blur', value);
+        document.getElementById('blurValue').textContent = value + 'px';
+    },
+
     loadTheme() {
         const saved = localStorage.getItem('quiz_theme') || 'light';
+        const savedOpacity = localStorage.getItem('quiz_bg_opacity') || '100';
+        const savedBlur = localStorage.getItem('quiz_bg_blur') || '0';
+
         if (saved === 'custom') {
             const bg = localStorage.getItem('quiz_custom_bg');
-            if (bg) this.applyCustomBg(bg);
+            if (bg) {
+                this.applyCustomBg(bg);
+                // 如果是自定义背景，不应用透明度/模糊（这些只对图片生效）
+            }
         } else if (saved === 'bg-image') {
             const img = localStorage.getItem('quiz_bg_image');
             if (img) {
                 const body = document.body;
                 body.classList.add('bg-image');
                 body.style.setProperty('--custom-bg-image', `url(${img})`);
+                body.style.setProperty('--bg-opacity', savedOpacity / 100);
+                body.style.setProperty('--bg-blur', savedBlur);
                 document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
                 const target = document.querySelector('.theme-btn-image');
                 if (target) target.classList.add('active');
+                // 同步滑块
+                const opacitySlider = document.getElementById('bgOpacitySlider');
+                const blurSlider = document.getElementById('bgBlurSlider');
+                if (opacitySlider) opacitySlider.value = savedOpacity;
+                if (blurSlider) blurSlider.value = savedBlur;
+                document.getElementById('opacityValue').textContent = savedOpacity + '%';
+                document.getElementById('blurValue').textContent = savedBlur + 'px';
+            } else {
+                this.setTheme('light');
             }
         } else {
             this.setTheme(saved);
         }
-        // 同步设置面板
+
         const picker = document.getElementById('settingsBgPicker');
         if (picker && saved === 'custom') {
             const bg = localStorage.getItem('quiz_custom_bg') || '#e0e5ec';
@@ -957,7 +980,6 @@ window.QuizApp = {
         }
         const isOpen = modal.style.display === 'flex';
         modal.style.display = isOpen ? 'none' : 'flex';
-        // 同步设置
         if (!isOpen) {
             const vibToggle = document.getElementById('vibrationToggle');
             if (vibToggle) vibToggle.checked = this._vibrationEnabled;
@@ -976,6 +998,19 @@ window.QuizApp = {
                 } else {
                     picker.value = '#e0e5ec';
                 }
+            }
+            // 同步滑块
+            const opacitySlider = document.getElementById('bgOpacitySlider');
+            const blurSlider = document.getElementById('bgBlurSlider');
+            const savedOpacity = localStorage.getItem('quiz_bg_opacity') || '100';
+            const savedBlur = localStorage.getItem('quiz_bg_blur') || '0';
+            if (opacitySlider) {
+                opacitySlider.value = savedOpacity;
+                document.getElementById('opacityValue').textContent = savedOpacity + '%';
+            }
+            if (blurSlider) {
+                blurSlider.value = savedBlur;
+                document.getElementById('blurValue').textContent = savedBlur + 'px';
             }
         }
     },
@@ -1022,7 +1057,6 @@ window.QuizApp = {
             item.classList.add('out');
             setTimeout(() => item.remove(), 300);
         }, duration);
-        // 最多保留 3 个 Toast
         while (container.children.length > 3) {
             container.firstChild.remove();
         }
@@ -1061,7 +1095,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 12. 会话上下文（Session 恢复）
+    // 12. 会话上下文
     // ------------------------------------------------------------
     saveSessionContext() {
         if (this._isRestoring) return;
@@ -1096,12 +1130,10 @@ window.QuizApp = {
         const data = localStorage.getItem(`quiz_session_${user}`);
         if (!data) return false;
         const context = JSON.parse(data);
-        // 检查是否过期（超过 24 小时）
         if (Date.now() - context.timestamp > 24 * 60 * 60 * 1000) {
             localStorage.removeItem(`quiz_session_${user}`);
             return false;
         }
-        // 检查题目是否还存在（简单检查：尝试加载第一题）
         try {
             const res = await fetch(`/api/questions?user_id=${encodeURIComponent(user)}`);
             const bank = await res.json();
@@ -1115,10 +1147,7 @@ window.QuizApp = {
             return false;
         }
 
-        // 恢复答题状态
         this._isRestoring = true;
-        this.activeBank = context.questionIds.map(id => ({ id })); // placeholder
-        // 实际需要重新加载完整数据
         try {
             const res = await fetch(`/api/questions?user_id=${encodeURIComponent(user)}`);
             const bank = await res.json();
@@ -1134,8 +1163,8 @@ window.QuizApp = {
             this._totalBank = context.totalBank;
             this._pendingStart = context.pendingStart;
             this._sessionId = context.sessionId;
+            this._isFinishing = false;
 
-            // 重新渲染界面
             document.getElementById("home").style.display = "none";
             document.getElementById("app").innerHTML = `
                 <div class="app-card" id="mainQuizCard"></div>
@@ -1172,7 +1201,6 @@ window.QuizApp = {
         const user = this.getCurrentUser();
         if (!user) return;
 
-        // 检查是否首次使用
         const hasUsed = localStorage.getItem('quiz_has_used');
         if (!hasUsed) {
             setTimeout(() => {
@@ -1182,7 +1210,6 @@ window.QuizApp = {
             return;
         }
 
-        // 检查错题数量
         try {
             const res = await fetch(`/api/wrong?user_id=${encodeURIComponent(user)}`);
             const wrongData = await res.json();
@@ -1197,7 +1224,6 @@ window.QuizApp = {
             }
         } catch (e) {}
 
-        // 检查题库是否为空
         try {
             const res = await fetch(`/api/questions?user_id=${encodeURIComponent(user)}`);
             const data = await res.json();
@@ -1357,12 +1383,17 @@ window.QuizApp = {
             if (!isNaN(num)) this.lastSelected = num;
         }
 
-        // 检查并恢复会话
-        const restored = await this.restoreSession();
-        if (!restored) {
-            // 如果没有恢复，显示智能提示
-            setTimeout(() => this.checkSmartPrompts(), 1500);
+        const user = this.getCurrentUser();
+        if (user) {
+            const sessionData = localStorage.getItem(`quiz_session_${user}`);
+            if (sessionData) {
+                setTimeout(() => {
+                    this.showTooltip('📂 发现未完成的答题，点击【顺序刷题】继续', 4000);
+                }, 1500);
+            }
         }
+
+        setTimeout(() => this.checkSmartPrompts(), 2000);
     }
 };
 
