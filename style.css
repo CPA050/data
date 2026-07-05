@@ -1317,3 +1317,84 @@ body.theme-dark .chapter-btn.active { background: #0071e3; color: #fff; }
     from { opacity: 0; transform: scale(0.97); }
     to { opacity: 1; transform: scale(1); }
 }
+/* ============================================================
+   🖥️ 电脑端宽屏适配（充分利用屏幕空间）
+   ============================================================ */
+
+/* 平板及小屏笔记本（宽度 ≥ 768px） */
+@media (min-width: 768px) {
+    #home, #app {
+        max-width: 720px;
+    }
+    #home {
+        padding: 32px 28px;
+    }
+    .app-card {
+        padding: 28px 24px;
+    }
+    .opt {
+        padding: 16px 20px;
+        font-size: 16px;
+    }
+    h2 {
+        font-size: 20px;
+    }
+    .glass-btn {
+        padding: 14px 20px;
+        font-size: 16px;
+    }
+}
+
+/* 桌面端（宽度 ≥ 1024px）—— 充分利用宽屏 */
+@media (min-width: 1024px) {
+    #home, #app {
+        max-width: 900px;   /* 可根据喜好调整，例如 1000px 或 85% */
+    }
+    #home {
+        padding: 40px 36px;
+    }
+    .app-card {
+        padding: 32px 36px;
+    }
+    .opt {
+        padding: 18px 24px;
+        font-size: 17px;
+    }
+    h2 {
+        font-size: 22px;
+    }
+    .glass-btn {
+        padding: 16px 24px;
+        font-size: 17px;
+    }
+    .glass-trigger {
+        width: 64px;
+        height: 64px;
+        left: 32px;
+        bottom: 32px;
+    }
+    .glass-trigger svg {
+        width: 28px;
+        height: 28px;
+    }
+    .chapter-nav {
+        gap: 10px;
+    }
+    .chapter-btn {
+        padding: 8px 18px;
+        font-size: 14px;
+    }
+}
+
+/* 超大屏（> 1400px）—— 可以更宽，但限制最大宽度避免阅读疲劳 */
+@media (min-width: 1400px) {
+    #home, #app {
+        max-width: 1100px;
+    }
+    #home {
+        padding: 48px 40px;
+    }
+    .app-card {
+        padding: 38px 40px;
+    }
+}
