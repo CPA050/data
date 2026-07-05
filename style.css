@@ -130,10 +130,6 @@ body {
 .theme-btn-light { background: #f0f0f5; }
 .theme-btn-dark { background: #1a1a2e; }
 .theme-btn-eye { background: #f5e6d3; }
-.theme-btn-custom { background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red); }
-.theme-btn-image {
-    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23666"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>') center/60% no-repeat #e8e8ed;
-}
 
 /* ===== 标题 ===== */
 h1 {
@@ -691,6 +687,51 @@ body.theme-dark .group-progress { background: rgba(255,255,255,0.08); }
 body.theme-dark .toggle-slider { background: #555; }
 body.theme-dark .toggle-slider::before { background: #e0e0e0; }
 
+/* ===== 🆕 滑块样式 ===== */
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(0,0,0,0.12);
+    outline: none;
+    transition: 0.2s;
+    cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #0071e3;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,113,227,0.25);
+    transition: 0.2s;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+}
+input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #0071e3;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,113,227,0.25);
+}
+body.theme-dark input[type="range"] {
+    background: rgba(255,255,255,0.15);
+}
+body.theme-dark input[type="range"]::-webkit-slider-thumb {
+    background: #4dabf7;
+}
+body.theme-dark input[type="range"]::-moz-range-thumb {
+    background: #4dabf7;
+}
+
 /* ===== Toast 提示 ===== */
 .toast-container {
     position: fixed;
@@ -867,6 +908,7 @@ body.theme-dark #delaySelect {
     color: #e0e0e0;
     border-color: rgba(255,255,255,0.08);
 }
+body.theme-dark input[type="range"] { background: rgba(255,255,255,0.12); }
 
 body.theme-eye {
     background: linear-gradient(135deg, #f5e6d3, #f0dcc8, #f5e6d3) !important;
@@ -879,11 +921,26 @@ body.theme-eye .app-card {
 body.theme-custom {
     background: var(--custom-bg) !important;
 }
+/* 🆕 背景图片 + 透明度 + 模糊 */
 body.bg-image {
     background: var(--custom-bg-image) !important;
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
+    background-size: cover !important;
+    background-position: center !important;
+    background-attachment: fixed !important;
+    opacity: var(--bg-opacity, 1);
+}
+body.bg-image::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: -1;
+    backdrop-filter: blur(calc(var(--bg-blur, 0) * 1px));
+    -webkit-backdrop-filter: blur(calc(var(--bg-blur, 0) * 1px));
+    background: var(--custom-bg-image) !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-attachment: fixed !important;
+    opacity: var(--bg-opacity, 1);
 }
 
 /* ===== 滚动条 ===== */
@@ -922,7 +979,6 @@ body.theme-dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); 
     #app .app-card .group-progress {
         grid-column: 2;
     }
-    /* 题号网格固定在左侧 */
     .grid-sidebar {
         grid-column: 1;
         grid-row: 2 / span 10;
@@ -998,7 +1054,6 @@ body.theme-dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); 
         grid-column: 2;
         margin: 6px 0;
     }
-    /* 左侧题号网格 */
     .grid-sidebar {
         grid-column: 1;
         grid-row: 2 / span 12;
@@ -1031,7 +1086,6 @@ body.theme-dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); 
     .grid-sidebar .qbtn-mini.correct { background: rgba(52,199,89,0.65); color: #fff; border-color: transparent; }
     .grid-sidebar .qbtn-mini.wrong { background: rgba(255,59,48,0.65); color: #fff; border-color: transparent; }
     .grid-sidebar .qbtn-mini.active { border-color: #0071e3; box-shadow: 0 0 0 3px rgba(0,113,227,0.15); }
-    /* 右侧统计面板 */
     .stats-panel {
         grid-column: 3;
         grid-row: 2 / span 10;
