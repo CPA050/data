@@ -1,5 +1,5 @@
 // ==========================================
-// 🚀 QuizApp 10.6 · 完整功能版
+// 🚀 QuizApp 10.7 · 完整功能版（支持多选提交）
 // ==========================================
 
 window.QuizApp = {
@@ -35,6 +35,10 @@ window.QuizApp = {
     // 收藏相关
     _favorites: [],
     _isFavoritesMode: false,
+
+    // 多选临时存储
+    _tempMulti: [],
+    _multiSubmitted: false,
 
     // 其他内部变量
     _selectTimer: null,
@@ -147,6 +151,8 @@ window.QuizApp = {
         this._sessionId = Date.now() + '_' + Math.random().toString(36).substr(2, 6);
         this._isRandom = isRandom;
         this._currentLimit = bank.length;
+        this._tempMulti = [];
+        this._multiSubmitted = false;
 
         document.getElementById("home").style.display = "none";
         document.getElementById("app").innerHTML = `
@@ -185,6 +191,8 @@ window.QuizApp = {
             this._isFinishing = false;
             this._isRandom = isRandom;
             this._currentLimit = limit;
+            this._tempMulti = [];
+            this._multiSubmitted = false;
 
             await this.loadFavorites();
 
@@ -359,7 +367,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 🆕 渲染卡片（含底部导航按钮）
+    // 🆕 渲染卡片（含多选提交模式）
     // ------------------------------------------------------------
     renderCard(needAnimation, direction = 'none') {
         const content = document.getElementById("quizContent");
@@ -374,6 +382,13 @@ window.QuizApp = {
         const percent = total > 0 ? Math.round(done / total * 100) : 0;
         const circumference = 94.2;
         const offset = circumference * (1 - percent / 100);
+
+        // 题型判断
+        const isMulti = Array.isArray(q.a);
+        const isJudge = !isMulti && q.opts.length === 2 && 
+                        ((q.opts[0].includes('正确') && q.opts[1].includes('错误')) ||
+                         (q.opts[0].includes('对') && q.opts[1].includes('错')));
+        const typeLabel = isMulti ? '多选题' : (isJudge ? '判断题' : '单选题');
 
         let filterInfo = '';
         if (this._isChapterMode && this._selectedChapters.length > 0) {
@@ -392,8 +407,63 @@ window.QuizApp = {
         const isCorrect = hasSelected && this.record[this.idx] === q.a;
         const isWrong = hasSelected && this.record[this.idx] !== q.a;
 
+        const tempSelected = this._tempMulti || [];
+        const isMultiSubmitted = this._multiSubmitted || false;
+        const showSubmit = isMulti && !isMultiSubmitted && !hasSelected;
+
         const isFirst = this.idx === 0;
         const isLast = this.idx === this.activeBank.length - 1;
+
+        let optionsHtml = q.opts.map((o, oIdx) => {
+            let cls = "opt";
+            if (isMulti) {
+                if (tempSelected.includes(oIdx)) {
+                    cls += " selected";
+                }
+                if (isMultiSubmitted || hasSelected) {
+                    if (q.a.includes(oIdx)) {
+                        cls += " correct";
+                    } else if (tempSelected.includes(oIdx) && !q.a.includes(oIdx)) {
+                        cls += " wrong";
+                    }
+                }
+                const onclick = !isMultiSubmitted && !hasSelected ? `onclick="QuizApp.toggleMultiOption(${oIdx})"` : '';
+                return `<div class="${cls}" ${onclick}>${o}</div>`;
+            } else {
+                if (hasSelected) {
+                    if (oIdx === q.a) cls += " correct";
+                    else if (oIdx === this.record[this.idx]) cls += " wrong";
+                }
+                return `<div class="${cls}" onclick="QuizApp.select(${oIdx}, this)">${o}</div>`;
+            }
+        }).join("");
+
+        let correctAnswerHtml = '';
+        if (isMulti && (isMultiSubmitted || hasSelected)) {
+            const correctText = q.a.map(idx => q.opts[idx]).join('、');
+            correctAnswerHtml = `<div style="margin-top:12px; padding:10px 14px; background:rgba(52,199,89,0.1); border-radius:8px; border:1px solid rgba(52,199,89,0.2); color:#1e7e34; font-size:14px;">
+                ✅ 正确答案：<strong>${correctText}</strong>
+            </div>`;
+        }
+
+        let submitBtnHtml = '';
+        if (showSubmit) {
+            submitBtnHtml = `
+                <div style="margin-top:16px;">
+                    <button onclick="QuizApp.submitMultiChoice()" 
+                            style="width:100%; padding:12px; border:none; border-radius:14px; background:#0071e3; color:#fff; font-size:16px; font-weight:600; cursor:pointer; box-shadow:0 4px 12px rgba(0,113,227,0.2);">
+                        📤 提交答案
+                    </button>
+                </div>
+            `;
+        }
+
+        const typeTagHtml = `<div style="font-size:13px; font-weight:600; color:#86868b; margin-bottom:8px;">【${typeLabel}】</div>`;
+
+        let multiHint = '';
+        if (isMulti && !isMultiSubmitted && !hasSelected && tempSelected.length > 0) {
+            multiHint = `<div style="font-size:13px; color:#0071e3; margin-top:6px;">已选 ${tempSelected.length} 个选项，点击「提交答案」确认</div>`;
+        }
 
         const htmlContent = `
             <div id="top">
@@ -417,15 +487,12 @@ window.QuizApp = {
                     </div>
                 </div>
             </div>
+            ${typeTagHtml}
             <h2>Q${this.idx + 1}. ${q.q}</h2>
-            ${q.opts.map((o, oIdx) => {
-                let cls = "opt";
-                if (this.record[this.idx] !== null) {
-                    if (oIdx === q.a) cls += " correct";
-                    else if (oIdx === this.record[this.idx]) cls += " wrong";
-                }
-                return `<div class="${cls}" onclick="QuizApp.select(${oIdx}, this)">${o}</div>`;
-            }).join("")}
+            ${optionsHtml}
+            ${correctAnswerHtml}
+            ${multiHint}
+            ${submitBtnHtml}
             <div class="group-progress">
                 <div class="bar" style="width: ${percent}%;"></div>
             </div>
@@ -477,12 +544,74 @@ window.QuizApp = {
         this.safeUpdateStats();
     },
 
-    // ------------------------------------------------------------
-    // 上一题 / 下一题
-    // ------------------------------------------------------------
+    toggleMultiOption(oIdx) {
+        const q = this.activeBank[this.idx];
+        if (!Array.isArray(q.a)) return;
+        if (this._multiSubmitted || this.record[this.idx] !== null) return;
+        const idx = this._tempMulti.indexOf(oIdx);
+        if (idx > -1) {
+            this._tempMulti.splice(idx, 1);
+        } else {
+            this._tempMulti.push(oIdx);
+        }
+        this.renderCard(true, 'none');
+    },
+
+    submitMultiChoice() {
+        const q = this.activeBank[this.idx];
+        if (!Array.isArray(q.a)) return;
+        if (this._multiSubmitted || this.record[this.idx] !== null) return;
+        const selected = this._tempMulti.slice();
+        if (selected.length === 0) {
+            this.showToast('请至少选择一个选项', 1500);
+            return;
+        }
+        const isCorrect = selected.every(idx => q.a.includes(idx)) && q.a.every(idx => selected.includes(idx));
+        this.record[this.idx] = selected;
+        this._multiSubmitted = true;
+
+        if (this._vibrationEnabled && navigator.vibrate) {
+            if (isCorrect) navigator.vibrate(10);
+            else navigator.vibrate([10, 50, 10]);
+        }
+
+        if (!isCorrect && this._source === 'all') {
+            const user = this.getCurrentUser();
+            if (user) this.uploadWrongQuestion(user, q);
+        }
+
+        if (isCorrect) {
+            this._consecutiveCorrect++;
+            this._consecutiveWrong = 0;
+            if (this._streakAlertEnabled && this._consecutiveCorrect === 5) {
+                this.showToast("🔥 状态不错！连续答对 5 题！");
+            }
+            if (this._streakAlertEnabled && this._consecutiveCorrect === 10) {
+                this.showToast("🔥 太棒了！连续答对 10 题！");
+            }
+        } else {
+            this._consecutiveWrong++;
+            this._consecutiveCorrect = 0;
+            if (this._streakAlertEnabled && this._consecutiveWrong === 3) {
+                this.showToast("💪 别灰心，再想想！");
+            }
+        }
+
+        this.renderCard(true, 'none');
+        this.renderGrid();
+
+        const allDone = this.record.every(v => v !== null);
+        if (allDone) {
+            this._isFinishing = true;
+            setTimeout(() => this.finishBatch(), 300);
+        }
+    },
+
     prevQuestion() {
         if (this.idx > 0) {
             this.idx--;
+            this._tempMulti = [];
+            this._multiSubmitted = false;
             this.renderCard(true, 'left');
         }
     },
@@ -490,6 +619,8 @@ window.QuizApp = {
     nextQuestion() {
         if (this.idx < this.activeBank.length - 1) {
             this.idx++;
+            this._tempMulti = [];
+            this._multiSubmitted = false;
             this.renderCard(true, 'right');
         }
     },
@@ -517,7 +648,13 @@ window.QuizApp = {
             const status = this.record[i];
             let cls = 'qbtn-mini';
             if (status !== null) {
-                cls += (status === this.activeBank[i].a) ? ' correct' : ' wrong';
+                const q = this.activeBank[i];
+                if (Array.isArray(q.a)) {
+                    const isCorrect = Array.isArray(status) && status.every(idx => q.a.includes(idx)) && q.a.every(idx => status.includes(idx));
+                    cls += isCorrect ? ' correct' : ' wrong';
+                } else {
+                    cls += (status === q.a) ? ' correct' : ' wrong';
+                }
             }
             if (i === this.idx) cls += ' active';
             html += `<div class="${cls}" onclick="QuizApp.jumpToQuestion(${i})" title="第 ${i+1} 题">${i + 1}</div>`;
@@ -535,8 +672,20 @@ window.QuizApp = {
         if (window.innerWidth < 768) return;
 
         const done = this.record.filter(x => x !== null).length;
-        const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
-        const acc = done ? Math.round(correct / done * 100) : 0;
+        let correctCount = 0;
+        for (let i = 0; i < this.activeBank.length; i++) {
+            const q = this.activeBank[i];
+            const v = this.record[i];
+            if (v === null) continue;
+            if (Array.isArray(q.a)) {
+                if (Array.isArray(v) && v.every(idx => q.a.includes(idx)) && q.a.every(idx => v.includes(idx))) {
+                    correctCount++;
+                }
+            } else {
+                if (v === q.a) correctCount++;
+            }
+        }
+        const acc = done ? Math.round(correctCount / done * 100) : 0;
         const total = this.activeBank.length;
         const remaining = total - done;
 
@@ -557,13 +706,14 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 🆕 选择选项（正确自动跳转，错误停留）
+    // 单选/判断的选择方法
     // ------------------------------------------------------------
     select(oIdx, element) {
+        const q = this.activeBank[this.idx];
+        if (Array.isArray(q.a)) return;
         if (this.record[this.idx] !== null) return;
         if (this._isFinishing) return;
 
-        const q = this.activeBank[this.idx];
         this.record[this.idx] = oIdx;
         const isCorrect = (oIdx === q.a);
 
@@ -596,7 +746,6 @@ window.QuizApp = {
                 const user = this.getCurrentUser();
                 if (user) this.uploadWrongQuestion(user, q);
             }
-            // 错误：刷新卡片显示状态，停留不跳转
             this.renderGrid();
             this.renderCard(true, 'none');
             const content = document.getElementById('quizContent');
@@ -604,7 +753,6 @@ window.QuizApp = {
             return;
         }
 
-        // 正确：继续跳转下一题
         this.renderGrid();
 
         const allDone = this.record.every(v => v !== null);
@@ -624,6 +772,8 @@ window.QuizApp = {
             }
             if (this.idx + 1 < this.activeBank.length) {
                 this.idx++;
+                this._tempMulti = [];
+                this._multiSubmitted = false;
                 this.renderCard(true, 'right');
             } else {
                 this._isFinishing = true;
@@ -698,14 +848,29 @@ window.QuizApp = {
         }
     },
 
+    // ------------------------------------------------------------
+    // 完成批次（适配多选）
+    // ------------------------------------------------------------
     finishBatch() {
         if (this._isFinishing) return;
         this._isFinishing = true;
         const user = this.getCurrentUser();
         if (!user) return;
         const total = this.record.length;
-        const correct = this.record.filter((v, i) => v !== null && v === this.activeBank[i].a).length;
-        const acc = total > 0 ? Math.round(correct / total * 100) : 0;
+        let correctCount = 0;
+        for (let i = 0; i < this.activeBank.length; i++) {
+            const q = this.activeBank[i];
+            const v = this.record[i];
+            if (v === null) continue;
+            if (Array.isArray(q.a)) {
+                if (Array.isArray(v) && v.every(idx => q.a.includes(idx)) && q.a.every(idx => v.includes(idx))) {
+                    correctCount++;
+                }
+            } else {
+                if (v === q.a) correctCount++;
+            }
+        }
+        const acc = total > 0 ? Math.round(correctCount / total * 100) : 0;
 
         if (this._isFavoritesMode) {
             const msg = `✅ 收藏刷题完成！\n共 ${total} 题，正确率 ${acc}%`;
@@ -732,7 +897,14 @@ window.QuizApp = {
 
         if (this._source === 'wrong') {
             const correctIds = this.activeBank
-                .filter((q, i) => this.record[i] !== null && this.record[i] === q.a)
+                .filter((q, i) => {
+                    const v = this.record[i];
+                    if (v === null) return false;
+                    if (Array.isArray(q.a)) {
+                        return Array.isArray(v) && v.every(idx => q.a.includes(idx)) && q.a.every(idx => v.includes(idx));
+                    }
+                    return v === q.a;
+                })
                 .map(q => q.id);
             if (correctIds.length > 0) {
                 const deletePromises = correctIds.map(id => {
@@ -743,7 +915,7 @@ window.QuizApp = {
                     console.log(`已移除 ${correctIds.length} 道错题`);
                 }).catch(err => console.error('删除错题失败:', err));
             }
-            const remaining = this.activeBank.length - correct;
+            const remaining = this.activeBank.length - correctCount;
             if (remaining === 0) {
                 setTimeout(() => this.showToast("🎉 所有错题已消灭！"), 300);
             }
@@ -771,7 +943,7 @@ window.QuizApp = {
     },
 
     // ------------------------------------------------------------
-    // 题库管理
+    // 题库管理（完整）
     // ------------------------------------------------------------
     async showManager() {
         const user = this.checkLogin();
@@ -1041,7 +1213,13 @@ window.QuizApp = {
             const status = this.record[i];
             let cls = 'qbtn';
             if (status !== null) {
-                cls += (status === this.activeBank[i].a) ? ' grid-correct' : ' grid-wrong';
+                const q = this.activeBank[i];
+                if (Array.isArray(q.a)) {
+                    const isCorrect = Array.isArray(status) && status.every(idx => q.a.includes(idx)) && q.a.every(idx => status.includes(idx));
+                    cls += isCorrect ? ' grid-correct' : ' grid-wrong';
+                } else {
+                    cls += (status === q.a) ? ' grid-correct' : ' grid-wrong';
+                }
             }
             if (i === this.idx) cls += ' grid-active';
             html += `<div class="${cls}" onclick="QuizApp.jumpToQuestion(${i})">${i + 1}</div>`;
@@ -1053,6 +1231,8 @@ window.QuizApp = {
         if (index < 0 || index >= this.activeBank.length) return;
         const direction = index > this.idx ? 'right' : 'left';
         this.idx = index;
+        this._tempMulti = [];
+        this._multiSubmitted = false;
         this.toggleFolder(false);
         this.renderCard(true, direction);
     },
@@ -1133,11 +1313,15 @@ window.QuizApp = {
             if (e.key === 'ArrowLeft' && this.idx > 0) {
                 e.preventDefault();
                 this.idx--;
+                this._tempMulti = [];
+                this._multiSubmitted = false;
                 this.renderCard(true, 'left');
             }
             if (e.key === 'ArrowRight' && this.idx < this.activeBank.length - 1) {
                 e.preventDefault();
                 this.idx++;
+                this._tempMulti = [];
+                this._multiSubmitted = false;
                 this.renderCard(true, 'right');
             }
 
@@ -1154,7 +1338,6 @@ window.QuizApp = {
             }
         });
 
-        // 触摸滑动切换题目（阈值提高到 60px，减少误触）
         const content = document.getElementById('quizContent');
         if (content) {
             let touchStartX = 0;
@@ -1175,11 +1358,15 @@ window.QuizApp = {
                     if (deltaX < 0) {
                         if (this.idx < this.activeBank.length - 1) {
                             this.idx++;
+                            this._tempMulti = [];
+                            this._multiSubmitted = false;
                             this.renderCard(true, 'right');
                         }
                     } else {
                         if (this.idx > 0) {
                             this.idx--;
+                            this._tempMulti = [];
+                            this._multiSubmitted = false;
                             this.renderCard(true, 'left');
                         }
                     }
@@ -1533,6 +1720,8 @@ window.QuizApp = {
             this._pendingStart = context.pendingStart;
             this._sessionId = context.sessionId;
             this._isFinishing = false;
+            this._tempMulti = [];
+            this._multiSubmitted = false;
 
             const chapterButtons = this._allChapters.length > 0
                 ? this._allChapters.map(ch => `
