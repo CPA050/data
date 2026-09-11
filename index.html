@@ -1,212 +1,185 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>答题系统</title>
-    <link rel="stylesheet" href="style.css" />
-    <style>
-        /* 仅保留必要的内联，其余全部在 style.css */
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#e8eef7">
+<title>答题系统</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <!-- ===== 首页 ===== -->
-    <div id="home">
-        <!-- 状态栏：左上角设置按钮 + 状态信息 -->
-        <div class="status-bar" id="userStatusBar">
-            <button class="settings-trigger" onclick="QuizApp.toggleSettings()" title="设置">
-                <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-            </button>
-            <span id="userInfoText" class="user-info" onclick="QuizApp.checkLogin()">👤 游客模式</span>
-            <button onclick="QuizApp.logout()" id="logoutBtn" class="logout-btn">退出</button>
-        </div>
+<!-- ===== 背景彩色光斑层（液态玻璃的关键） ===== -->
+<div class="bg-blobs" aria-hidden="true"></div>
 
-        <!-- ✅ 已移除主题切换栏，所有主题管理移至设置面板 -->
+<!-- ===== 首页（欢迎词 + 刷题按钮） ===== -->
+<div id="home" class="page">
+  <div class="welcome-wrap" onclick="QuizApp.toggleWelcome()">
+    <div class="welcome-text" id="welcomeText"></div>
+    <div class="welcome-hint" id="welcomeHint">轻触屏幕继续</div>
+    <div id="resumeHint"></div>
+  </div>
+  <div id="quizActions" class="quiz-actions" style="display:none;">
+    <button class="glass-btn primary" onclick="QuizApp.chooseMode('sequential')">
+      <span class="btn-icon">📖</span> 顺序刷题
+    </button>
+    <button class="glass-btn secondary" onclick="QuizApp.chooseMode('random')">
+      <span class="btn-icon">🎲</span> 乱序刷题
+    </button>
+  </div>
+</div>
 
-        <h1>📝 答题系统</h1>
+<!-- ===== 应用容器（题库/错题/收藏/我的/答题，都渲染到这里） ===== -->
+<div id="app" class="page" style="display:none;"></div>
 
-        <!-- 主功能按钮 -->
-        <button class="glass-btn primary" onclick="QuizApp.showQuantityModal('sequential')">
-            <span class="btn-icon">▶</span> 顺序刷题
-        </button>
-        <button class="glass-btn primary" onclick="QuizApp.showQuantityModal('random')">
-            <span class="btn-icon">🎲</span> 随机刷题
-        </button>
-        <button class="glass-btn danger" onclick="QuizApp.showQuantityModal('wrong')">
-            <span class="btn-icon">❌</span> 错题重练
-        </button>
-        <!-- 🆕 我的收藏按钮 -->
-        <button class="glass-btn gold" onclick="QuizApp.startFavorites()">
-            <span class="btn-icon">⭐</span> 我的收藏
-        </button>
-        <button class="glass-btn secondary" onclick="QuizApp.showManager()">
-            <span class="btn-icon">📚</span> 题库管理
-        </button>
+<!-- ===== 液态玻璃底栏 ===== -->
+<nav class="tabbar" id="tabbar">
+  <div class="slider" id="tabSlider"></div>
+  <button class="tab-btn active" data-tab="home">首页</button>
+  <button class="tab-btn" data-tab="bank">题库</button>
+  <button class="tab-btn" data-tab="wrong">错题</button>
+  <button class="tab-btn" data-tab="fav">收藏</button>
+  <button class="tab-btn" data-tab="me">我的</button>
+</nav>
 
-        <!-- 底部链接 -->
-        <div class="footer-links">
-            <a href="/wrong.html" class="glass-link" onclick="return QuizApp.checkLoginBeforeGo('/wrong.html')">
-                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-                我的错题库
-            </a>
-        </div>
+<!-- ===== 数量选择弹窗 ===== -->
+<div id="quantityModal" class="modal-overlay" style="display:none;">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">📋 选择刷题数量</span>
+      <button class="modal-close" onclick="QuizApp.closeQuantityModal()">✕</button>
     </div>
+    <div class="modal-body">
+      <div class="modal-info">你的题库共 <strong id="totalCount">0</strong> 道题</div>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="QuizApp.selectQuantity(20)">20</button>
+        <button class="preset-btn" onclick="QuizApp.selectQuantity(50)">50</button>
+        <button class="preset-btn" onclick="QuizApp.selectQuantity(100)">100</button>
+        <button class="preset-btn" onclick="QuizApp.selectQuantity(-1)">📦 全部</button>
+      </div>
+      <div class="custom-row">
+        <span>自定义</span>
+        <input type="number" id="customQuantity" min="1" placeholder="输入数量">
+        <button class="custom-confirm" onclick="QuizApp.confirmCustom()">确定</button>
+      </div>
+      <div class="modal-preview" id="modalPreview"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-start-btn" onclick="QuizApp.startWithQuantity()">▶ 开始刷题</button>
+    </div>
+  </div>
+</div>
 
-    <!-- ===== 应用容器（答题 & 管理） ===== -->
-    <div id="app" style="display:none;"></div>
-
-    <!-- ===== 设置面板（毛玻璃弹窗） ===== -->
-    <div id="settingsModal" class="modal-overlay" style="display:none;">
-        <div class="modal-card settings-card">
-            <div class="modal-header">
-                <span class="modal-title">⚙️ 设置</span>
-                <button class="modal-close" onclick="QuizApp.toggleSettings()">✕</button>
-            </div>
-            <div class="modal-body settings-body">
-                <!-- 🆕 主题切换（明亮/夜间/护眼） -->
-                <div class="setting-item" style="flex-direction:column; align-items:stretch; gap:8px; border-bottom: 1px solid rgba(0,0,0,0.05);">
-                    <span class="setting-label" style="margin-bottom:4px;">🎨 主题模式</span>
-                    <div style="display:flex; gap:10px;">
-                        <button onclick="QuizApp.setThemeFromSettings('light')" id="settingsThemeLight" class="theme-option-btn active" style="flex:1; padding:10px 0; border-radius:12px; border:2px solid rgba(0,0,0,0.06); background:rgba(255,255,255,0.3); backdrop-filter:blur(4px); cursor:pointer; font-size:14px; font-weight:500; color:#1d1d1f; transition:0.2s;">☀️ 明亮</button>
-                        <button onclick="QuizApp.setThemeFromSettings('dark')" id="settingsThemeDark" class="theme-option-btn" style="flex:1; padding:10px 0; border-radius:12px; border:2px solid rgba(0,0,0,0.06); background:rgba(255,255,255,0.3); backdrop-filter:blur(4px); cursor:pointer; font-size:14px; font-weight:500; color:#1d1d1f; transition:0.2s;">🌙 夜间</button>
-                        <button onclick="QuizApp.setThemeFromSettings('eye')" id="settingsThemeEye" class="theme-option-btn" style="flex:1; padding:10px 0; border-radius:12px; border:2px solid rgba(0,0,0,0.06); background:rgba(255,255,255,0.3); backdrop-filter:blur(4px); cursor:pointer; font-size:14px; font-weight:500; color:#1d1d1f; transition:0.2s;">👁️ 护眼</button>
-                    </div>
-                </div>
-                <!-- 震动开关 -->
-                <div class="setting-item">
-                    <span class="setting-label">📳 震动反馈</span>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="vibrationToggle" onchange="QuizApp.setVibration(this.checked)" />
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-                <!-- 背景颜色 -->
-                <div class="setting-item">
-                    <span class="setting-label">🎨 自定义背景色</span>
-                    <input type="color" id="settingsBgPicker" value="#e0e5ec" onchange="QuizApp.applyCustomBgFromSettings(this.value)" />
-                </div>
-                <!-- 自定义背景图片 -->
-                <div class="setting-item">
-                    <span class="setting-label">🖼️ 自定义背景图</span>
-                    <button onclick="QuizApp.uploadBgImage()" style="padding:6px 16px; background:rgba(0,113,227,0.15); color:#0071e3; border:1px solid rgba(0,113,227,0.2); border-radius:10px; cursor:pointer; font-size:13px;">选择图片</button>
-                </div>
-                <!-- 背景透明度滑块 -->
-                <div class="setting-item" style="flex-direction:column; align-items:stretch; gap:6px;">
-                    <div style="display:flex; justify-content:space-between;">
-                        <span class="setting-label">🔆 背景透明度</span>
-                        <span class="setting-label" id="opacityValue" style="color:#86868b; font-size:14px;">100%</span>
-                    </div>
-                    <input type="range" id="bgOpacitySlider" min="0" max="100" value="100"
-                           oninput="QuizApp.updateBgOpacity(this.value)" />
-                </div>
-                <!-- 背景模糊滑块 -->
-                <div class="setting-item" style="flex-direction:column; align-items:stretch; gap:6px; border-bottom: none;">
-                    <div style="display:flex; justify-content:space-between;">
-                        <span class="setting-label">🌫️ 背景模糊</span>
-                        <span class="setting-label" id="blurValue" style="color:#86868b; font-size:14px;">0px</span>
-                    </div>
-                    <input type="range" id="bgBlurSlider" min="0" max="20" value="0"
-                           oninput="QuizApp.updateBgBlur(this.value)" />
-                </div>
-                <!-- 自动跳转延迟 -->
-                <div class="setting-item" style="border-top: 1px solid rgba(0,0,0,0.05); margin-top: 4px;">
-                    <span class="setting-label">⏱️ 自动跳转延迟</span>
-                    <select id="delaySelect" onchange="QuizApp.setAutoDelay(parseInt(this.value))">
-                        <option value="200">200ms</option>
-                        <option value="400">400ms</option>
-                        <option value="600">600ms</option>
-                        <option value="800">800ms</option>
-                        <option value="1000">1000ms</option>
-                    </select>
-                </div>
-                <!-- 连续答对提示 -->
-                <div class="setting-item">
-                    <span class="setting-label">🔥 连续答对提示</span>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="streakToggle" checked onchange="QuizApp.setStreakAlert(this.checked)" />
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-                <!-- 版本信息 -->
-                <div class="setting-item" style="border-bottom: none; margin-top: 4px;">
-                    <span class="setting-label" style="font-size: 12px; color: #86868b;">版本 9.6 · 已登录: <span id="settingsUser">-</span></span>
-                </div>
-            </div>
+<!-- ===== 设置面板 ===== -->
+<div id="settingsModal" class="modal-overlay" style="display:none;">
+  <div class="modal-card settings-card">
+    <div class="modal-header">
+      <span class="modal-title">⚙️ 设置</span>
+      <button class="modal-close" onclick="QuizApp.toggleSettings()">✕</button>
+    </div>
+    <div class="modal-body settings-body">
+      <div class="setting-item" style="flex-direction:column; align-items:stretch; gap:8px;">
+        <span class="setting-label">🎨 主题模式</span>
+        <div style="display:flex; gap:10px;">
+          <button onclick="QuizApp.setThemeFromSettings('light')" id="settingsThemeLight" class="theme-option-btn active">☀️ 明亮</button>
+          <button onclick="QuizApp.setThemeFromSettings('dark')" id="settingsThemeDark" class="theme-option-btn">🌙 夜间</button>
+          <button onclick="QuizApp.setThemeFromSettings('eye')" id="settingsThemeEye" class="theme-option-btn">👁️ 护眼</button>
         </div>
-    </div>
-
-    <!-- ===== 毛玻璃数量选择弹窗 ===== -->
-    <div id="quantityModal" class="modal-overlay" style="display:none;">
-        <div class="modal-card">
-            <div class="modal-header">
-                <span class="modal-title" id="modalTitle">📋 选择刷题数量</span>
-                <button class="modal-close" onclick="QuizApp.closeQuantityModal()">✕</button>
-            </div>
-            <div class="modal-body">
-                <div class="modal-info" id="modalInfo">
-                    你的题库共 <strong id="totalCount">0</strong> 道题
-                </div>
-                <div class="preset-grid">
-                    <button class="preset-btn" onclick="QuizApp.selectQuantity(20)">20</button>
-                    <button class="preset-btn" onclick="QuizApp.selectQuantity(50)">50</button>
-                    <button class="preset-btn" onclick="QuizApp.selectQuantity(100)">100</button>
-                    <button class="preset-btn" onclick="QuizApp.selectQuantity(-1)">📦 全部</button>
-                </div>
-                <div class="custom-row">
-                    <span>自定义</span>
-                    <input type="number" id="customQuantity" min="1" placeholder="输入数量" />
-                    <button class="custom-confirm" onclick="QuizApp.confirmCustom()">确定</button>
-                </div>
-                <div class="modal-preview" id="modalPreview"></div>
-            </div>
-            <div class="modal-footer">
-                <button class="modal-start-btn" onclick="QuizApp.startWithQuantity()">▶ 开始刷题</button>
-            </div>
+      </div>
+      <div class="setting-item">
+        <span class="setting-label">📳 震动反馈</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="vibrationToggle" onchange="QuizApp.setVibration(this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="setting-item">
+        <span class="setting-label">🎨 自定义背景色</span>
+        <input type="color" id="settingsBgPicker" value="#e0e5ec" onchange="QuizApp.applyCustomBgFromSettings(this.value)">
+      </div>
+      <div class="setting-item">
+        <span class="setting-label">🖼️ 自定义背景图</span>
+        <button onclick="QuizApp.uploadBgImage()" class="mini-btn">选择图片</button>
+      </div>
+      <div class="setting-item" style="flex-direction:column; align-items:stretch; gap:6px;">
+        <div style="display:flex; justify-content:space-between;">
+          <span class="setting-label">🔆 背景透明度</span>
+          <span class="setting-label" id="opacityValue" style="color:#86868b; font-size:14px;">100%</span>
         </div>
-    </div>
-
-    <!-- ===== Toast 提示容器 ===== -->
-    <div id="toastContainer" class="toast-container"></div>
-
-    <!-- ===== 引导气泡 ===== -->
-    <div id="tooltipBubble" class="tooltip-bubble" style="display:none;">
-        <span id="tooltipText"></span>
-        <button class="tooltip-close" onclick="QuizApp.dismissTooltip()">✕</button>
-    </div>
-
-    <!-- ===== 快捷键帮助弹窗 ===== -->
-    <div id="shortcutHelp" class="modal-overlay" style="display:none;">
-        <div class="modal-card" style="max-width: 480px;">
-            <div class="modal-header">
-                <span class="modal-title">⌨️ 快捷键</span>
-                <button class="modal-close" onclick="QuizApp.closeShortcutHelp()">✕</button>
-            </div>
-            <div class="modal-body" style="font-size:14px; line-height:1.8;">
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 16px;">
-                    <span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> 选选项</span>
-                    <span><kbd>Enter</kbd> 确认/下一题</span>
-                    <span><kbd>←</kbd> <kbd>→</kbd> 切换题目</span>
-                    <span><kbd>Esc</kbd> 关闭弹窗</span>
-                    <span><kbd>R</kbd> 随机刷题</span>
-                    <span><kbd>S</kbd> 顺序刷题</span>
-                    <span><kbd>W</kbd> 错题重练</span>
-                    <span><kbd>M</kbd> 题库管理</span>
-                    <span><kbd>H</kbd> 返回首页</span>
-                    <span><kbd>T</kbd> 切换主题</span>
-                    <span><kbd>F</kbd> 全屏模式</span>
-                    <span><kbd>?</kbd> 显示帮助</span>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="modal-start-btn" onclick="QuizApp.closeShortcutHelp()" style="background:rgba(0,113,227,0.15); color:#0071e3;">知道了</button>
-            </div>
+        <input type="range" id="bgOpacitySlider" min="0" max="100" value="100" oninput="QuizApp.updateBgOpacity(this.value)">
+      </div>
+      <div class="setting-item" style="flex-direction:column; align-items:stretch; gap:6px;">
+        <div style="display:flex; justify-content:space-between;">
+          <span class="setting-label">🌫️ 背景模糊</span>
+          <span class="setting-label" id="blurValue" style="color:#86868b; font-size:14px;">0px</span>
         </div>
+        <input type="range" id="bgBlurSlider" min="0" max="20" value="0" oninput="QuizApp.updateBgBlur(this.value)">
+      </div>
+      <div class="setting-item">
+        <span class="setting-label">⏱️ 自动跳转延迟</span>
+        <select id="delaySelect" onchange="QuizApp.setAutoDelay(parseInt(this.value))">
+          <option value="200">200ms</option>
+          <option value="400">400ms</option>
+          <option value="600">600ms</option>
+          <option value="800">800ms</option>
+          <option value="1000">1000ms</option>
+        </select>
+      </div>
+      <div class="setting-item">
+        <span class="setting-label">🔥 连续答对提示</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="streakToggle" checked onchange="QuizApp.setStreakAlert(this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="setting-item" style="border-bottom: none; margin-top: 4px;">
+        <span class="setting-label" style="font-size: 12px; color: #86868b;">版本 10.0 · 已登录: <span id="settingsUser">-</span></span>
+      </div>
     </div>
+  </div>
+</div>
 
-    <!-- ===== 隐藏控件 ===== -->
-    <input type="file" id="bgImageInput" accept="image/*" style="display:none;" onchange="QuizApp.handleBgImageUpload(event)" />
+<!-- ===== 快捷键帮助 ===== -->
+<div id="shortcutHelp" class="modal-overlay" style="display:none;">
+  <div class="modal-card" style="max-width:480px;">
+    <div class="modal-header">
+      <span class="modal-title">⌨️ 快捷键</span>
+      <button class="modal-close" onclick="QuizApp.closeShortcutHelp()">✕</button>
+    </div>
+    <div class="modal-body" style="font-size:14px; line-height:1.8;">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 16px;">
+        <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> 选选项</span>
+        <span><kbd>Enter</kbd> 确认/下一题</span>
+        <span><kbd>←</kbd><kbd>→</kbd> 切换题目</span>
+        <span><kbd>Esc</kbd> 关闭弹窗</span>
+        <span><kbd>R</kbd> 随机刷题</span>
+        <span><kbd>S</kbd> 顺序刷题</span>
+        <span><kbd>W</kbd> 错题重练</span>
+        <span><kbd>M</kbd> 题库管理</span>
+        <span><kbd>H</kbd> 返回首页</span>
+        <span><kbd>T</kbd> 切换主题</span>
+        <span><kbd>F</kbd> 全屏模式</span>
+        <span><kbd>?</kbd> 显示帮助</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-start-btn" onclick="QuizApp.closeShortcutHelp()" style="background:rgba(0,113,227,0.15); color:#0071e3;">知道了</button>
+    </div>
+  </div>
+</div>
 
-    <script src="app.js"></script>
+<!-- ===== Toast ===== -->
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- ===== 引导气泡 ===== -->
+<div id="tooltipBubble" class="tooltip-bubble" style="display:none;">
+  <span id="tooltipText"></span>
+  <button class="tooltip-close" onclick="QuizApp.dismissTooltip()">✕</button>
+</div>
+
+<!-- ===== 隐藏控件 ===== -->
+<input type="file" id="bgImageInput" accept="image/*" style="display:none;" onchange="QuizApp.handleBgImageUpload(event)">
+
+<script src="app.js"></script>
 </body>
 </html>
