@@ -1,6 +1,6 @@
 // ============================================================
-// QuizApp 11.2 · 完整功能版
-// 保留全部原有功能 + 液态玻璃底栏 + 错题闭环 + 无图标
+// QuizApp 11.3 · 完整版
+// 新增：震动支持检测 + 自定义背景色 + 自定义背景图 + 重置
 // ============================================================
 
 window.QuizApp = {
@@ -81,6 +81,23 @@ window.QuizApp = {
     ],
 
     // ============================================================
+    // 震动检测
+    // ============================================================
+    isVibrationSupported() {
+        return typeof navigator !== 'undefined' &&
+               'vibrate' in navigator &&
+               typeof navigator.vibrate === 'function';
+    },
+
+    vibrate(pattern) {
+        if (!this._vibrationEnabled) return;
+        if (!this.isVibrationSupported()) return;
+        try {
+            navigator.vibrate(pattern);
+        } catch (e) {}
+    },
+
+    // ============================================================
     // 用户管理
     // ============================================================
     getCurrentUser() {
@@ -143,11 +160,13 @@ window.QuizApp = {
             if (!isNaN(num)) this.lastSelected = num;
         }
 
-        // 清除历史遗留的背景图（用户反馈手机显示相册图片的问题）
+        // 清除旧的遗留 key（用户之前反馈手机自动显示相册图片）
         if (localStorage.getItem('quiz_bg_image')) {
             localStorage.removeItem('quiz_bg_image');
         }
-        document.body.style.backgroundImage = '';
+
+        // 应用用户主动设置的自定义背景
+        this.applySavedCustomBg();
 
         // 绑定事件
         this.bindTabs();
@@ -168,6 +187,87 @@ window.QuizApp = {
         if (el) {
             el.addEventListener('change', (e) => this.handleBgImageUpload(e));
         }
+    },
+
+    // ============================================================
+    // 自定义背景
+    // ============================================================
+    applySavedCustomBg() {
+        const color = localStorage.getItem('quiz_custom_bg_color');
+        const img = localStorage.getItem('quiz_custom_bg_image');
+
+        if (img) {
+            document.body.style.backgroundImage = `url(${img})`;
+            document.body.style.backgroundSize = 'cover';
+            document.body.style.backgroundPosition = 'center';
+            document.body.style.backgroundAttachment = 'fixed';
+            document.body.style.background = '';  // 清掉纯色
+            document.body.style.backgroundImage = `url(${img})`;
+            document.body.style.backgroundSize = 'cover';
+            document.body.style.backgroundPosition = 'center';
+            document.body.style.backgroundAttachment = 'fixed';
+        } else if (color) {
+            document.body.style.backgroundImage = 'none';
+            document.body.style.background = color;
+        }
+        // 没有自定义背景，什么都不做，用主题背景
+    },
+
+    applyCustomBgColor(color) {
+        if (!color) return;
+        document.body.style.backgroundImage = 'none';
+        document.body.style.background = color;
+        localStorage.setItem('quiz_custom_bg_color', color);
+        localStorage.removeItem('quiz_custom_bg_image');
+        this.showToast('背景色已更新');
+        if (this.currentTab === 'me') this.renderMe();
+    },
+
+    applyCustomBgImage(dataURL) {
+        if (!dataURL) return;
+        document.body.style.background = '';
+        document.body.style.backgroundImage = `url(${dataURL})`;
+        document.body.style.backgroundSize = 'cover';
+        document.body.style.backgroundPosition = 'center';
+        document.body.style.backgroundAttachment = 'fixed';
+        localStorage.setItem('quiz_custom_bg_image', dataURL);
+        localStorage.removeItem('quiz_custom_bg_color');
+        this.showToast('背景图已更新');
+        if (this.currentTab === 'me') this.renderMe();
+    },
+
+    resetCustomBg() {
+        if (!confirm('确定恢复默认背景吗？')) return;
+        document.body.style.backgroundImage = '';
+        document.body.style.background = '';
+        localStorage.removeItem('quiz_custom_bg_color');
+        localStorage.removeItem('quiz_custom_bg_image');
+        this.showToast('已恢复默认背景');
+        if (this.currentTab === 'me') this.renderMe();
+    },
+
+    uploadBgImage() {
+        const el = document.getElementById('bgImageInput');
+        if (el) el.click();
+    },
+
+    handleBgImageUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // 限制 5MB
+        if (file.size > 5 * 1024 * 1024) {
+            this.showToast('图片过大，请选择小于 5MB 的图片');
+            event.target.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            this.applyCustomBgImage(ev.target.result);
+        };
+        reader.readAsDataURL(file);
+        event.target.value = '';
     },
 
     // ============================================================
@@ -283,7 +383,7 @@ window.QuizApp = {
                 isDragging = true;
                 tabbar.classList.add('dragging');
                 tabbar.dataset.dragging = '1';
-                if (this._vibrationEnabled && navigator.vibrate) navigator.vibrate(8);
+                this.vibrate(8);
             }, 200);
         };
 
@@ -293,26 +393,22 @@ window.QuizApp = {
             const dx = clientX - startX;
             const dy = clientY - startY;
 
-            // 未激活拖拽
             if (!isDragging) {
-                // 垂直移动：取消
                 if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) {
                     isPressing = false;
                     clearTimeout(pressTimer);
                     return;
                 }
-                // 水平移动超过阈值：立即激活
                 if (Math.abs(dx) > 8) {
                     isDragging = true;
                     clearTimeout(pressTimer);
                     tabbar.classList.add('dragging');
                     tabbar.dataset.dragging = '1';
-                    if (this._vibrationEnabled && navigator.vibrate) navigator.vibrate(8);
+                    this.vibrate(8);
                 }
                 return;
             }
 
-            // 拖拽中
             const rect = tabbar.getBoundingClientRect();
             const padding = 6;
             const innerW = rect.width - padding * 2;
@@ -365,7 +461,6 @@ window.QuizApp = {
             isDragging = false;
         };
 
-        // 触摸事件
         tabbar.addEventListener('touchstart', (e) => {
             const t = e.touches[0];
             onStart(t.clientX, t.clientY);
@@ -380,7 +475,6 @@ window.QuizApp = {
         tabbar.addEventListener('touchend', onEnd);
         tabbar.addEventListener('touchcancel', onEnd);
 
-        // 鼠标事件
         tabbar.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return;
             onStart(e.clientX, e.clientY);
@@ -438,7 +532,6 @@ window.QuizApp = {
             if (actions) actions.style.display = 'none';
         }
 
-        // 恢复上次答题提示
         if (resumeWrap) {
             resumeWrap.innerHTML = '';
             const user = this.getCurrentUser();
@@ -593,7 +686,6 @@ window.QuizApp = {
             this._tempMulti = [];
             this._multiSubmitted = false;
 
-            // 并行加载：收藏 + 题库
             const [favRes, qRes] = await Promise.all([
                 fetch(`/api/favorites?user_id=${encodeURIComponent(user)}`)
                     .then(r => r.json()).catch(() => []),
@@ -613,7 +705,6 @@ window.QuizApp = {
                 return;
             }
 
-            // 错题模式
             if (source === 'wrong') {
                 await this.loadWrongList();
                 const unmastered = this._wrongList.filter(w => !w.mastered);
@@ -638,7 +729,6 @@ window.QuizApp = {
                 this._wrongIdMap = {};
             }
 
-            // 筛选题目
             let selectedBank = [];
             if (limit === -1 || limit >= bank.length) {
                 selectedBank = bank;
@@ -673,7 +763,6 @@ window.QuizApp = {
             this._consecutiveWrong = 0;
             this._sessionId = Date.now() + '_' + Math.random().toString(36).substr(2, 6);
 
-            // 切换到答题界面
             document.getElementById('home').style.display = 'none';
             document.getElementById('app').style.display = 'block';
             document.getElementById('app').className = 'page';
@@ -760,7 +849,6 @@ window.QuizApp = {
         const acc = done ? Math.round(correct / done * 100) : 0;
         const total = this.activeBank.length;
         const remaining = total - done;
-        const percent = total > 0 ? Math.round(done / total * 100) : 0;
 
         const isMulti = Array.isArray(q.a);
         const isJudge = !isMulti && q.opts.length === 2 &&
@@ -786,7 +874,6 @@ window.QuizApp = {
         const isFirst = this.idx === 0;
         const isLast = this.idx === this.activeBank.length - 1;
 
-        // 选项渲染
         let optionsHtml = q.opts.map((o, oIdx) => {
             let cls = 'opt';
             if (isMulti) {
@@ -809,14 +896,12 @@ window.QuizApp = {
             }
         }).join('');
 
-        // 正确答案提示
         let correctAnswerHtml = '';
         if (isMulti && (isMultiSubmitted || hasSelected)) {
             const correctText = q.a.map(idx => q.opts[idx]).join('、');
             correctAnswerHtml = `<div class="correct-note">正确答案：<strong>${correctText}</strong></div>`;
         }
 
-        // 错题重练：标记已掌握
         let masterBtnHtml = '';
         if (this._source === 'wrong' && q._isWrong && hasSelected && isCorrect) {
             masterBtnHtml = `
@@ -829,20 +914,17 @@ window.QuizApp = {
             `;
         }
 
-        // 提交按钮
         let submitBtnHtml = '';
         if (showSubmit) {
             submitBtnHtml = `<button class="submit-btn"
                                      onclick="QuizApp.submitMultiChoice()">提交答案</button>`;
         }
 
-        // 多选提示
         let multiHint = '';
         if (isMulti && !isMultiSubmitted && !hasSelected && tempSelected.length > 0) {
             multiHint = `<div class="multi-hint">已选 ${tempSelected.length} 个选项，点击提交确认</div>`;
         }
 
-        // 状态提示
         let statusHtml = '';
         if (hasSelected || isMultiSubmitted) {
             if (isCorrect) {
@@ -953,9 +1035,10 @@ window.QuizApp = {
         this.record[this.idx] = selected;
         this._multiSubmitted = true;
 
-        if (this._vibrationEnabled && navigator.vibrate) {
-            if (isCorrect) navigator.vibrate(10);
-            else navigator.vibrate([10, 50, 10]);
+        if (isCorrect) {
+            this.vibrate(10);
+        } else {
+            this.vibrate([10, 50, 10]);
         }
 
         if (!isCorrect && this._source !== 'wrong') {
@@ -995,9 +1078,10 @@ window.QuizApp = {
         this.record[this.idx] = oIdx;
         const isCorrect = (oIdx === q.a);
 
-        if (this._vibrationEnabled && navigator.vibrate) {
-            if (isCorrect) navigator.vibrate(10);
-            else navigator.vibrate([10, 50, 10]);
+        if (isCorrect) {
+            this.vibrate(10);
+        } else {
+            this.vibrate([10, 50, 10]);
         }
 
         if (isCorrect) {
@@ -1135,7 +1219,6 @@ window.QuizApp = {
         const done = this.record.filter(v => v !== null).length;
         const acc = done > 0 ? Math.round(correctCount / done * 100) : 0;
 
-        // 收藏模式
         if (this._isFavoritesMode) {
             const msg = `收藏刷题完成\n共 ${done} 题，正确率 ${acc}%`;
             if (confirm(msg + '\n\n点击「确定」返回收藏，点击「取消」返回首页')) {
@@ -1148,7 +1231,6 @@ window.QuizApp = {
             return;
         }
 
-        // 顺序模式保存进度
         if (!this._isRandom && this._totalBank && this._source === 'all') {
             const newIndex = (this._pendingStart || 0) + this.activeBank.length;
             if (newIndex >= this._totalBank.length) {
@@ -1159,7 +1241,6 @@ window.QuizApp = {
             }
         }
 
-        // 保存最近做过的题目
         const recentIds = this.activeBank.map(q => q.id);
         this.saveRecentQuestions(user, recentIds);
 
@@ -1207,7 +1288,6 @@ window.QuizApp = {
             const data = await res.json();
             const raw = data || [];
 
-            // 按 q 聚合
             const map = {};
             for (const w of raw) {
                 const key = w.q || String(w.id);
@@ -1234,7 +1314,6 @@ window.QuizApp = {
 
             const list = Object.values(map);
 
-            // 读取本地已掌握
             const mKey = `quiz_mastered_${user}`;
             let mastered = {};
             try {
@@ -1286,7 +1365,6 @@ window.QuizApp = {
         if (filter === 'unmastered') filtered = list.filter(w => !w.mastered);
         else if (filter === 'mastered') filtered = list.filter(w => w.mastered);
 
-        // 排序：未掌握在前，错误次数多的在前
         filtered.sort((a, b) => {
             if (a.mastered !== b.mastered) return a.mastered ? 1 : -1;
             return (b.wrongCount || 0) - (a.wrongCount || 0);
@@ -1712,7 +1790,6 @@ window.QuizApp = {
             return;
         }
 
-        // 剥离 markdown 代码块标记
         code = code.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
 
         let arr;
@@ -1736,7 +1813,6 @@ window.QuizApp = {
         if (!Array.isArray(arr)) { alert('必须是数组'); return; }
         if (arr.length === 0) { alert('数组为空'); return; }
 
-        // 校验
         const errors = [];
         arr.forEach((item, i) => {
             if (!item.q) errors.push(`第 ${i + 1} 题缺少 q`);
@@ -1958,6 +2034,12 @@ window.QuizApp = {
         const s = this._settingsCache || (this._settingsCache = this.loadSettings());
         const initial = user ? user.charAt(0).toUpperCase() : '?';
 
+        const vibSupported = this.isVibrationSupported();
+        const customColor = localStorage.getItem('quiz_custom_bg_color') || '#e8eef7';
+        const hasCustomImg = !!localStorage.getItem('quiz_custom_bg_image');
+        const hasCustomBg = !!(localStorage.getItem('quiz_custom_bg_color') ||
+                                localStorage.getItem('quiz_custom_bg_image'));
+
         app.innerHTML = `
             <div class="page-card">
                 <div class="profile-header">
@@ -2005,15 +2087,21 @@ window.QuizApp = {
                                     onclick="QuizApp.setTheme('eye')">护眼</button>
                         </div>
                     </div>
+
                     <div class="setting-row">
-                        <span class="setting-label">震动反馈</span>
-                        <label class="toggle-switch">
+                        <span class="setting-label">
+                            震动反馈
+                            ${!vibSupported ? '<span class="setting-note">设备不支持</span>' : ''}
+                        </span>
+                        <label class="toggle-switch ${!vibSupported ? 'disabled' : ''}">
                             <input type="checkbox"
                                    ${s.vibration ? 'checked' : ''}
+                                   ${!vibSupported ? 'disabled' : ''}
                                    onchange="QuizApp.setVibration(this.checked)">
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
+
                     <div class="setting-row">
                         <span class="setting-label">自动跳转延迟</span>
                         <select onchange="QuizApp.setAutoDelay(parseInt(this.value))">
@@ -2022,6 +2110,7 @@ window.QuizApp = {
                             ).join('')}
                         </select>
                     </div>
+
                     <div class="setting-row">
                         <span class="setting-label">连续答对提示</span>
                         <label class="toggle-switch">
@@ -2030,6 +2119,33 @@ window.QuizApp = {
                                    onchange="QuizApp.setStreakAlert(this.checked)">
                             <span class="toggle-slider"></span>
                         </label>
+                    </div>
+
+                    <div class="setting-row">
+                        <span class="setting-label">背景颜色</span>
+                        <div class="color-picker-wrap">
+                            <input type="color"
+                                   class="color-picker"
+                                   value="${customColor}"
+                                   onchange="QuizApp.applyCustomBgColor(this.value)">
+                            <span class="color-value">${customColor}</span>
+                        </div>
+                    </div>
+
+                    <div class="setting-row">
+                        <span class="setting-label">背景图片</span>
+                        <button class="mini-btn" onclick="QuizApp.uploadBgImage()">
+                            ${hasCustomImg ? '更换图片' : '选择图片'}
+                        </button>
+                    </div>
+
+                    <div class="setting-row">
+                        <span class="setting-label">重置背景</span>
+                        <button class="mini-btn danger"
+                                onclick="QuizApp.resetCustomBg()"
+                                ${!hasCustomBg ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
+                            恢复默认
+                        </button>
                     </div>
                 </div>
                 <button class="logout-btn"
@@ -2081,11 +2197,16 @@ window.QuizApp = {
     },
 
     setVibration(v) {
+        if (!this.isVibrationSupported()) {
+            this.showToast('您的设备不支持震动');
+            return;
+        }
         this._settingsCache = this._settingsCache || {};
         this._settingsCache.vibration = v;
         this._vibrationEnabled = v;
         this.saveSettings();
         this.showToast(v ? '震动已开启' : '震动已关闭');
+        if (v) this.vibrate(10);
     },
 
     setAutoDelay(v) {
@@ -2269,7 +2390,6 @@ window.QuizApp = {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
             const k = e.key.toLowerCase();
 
-            // 首页快捷键
             const app = document.getElementById('app');
             if (this.currentTab === 'home' && app && app.style.display === 'none') {
                 if (k === 's') { e.preventDefault(); this.chooseMode('sequential'); }
@@ -2296,7 +2416,6 @@ window.QuizApp = {
                 return;
             }
 
-            // 答题快捷键
             const num = parseInt(e.key);
             if (num >= 1 && num <= 4) {
                 const opts = document.querySelectorAll('.opt:not(.correct):not(.wrong):not(.selected)');
@@ -2330,35 +2449,14 @@ window.QuizApp = {
     },
 
     // ============================================================
-    // 兼容旧接口（备用）
+    // 兼容旧接口
     // ============================================================
     applyCustomBg(color) {
-        document.body.style.background = color;
-        this.showToast('背景色已更新');
+        this.applyCustomBgColor(color);
     },
 
     applyCustomBgFromSettings(color) {
-        this.applyCustomBg(color);
-    },
-
-    uploadBgImage() {
-        const el = document.getElementById('bgImageInput');
-        if (el) el.click();
-    },
-
-    handleBgImageUpload(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            document.body.style.backgroundImage = `url(${ev.target.result})`;
-            document.body.style.backgroundSize = 'cover';
-            document.body.style.backgroundPosition = 'center';
-            localStorage.setItem('quiz_bg_image', ev.target.result);
-            this.showToast('背景已更新');
-        };
-        reader.readAsDataURL(file);
-        event.target.value = '';
+        this.applyCustomBgColor(color);
     },
 
     updateBgOpacity(v) {
@@ -2380,9 +2478,7 @@ window.QuizApp = {
         this.setTheme(t);
     },
 
-    toggleSettings(force) {
-        // 兼容旧接口，新版设置已整合到「我的」
-    },
+    toggleSettings(force) {},
 
     checkLoginBeforeGo(targetUrl) {
         const user = this.getCurrentUser();
