@@ -3399,3 +3399,11 @@ body.theme-dark .skeleton-item {
     .result-stat-num { font-size: 20px; }
     .confirm-btn, .result-btn { padding: 12px; font-size: 14px; }
 }
+/* 导入进度提示 */
+.toast-item.import-progress {
+    background: linear-gradient(135deg, rgba(0,113,227,0.92), rgba(90,200,250,0.92));
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    min-width: 180px;
+    text-align: center;
+}
