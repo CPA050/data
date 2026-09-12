@@ -1,11 +1,19 @@
 // ============================================================
-// QuizApp 11.7 · 第 1 批优化
-// #1 编辑多选修复 · #2 错题恢复 · #3 收藏练习
-// #5 章节可视化 · #8 导出错题
+// QuizApp 12.0 · 完整版
+// 分段拼装说明：
+//   第1段：状态 + 通用弹窗 + 缓存 + 震动 + 用户
+//   第2段：初始化 + 背景 + 首页 + 底栏 + 拖拽
+//   第3段：欢迎词 + 数量弹窗 + 开始刷题 + 收藏练习
+//   第4段：章节选择 + 答题卡片 + 滑动 + 导航 + 选择
+//   第5段：收藏 + 完成批次 + 首页 + 错题 + 导出
+//   第6段：题库 + 收藏页 + 我的 + 设置 + 会话 + 启动
 // ============================================================
 
 window.QuizApp = {
 
+    // ============================================================
+    // 状态
+    // ============================================================
     idx: 0,
     record: [],
     activeBank: [],
@@ -43,8 +51,16 @@ window.QuizApp = {
     _wrongIdMap: {},
     _wrongList: [],
     _wrongFilter: 'all',
+    _wrongSearch: '',
+    _favSearch: '',
     _bankCache: [],
     _bankSearchTimer: null,
+
+    // 滑动控制
+    _swipeTracking: false,
+    _swipeStartX: 0,
+    _swipeStartY: 0,
+    _swipeLocked: false,
 
     _cache: {
         bank: null, bankTime: 0,
@@ -84,6 +100,169 @@ window.QuizApp = {
         '走过的每一步，都算数',
         '心怀希望，无畏前行'
     ],
+
+    // ============================================================
+    // 通用弹窗 · 确认
+    // ============================================================
+    showConfirm({
+        title = '确认',
+        message = '',
+        confirmText = '确定',
+        cancelText = '取消',
+        danger = false
+    } = {}) {
+        return new Promise((resolve) => {
+            const modalRoot = document.getElementById('modalRoot');
+            if (!modalRoot) { resolve(false); return; }
+
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-card confirm-card" style="max-width:380px;">
+                    <div class="confirm-title">${title}</div>
+                    ${message ? `<div class="confirm-message">${message}</div>` : ''}
+                    <div class="confirm-btns">
+                        <button class="confirm-btn cancel" data-action="cancel">${cancelText}</button>
+                        <button class="confirm-btn ${danger ? 'danger' : 'primary'}" data-action="ok">${confirmText}</button>
+                    </div>
+                </div>
+            `;
+            modalRoot.appendChild(modal);
+
+            const close = (result) => {
+                modal.style.animation = 'confirmOut 0.2s cubic-bezier(0.4, 0, 0.6, 1) forwards';
+                setTimeout(() => modal.remove(), 200);
+                resolve(result);
+            };
+
+            modal.querySelector('[data-action="cancel"]').onclick = () => close(false);
+            modal.querySelector('[data-action="ok"]').onclick = () => close(true);
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) close(false);
+            });
+        });
+    },
+
+    // ============================================================
+    // 通用弹窗 · 成绩
+    // ============================================================
+    showResultModal({
+        title = '本次完成',
+        correct = 0,
+        wrong = 0,
+        total = 0,
+        acc = 0
+    } = {}) {
+        return new Promise((resolve) => {
+            const modalRoot = document.getElementById('modalRoot');
+            if (!modalRoot) { resolve('home'); return; }
+
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-card result-card" style="max-width:400px;">
+                    <div class="result-title">${title}</div>
+                    <div class="result-acc">
+                        <div class="result-acc-num" data-target="${acc}">0<span>%</span></div>
+                        <div class="result-acc-label">正确率</div>
+                    </div>
+                    <div class="result-stats">
+                        <div class="result-stat">
+                            <div class="result-stat-num correct">${correct}</div>
+                            <div class="result-stat-label">正确</div>
+                        </div>
+                        <div class="result-stat">
+                            <div class="result-stat-num wrong">${wrong}</div>
+                            <div class="result-stat-label">错误</div>
+                        </div>
+                        <div class="result-stat">
+                            <div class="result-stat-num total">${total}</div>
+                            <div class="result-stat-label">总题数</div>
+                        </div>
+                    </div>
+                    <div class="result-btns">
+                        <button class="result-btn home" data-action="home">返回首页</button>
+                        <button class="result-btn retry" data-action="retry">再来一组</button>
+                    </div>
+                </div>
+            `;
+            modalRoot.appendChild(modal);
+
+            // 数字滚动动画
+            const accEl = modal.querySelector('.result-acc-num');
+            const target = acc;
+            const duration = 600;
+            const startTime = performance.now();
+            const animate = (now) => {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const eased = 1 - Math.pow(1 - progress, 3);
+                const val = Math.round(target * eased);
+                accEl.innerHTML = `${val}<span>%</span>`;
+                if (progress < 1) requestAnimationFrame(animate);
+            };
+            requestAnimationFrame(animate);
+
+            const close = (action) => {
+                modal.style.animation = 'confirmOut 0.2s cubic-bezier(0.4, 0, 0.6, 1) forwards';
+                setTimeout(() => modal.remove(), 200);
+                resolve(action);
+            };
+
+            modal.querySelector('[data-action="home"]').onclick = () => close('home');
+            modal.querySelector('[data-action="retry"]').onclick = () => close('retry');
+        });
+    },
+
+    // ============================================================
+    // 骨架屏
+    // ============================================================
+    skeletonHTML(type = 'default') {
+        const item = `
+            <div class="skeleton-item">
+                <div class="skeleton skeleton-line-sm"></div>
+                <div class="skeleton skeleton-line"></div>
+                <div class="skeleton skeleton-line-md"></div>
+            </div>
+        `;
+
+        if (type === 'bank') {
+            return `
+                <div class="page-card">
+                    <div class="skeleton-head">
+                        <div class="skeleton skeleton-title"></div>
+                        <div class="skeleton skeleton-btn"></div>
+                    </div>
+                    <div class="skeleton skeleton-search"></div>
+                    ${item.repeat(4)}
+                </div>
+            `;
+        }
+        if (type === 'wrong') {
+            return `
+                <div class="page-card">
+                    <div class="skeleton-head">
+                        <div class="skeleton skeleton-title"></div>
+                    </div>
+                    <div class="skeleton skeleton-stats"></div>
+                    <div class="skeleton skeleton-tabs"></div>
+                    ${item.repeat(3)}
+                </div>
+            `;
+        }
+        if (type === 'fav') {
+            return `
+                <div class="page-card">
+                    <div class="skeleton-head">
+                        <div class="skeleton skeleton-title"></div>
+                        <div class="skeleton skeleton-btn"></div>
+                    </div>
+                    ${item.repeat(3)}
+                </div>
+            `;
+        }
+        return `<div class="page-card">${item.repeat(3)}</div>`;
+    },
 
     // ============================================================
     // 缓存
@@ -186,16 +365,22 @@ window.QuizApp = {
         return user;
     },
 
-    logout() {
-        if (confirm('确定退出登录吗？')) {
-            localStorage.removeItem('quiz_user_id');
-            this.clearSessionContext();
-            this.invalidateCache();
-            this._inQuiz = false;
-            this.updateUserUI();
-            this.showToast('已退出登录');
-            if (this.currentTab === 'me') this.renderMe();
-        }
+    async logout() {
+        const ok = await this.showConfirm({
+            title: '退出登录',
+            message: '确定要退出当前账号吗？',
+            confirmText: '退出',
+            cancelText: '取消',
+            danger: true
+        });
+        if (!ok) return;
+        localStorage.removeItem('quiz_user_id');
+        this.clearSessionContext();
+        this.invalidateCache();
+        this._inQuiz = false;
+        this.updateUserUI();
+        this.showToast('已退出登录');
+        if (this.currentTab === 'me') this.renderMe();
     },
 
     updateUserUI() {
@@ -215,7 +400,8 @@ window.QuizApp = {
         }
     },
 
-    // ============================================================
+    // ↑ 第 1 段结束。第 2 段从这里继续（init、bindHomeClick 等）
+        // ============================================================
     // 初始化
     // ============================================================
     init() {
@@ -243,6 +429,7 @@ window.QuizApp = {
         this.bindHomeClick();
         this.bindHomeSwipeDown();
         this.bindBgUpload();
+        this.bindQuizSwipe();     // ★ 新增：左右滑动切题
 
         this.switchTab('home');
         setTimeout(() => this.checkSmartPrompts(), 2000);
@@ -251,6 +438,106 @@ window.QuizApp = {
     bindBgUpload() {
         const el = document.getElementById('bgImageInput');
         if (el) el.addEventListener('change', (e) => this.handleBgImageUpload(e));
+    },
+
+    // ============================================================
+    // ★ 左右滑动切题（绑在 #app 上）
+    // ============================================================
+    bindQuizSwipe() {
+        const app = document.getElementById('app');
+        if (!app) return;
+
+        let startX = 0, startY = 0;
+        let tracking = false;
+        let locked = false;
+
+        app.addEventListener('touchstart', (e) => {
+            // 只在答题状态生效
+            if (!this._inQuiz || this.activeBank.length === 0) return;
+            // 点在弹窗内不处理
+            if (e.target.closest('.modal-overlay')) return;
+            // 点在按钮上不处理
+            if (e.target.closest('button')) return;
+
+            const t = e.touches[0];
+            startX = t.clientX;
+            startY = t.clientY;
+            tracking = true;
+            locked = false;
+        }, { passive: true });
+
+        app.addEventListener('touchmove', (e) => {
+            if (!tracking || locked) return;
+            const t = e.touches[0];
+            const dx = t.clientX - startX;
+            const dy = t.clientY - startY;
+
+            // 确定方向：如果垂直位移更大，锁定为滚动，不再处理
+            if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 12) {
+                locked = true;
+                tracking = false;
+                return;
+            }
+            // 水平位移超过阈值，阻止滚动
+            if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        app.addEventListener('touchend', (e) => {
+            if (!tracking) return;
+            tracking = false;
+            const t = e.changedTouches[0];
+            const dx = t.clientX - startX;
+            const dy = t.clientY - startY;
+
+            // 水平滑动超过 60px，且水平位移 > 垂直位移 × 1.5
+            if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+                if (dx < 0) {
+                    // 左滑 → 下一题
+                    if (this.idx < this.activeBank.length - 1) {
+                        this.nextQuestion();
+                    } else {
+                        this.showToast('已经是最后一题');
+                    }
+                } else {
+                    // 右滑 → 上一题
+                    if (this.idx > 0) {
+                        this.prevQuestion();
+                    } else {
+                        this.showToast('已经是第一题');
+                    }
+                }
+            }
+        });
+
+        // 桌面端鼠标拖拽
+        let mouseDown = false;
+        app.addEventListener('mousedown', (e) => {
+            if (!this._inQuiz || this.activeBank.length === 0) return;
+            if (e.target.closest('.modal-overlay')) return;
+            if (e.target.closest('button')) return;
+            mouseDown = true;
+            startX = e.clientX;
+            startY = e.clientY;
+        });
+
+        app.addEventListener('mousemove', (e) => {
+            if (!mouseDown) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            if (Math.abs(dx) > 80 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+                mouseDown = false;
+                if (dx < 0) {
+                    if (this.idx < this.activeBank.length - 1) this.nextQuestion();
+                } else {
+                    if (this.idx > 0) this.prevQuestion();
+                }
+            }
+        });
+
+        app.addEventListener('mouseup', () => { mouseDown = false; });
+        app.addEventListener('mouseleave', () => { mouseDown = false; });
     },
 
     // ============================================================
@@ -294,8 +581,14 @@ window.QuizApp = {
         if (this.currentTab === 'me') this.renderMe();
     },
 
-    resetCustomBg() {
-        if (!confirm('确定恢复默认背景吗？')) return;
+    async resetCustomBg() {
+        const ok = await this.showConfirm({
+            title: '恢复默认背景',
+            message: '确定要恢复默认背景吗？',
+            confirmText: '恢复',
+            cancelText: '取消'
+        });
+        if (!ok) return;
         document.body.style.backgroundImage = '';
         document.body.style.background = '';
         localStorage.removeItem('quiz_custom_bg_color');
@@ -575,7 +868,8 @@ window.QuizApp = {
         });
     },
 
-    // ============================================================
+    // ↑ 第 2 段结束。第 3 段从这里继续（loadWelcome、renderHome、chooseMode、数量弹窗、start）
+        // ============================================================
     // 欢迎词
     // ============================================================
     loadWelcome() {
@@ -627,7 +921,7 @@ window.QuizApp = {
                         const total = (ctx.ids || []).length;
                         const idx = (ctx.idx || 0) + 1;
                         const isWrong = ctx.isWrong || ctx.source === 'wrong';
-                        const label = isWrong ? '错题' : '';
+                        const label = isWrong ? '错题' : (ctx.isFavorites ? '收藏' : '');
                         resumeWrap.innerHTML =
                             `<div class="resume-hint" onclick="event.stopPropagation();QuizApp.restoreSession()">继续上次${label}答题（第 ${idx}/${total} 题）</div>`;
                     } catch (e) {}
@@ -653,7 +947,7 @@ window.QuizApp = {
         const modal = document.getElementById('quantityModal');
         if (!modal) return;
         const user = this.getCurrentUser();
-        if (!user) { alert('请先登录'); return; }
+        if (!user) { this.showToast('请先登录'); return; }
 
         const titleMap = {
             'sequential': '选择刷题数量',
@@ -674,7 +968,7 @@ window.QuizApp = {
 
         if (total === 0) {
             const msg = mode === 'wrong' ? '暂无错题，继续加油！' : '题库为空，请先添加题目！';
-            alert(msg);
+            this.showToast(msg);
             this.closeQuantityModal();
             return;
         }
@@ -705,7 +999,7 @@ window.QuizApp = {
     confirmCustom() {
         const input = document.getElementById('customQuantity');
         const val = parseInt(input.value);
-        if (isNaN(val) || val < 1) { alert('请输入有效正整数'); return; }
+        if (isNaN(val) || val < 1) { this.showToast('请输入有效正整数'); return; }
         const total = parseInt(document.getElementById('totalCount').textContent) || 0;
         if (val > total) { this.selectQuantity(-1); return; }
         this.selectQuantity(val);
@@ -742,7 +1036,7 @@ window.QuizApp = {
 
     startWithQuantity() {
         const num = this._selectedNum;
-        if (num === undefined) { alert('请选择刷题数量'); return; }
+        if (num === undefined) { this.showToast('请选择刷题数量'); return; }
         const mode = this._modalMode || 'sequential';
         const isRandom = (mode === 'random');
         const source = (mode === 'wrong') ? 'wrong' : 'all';
@@ -757,7 +1051,7 @@ window.QuizApp = {
     // ============================================================
     async start(isRandom, limit = -1, source = 'all', selectedChapters = null) {
         const user = this.getCurrentUser();
-        if (!user) { alert('请先登录！'); return; }
+        if (!user) { this.showToast('请先登录！'); return; }
 
         try {
             this._source = source;
@@ -780,11 +1074,11 @@ window.QuizApp = {
             this._allChapters = allChapters;
 
             let bank = bankAll;
-            if (!bank || bank.length === 0) { alert('当前没有题目'); return; }
+            if (!bank || bank.length === 0) { this.showToast('当前没有题目'); return; }
 
             if (selectedChapters && selectedChapters.length > 0) {
                 bank = bank.filter(q => selectedChapters.includes(q.chapter));
-                if (bank.length === 0) { alert('该章节下没有题目'); return; }
+                if (bank.length === 0) { this.showToast('该章节下没有题目'); return; }
             }
 
             if (source === 'wrong') {
@@ -847,7 +1141,7 @@ window.QuizApp = {
             }
 
             if (selectedBank.length === 0) {
-                alert('没有符合条件的题目，请重试。');
+                this.showToast('没有符合条件的题目，请重试。');
                 return;
             }
 
@@ -868,17 +1162,17 @@ window.QuizApp = {
             this.saveSessionContext();
 
         } catch (err) {
-            alert('加载题库失败：' + err.message);
+            this.showToast('加载题库失败：' + err.message);
             console.error(err);
         }
     },
 
     // ============================================================
-    // 收藏练习（★ 新增完整实现）
+    // 收藏练习
     // ============================================================
     async startFavorites() {
         const user = this.getCurrentUser();
-        if (!user) { alert('请先登录'); return; }
+        if (!user) { this.showToast('请先登录'); return; }
         const list = await this.fetchFav(true);
         if (!list || list.length === 0) {
             this.showToast('暂无收藏题目');
@@ -912,7 +1206,8 @@ window.QuizApp = {
         this.showToast(`开始练习 ${this.activeBank.length} 道收藏题`);
     },
 
-    // ============================================================
+    // ↑ 第 3 段结束。第 4 段从这里继续（章节选择、渲染答题卡片、导航、选择题）
+        // ============================================================
     // 答题中切换章节（卡片式）
     // ============================================================
     async openChapterPicker() {
@@ -1019,7 +1314,7 @@ window.QuizApp = {
     },
 
     // ============================================================
-    // 渲染答题卡片（★ #5 加章节 chip）
+    // 渲染答题卡片
     // ============================================================
     renderCard(needAnimation, direction = 'none') {
         const app = document.getElementById('app');
@@ -1051,7 +1346,6 @@ window.QuizApp = {
             chapterLabel = '全部章节';
         }
 
-        // 收藏模式特殊标记
         const modeLabel = this._isFavoritesMode ? '收藏练习' : '';
 
         const isFav = this._favorites && this._favorites.includes(q.id);
@@ -1065,6 +1359,7 @@ window.QuizApp = {
         const isFirst = this.idx === 0;
         const isLast = this.idx === this.activeBank.length - 1;
 
+        // 选项
         let optionsHtml = q.opts.map((o, oIdx) => {
             let cls = 'opt';
             if (isMulti) {
@@ -1087,12 +1382,14 @@ window.QuizApp = {
             }
         }).join('');
 
+        // 正确答案提示（多选）
         let correctAnswerHtml = '';
         if (isMulti && (isMultiSubmitted || hasSelected)) {
             const correctText = q.a.map(idx => q.opts[idx]).join('、');
             correctAnswerHtml = `<div class="correct-note">正确答案：<strong>${correctText}</strong></div>`;
         }
 
+        // 错题重练：标记已掌握
         let masterBtnHtml = '';
         if (this._source === 'wrong' && q._isWrong && hasSelected && isCorrect) {
             masterBtnHtml = `
@@ -1105,17 +1402,20 @@ window.QuizApp = {
             `;
         }
 
+        // 提交按钮（多选）
         let submitBtnHtml = '';
         if (showSubmit) {
             submitBtnHtml = `<button class="submit-btn"
                                      onclick="QuizApp.submitMultiChoice()">提交答案</button>`;
         }
 
+        // 多选提示
         let multiHint = '';
         if (isMulti && !isMultiSubmitted && !hasSelected && tempSelected.length > 0) {
             multiHint = `<div class="multi-hint">已选 ${tempSelected.length} 个选项，点击提交确认</div>`;
         }
 
+        // 状态提示
         let statusHtml = '';
         if (hasSelected || isMultiSubmitted) {
             statusHtml = isCorrect
@@ -1123,12 +1423,11 @@ window.QuizApp = {
                 : `<span class="no">再试一次</span>`;
         }
 
-        // ★ #5：quiz-info 里加章节 chip
         const chapterChip = `<span class="chapter-tag">${chapterLabel}</span>`;
         const modeChip = modeLabel ? `<span class="mode-tag">${modeLabel}</span>` : '';
 
         const htmlContent = `
-            <div class="page-card">
+            <div class="page-card quiz-card">
                 <div class="quiz-top">
                     <div class="quiz-info">
                         ${chapterChip}
@@ -1258,7 +1557,7 @@ window.QuizApp = {
     },
 
     // ============================================================
-    // 选择
+    // 多选 / 单选
     // ============================================================
     toggleMultiOption(oIdx) {
         const q = this.activeBank[this.idx];
@@ -1275,7 +1574,10 @@ window.QuizApp = {
         if (!Array.isArray(q.a)) return;
         if (this._multiSubmitted || this.record[this.idx] !== null) return;
         const selected = this._tempMulti.slice();
-        if (selected.length === 0) { this.showToast('请至少选择一个选项', 1500); return; }
+        if (selected.length === 0) {
+            this.showToast('请至少选择一个选项', 1500);
+            return;
+        }
         const isCorrect = selected.every(idx => q.a.includes(idx)) &&
                           q.a.every(idx => selected.includes(idx));
         this.record[this.idx] = selected;
@@ -1377,12 +1679,13 @@ window.QuizApp = {
         }
     },
 
-    // ============================================================
-    // 收藏
+    // ↑ 第 4 段结束。第 5 段从这里继续（收藏、完成批次、首页、错题、导出）
+        // ============================================================
+    // 收藏切换
     // ============================================================
     async toggleFavorite(questionId) {
         const user = this.getCurrentUser();
-        if (!user) { alert('请先登录'); return; }
+        if (!user) { this.showToast('请先登录'); return; }
         const isFav = this._favorites.includes(questionId);
         const url = isFav ? '/api/favorites-remove' : '/api/favorites-add';
         try {
@@ -1403,13 +1706,13 @@ window.QuizApp = {
                 this.invalidateCache('fav');
                 this.renderCard(false);
             }
-        } catch (e) { alert('操作失败'); }
+        } catch (e) { this.showToast('操作失败'); }
     },
 
     // ============================================================
-    // 完成批次
+    // 完成批次（★ 使用成绩弹窗）
     // ============================================================
-    finishBatch() {
+    async finishBatch() {
         if (this._isFinishing && this.record.every(v => v === null)) return;
         this._isFinishing = true;
         const user = this.getCurrentUser();
@@ -1421,9 +1724,18 @@ window.QuizApp = {
         }
         const done = this.record.filter(v => v !== null).length;
         const acc = done > 0 ? Math.round(correctCount / done * 100) : 0;
+        const wrongCount = done - correctCount;
 
+        // 收藏模式
         if (this._isFavoritesMode) {
-            if (confirm(`收藏刷题完成\n共 ${done} 题，正确率 ${acc}%\n\n确定再来一组？`)) {
+            const action = await this.showResultModal({
+                title: '收藏练习完成',
+                correct: correctCount,
+                wrong: wrongCount,
+                total: done,
+                acc: acc
+            });
+            if (action === 'retry') {
                 this._isFinishing = false;
                 this.startFavorites();
             } else {
@@ -1433,6 +1745,7 @@ window.QuizApp = {
             return;
         }
 
+        // 顺序模式保存进度
         if (!this._isRandom && this._totalBank && this._source === 'all') {
             const newIndex = (this._pendingStart || 0) + this.activeBank.length;
             if (newIndex >= this._totalBank.length) {
@@ -1449,9 +1762,15 @@ window.QuizApp = {
         if (this._source === 'all') this.invalidateCache('wrong');
 
         const modeLabel = this._source === 'wrong' ? '错题重练' : '刷题';
-        const msg = `${modeLabel}完成\n共 ${done} 题，正确率 ${acc}%`;
+        const action = await this.showResultModal({
+            title: `${modeLabel}完成`,
+            correct: correctCount,
+            wrong: wrongCount,
+            total: done,
+            acc: acc
+        });
 
-        if (confirm(msg + '\n\n点击「确定」再来一组，点击「取消」返回首页')) {
+        if (action === 'retry') {
             const limit = this._currentLimit || 20;
             const isRandom = this._isRandom || false;
             const source = this._source || 'all';
@@ -1463,6 +1782,9 @@ window.QuizApp = {
         }
     },
 
+    // ============================================================
+    // 返回首页
+    // ============================================================
     goHome() {
         this.clearSessionContext();
         this._inQuiz = false;
@@ -1492,7 +1814,7 @@ window.QuizApp = {
     },
 
     // ============================================================
-    // 错题
+    // 错题页
     // ============================================================
     async renderWrong() {
         const app = document.getElementById('app');
@@ -1512,7 +1834,8 @@ window.QuizApp = {
             });
             return;
         }
-        app.innerHTML = `<div class="page-card empty-state">加载中...</div>`;
+        // 骨架屏
+        app.innerHTML = this.skeletonHTML('wrong');
         await this.fetchWrong();
         this._buildWrongData();
         this._renderWrongUI();
@@ -1550,18 +1873,32 @@ window.QuizApp = {
         const total = list.length;
         const mastered = list.filter(w => w.mastered).length;
         const filter = this._wrongFilter;
+        const keyword = (this._wrongSearch || '').trim().toLowerCase();
+
         let filtered = list;
         if (filter === 'unmastered') filtered = list.filter(w => !w.mastered);
         else if (filter === 'mastered') filtered = list.filter(w => w.mastered);
+
+        // ★ 搜索过滤
+        if (keyword) {
+            filtered = filtered.filter(w =>
+                (w.q || '').toLowerCase().includes(keyword) ||
+                (w.opts || []).some(o => o.toLowerCase().includes(keyword))
+            );
+        }
+
         filtered.sort((a, b) => {
             if (a.mastered !== b.mastered) return a.mastered ? 1 : -1;
             return (b.wrongCount || 0) - (a.wrongCount || 0);
         });
+
         let listHtml = '';
         if (filtered.length === 0) {
-            const emptyText = filter === 'mastered'
-                ? '还没有已掌握的题'
-                : (filter === 'unmastered' ? '未掌握列表为空' : '错题本为空');
+            const emptyText = keyword
+                ? `没有匹配「${this._wrongSearch}」的错题`
+                : (filter === 'mastered'
+                    ? '还没有已掌握的题'
+                    : (filter === 'unmastered' ? '未掌握列表为空' : '错题本为空'));
             listHtml = `<div class="empty-state">${emptyText}</div>`;
         } else {
             listHtml = filtered.map((w, i) => {
@@ -1602,11 +1939,20 @@ window.QuizApp = {
                 `;
             }).join('');
         }
-        // ★ #8：导出按钮
+
         const exportBtn = total > 0
             ? `<button class="add-btn" style="background:rgba(0,0,0,0.06);color:#1d1d1f;box-shadow:none;"
                        onclick="QuizApp.showExportOptions()">导出</button>`
             : '';
+
+        // ★ 搜索框
+        const searchBox = total > 0 ? `
+            <input class="search-box" type="text"
+                   placeholder="搜索错题..."
+                   value="${this._wrongSearch || ''}"
+                   oninput="QuizApp.onWrongSearch(this.value)">
+        ` : '';
+
         app.innerHTML = `
             <div class="page-card">
                 <div class="bank-head">
@@ -1624,6 +1970,7 @@ window.QuizApp = {
                     <button class="status-tab ${filter === 'mastered' ? 'active' : ''}"
                             onclick="QuizApp.setWrongFilter('mastered')">已掌握</button>
                 </div>
+                ${searchBox}
                 ${total > 0 ? `
                     <div class="practice-cards">
                         <button class="practice-card"
@@ -1655,6 +2002,19 @@ window.QuizApp = {
                 ${listHtml}
             </div>
         `;
+    },
+
+    onWrongSearch(v) {
+        this._wrongSearch = v;
+        if (this._wrongSearchTimer) clearTimeout(this._wrongSearchTimer);
+        this._wrongSearchTimer = setTimeout(() => {
+            this._renderWrongUI();
+            const inp = document.querySelector('#app .search-box');
+            if (inp) {
+                inp.focus();
+                inp.setSelectionRange(inp.value.length, inp.value.length);
+            }
+        }, 200);
     },
 
     setWrongFilter(f) {
@@ -1701,7 +2061,14 @@ window.QuizApp = {
     },
 
     async deleteWrongItem(id) {
-        if (!confirm('确定删除这条错题吗？')) return;
+        const ok = await this.showConfirm({
+            title: '删除错题',
+            message: '确定要删除这条错题吗？删除后不再出现在错题本。',
+            confirmText: '删除',
+            cancelText: '取消',
+            danger: true
+        });
+        if (!ok) return;
         try {
             await fetch('/api/wrong-delete', {
                 method: 'POST',
@@ -1805,7 +2172,7 @@ window.QuizApp = {
     },
 
     // ============================================================
-    // ★ #8 导出错题
+    // 导出错题
     // ============================================================
     showExportOptions() {
         const modalRoot = document.getElementById('modalRoot');
@@ -1890,8 +2257,9 @@ window.QuizApp = {
         this.showToast(`已导出 ${list.length} 道错题`);
     },
 
-    // ============================================================
-    // 题库
+    // ↑ 第 5 段结束。第 6 段从这里继续（题库、收藏页、我的、设置、会话、启动）
+        // ============================================================
+    // 题库页
     // ============================================================
     async renderBank() {
         const app = document.getElementById('app');
@@ -1911,7 +2279,8 @@ window.QuizApp = {
             });
             return;
         }
-        app.innerHTML = `<div class="page-card empty-state">加载中...</div>`;
+        // 骨架屏
+        app.innerHTML = this.skeletonHTML('bank');
         const list = await this.fetchBank();
         this._bankCache = list;
         this._renderBankUI(list, '');
@@ -2072,7 +2441,7 @@ window.QuizApp = {
         if (this._bankChapterFilter !== 'all') {
             filtered = filtered.filter(q => q.chapter === this._bankChapterFilter);
         }
-        const searchBox = document.querySelector('.search-box');
+        const searchBox = document.querySelector('#app .search-box');
         const keyword = searchBox ? searchBox.value.trim().toLowerCase() : '';
         if (keyword) {
             filtered = filtered.filter(q =>
@@ -2088,11 +2457,18 @@ window.QuizApp = {
 
     async deleteSelectedQuestions() {
         if (this._bankSelected.length === 0) return;
-        if (!confirm(`确定删除选中的 ${this._bankSelected.length} 道题吗？`)) return;
+        const ok = await this.showConfirm({
+            title: '批量删除',
+            message: `确定删除选中的 ${this._bankSelected.length} 道题吗？此操作不可恢复。`,
+            confirmText: '删除',
+            cancelText: '取消',
+            danger: true
+        });
+        if (!ok) return;
         const user = this.getCurrentUser();
         const ids = [...this._bankSelected];
         this.showToast(`删除 ${ids.length} 道...`);
-        let ok = 0;
+        let okCount = 0;
         for (const id of ids) {
             try {
                 await fetch('/api/questions-delete', {
@@ -2100,10 +2476,10 @@ window.QuizApp = {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: user, id: id })
                 });
-                ok++;
+                okCount++;
             } catch (e) {}
         }
-        this.showToast(`已删除 ${ok} 道`);
+        this.showToast(`已删除 ${okCount} 道`);
         this._bankSelected = [];
         this.invalidateCache('bank');
         await this.fetchBank(true);
@@ -2115,7 +2491,7 @@ window.QuizApp = {
         if (this._bankSearchTimer) clearTimeout(this._bankSearchTimer);
         this._bankSearchTimer = setTimeout(() => {
             this._renderBankUI(this._bankCache || [], v);
-            const inp = document.querySelector('.search-box');
+            const inp = document.querySelector('#app .search-box');
             if (inp) {
                 inp.focus();
                 inp.setSelectionRange(inp.value.length, inp.value.length);
@@ -2124,11 +2500,11 @@ window.QuizApp = {
     },
 
     // ============================================================
-    // 添加题目
+    // 添加题目弹窗
     // ============================================================
     showAddQuestionModal() {
         const modalRoot = document.getElementById('modalRoot');
-        if (!modalRoot) { alert('页面容器缺失，请刷新重试'); return; }
+        if (!modalRoot) { this.showToast('页面容器缺失，请刷新重试'); return; }
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.id = 'addQuestionModal';
@@ -2167,7 +2543,7 @@ window.QuizApp = {
 
     async doImport() {
         const user = this.getCurrentUser();
-        if (!user) { alert('请先登录'); return; }
+        if (!user) { this.showToast('请先登录'); return; }
         const ta = document.getElementById('importCode');
         if (!ta) return;
         let code = ta.value.trim();
@@ -2179,11 +2555,11 @@ window.QuizApp = {
             const m = code.match(/\[[\s\S]*\]/);
             if (m) {
                 try { arr = JSON.parse(m[0]); }
-                catch (e2) { alert('JSON 格式错误：' + e2.message); return; }
-            } else { alert('JSON 格式错误：' + e.message); return; }
+                catch (e2) { this.showToast('JSON 格式错误：' + e2.message); return; }
+            } else { this.showToast('JSON 格式错误：' + e.message); return; }
         }
-        if (!Array.isArray(arr)) { alert('必须是数组'); return; }
-        if (arr.length === 0) { alert('数组为空'); return; }
+        if (!Array.isArray(arr)) { this.showToast('必须是数组'); return; }
+        if (arr.length === 0) { this.showToast('数组为空'); return; }
         const errors = [];
         arr.forEach((item, i) => {
             if (!item.q) errors.push(`第 ${i + 1} 题缺少 q`);
@@ -2192,7 +2568,11 @@ window.QuizApp = {
             if (item.a === undefined || item.a === null)
                 errors.push(`第 ${i + 1} 题缺少 a`);
         });
-        if (errors.length > 0) { alert('校验失败：\n' + errors.join('\n')); return; }
+        if (errors.length > 0) {
+            this.showToast('校验失败：' + errors[0]);
+            console.error('校验失败：\n' + errors.join('\n'));
+            return;
+        }
         this.showToast(`导入 ${arr.length} 道题...`);
         let ok = 0, fail = 0;
         for (const item of arr) {
@@ -2224,7 +2604,14 @@ window.QuizApp = {
     },
 
     async deleteQuestion(id) {
-        if (!confirm('确定删除这道题吗？')) return;
+        const ok = await this.showConfirm({
+            title: '删除题目',
+            message: '确定删除这道题吗？',
+            confirmText: '删除',
+            cancelText: '取消',
+            danger: true
+        });
+        if (!ok) return;
         try {
             await fetch('/api/questions-delete', {
                 method: 'POST',
@@ -2240,7 +2627,7 @@ window.QuizApp = {
     },
 
     // ============================================================
-    // ★ #1 编辑题目（修复多选丢失）
+    // 编辑题目（★ 已修复多选丢失）
     // ============================================================
     async editQuestion(id) {
         const user = this.getCurrentUser();
@@ -2285,7 +2672,6 @@ window.QuizApp = {
             }
         }
 
-        // 范围校验
         const validRange = Array.isArray(newA)
             ? newA.every(n => n >= 0 && n < newOpts.length)
             : (newA >= 0 && newA < newOpts.length);
@@ -2341,18 +2727,31 @@ window.QuizApp = {
             });
             return;
         }
-        app.innerHTML = `<div class="page-card empty-state">加载中...</div>`;
+        // 骨架屏
+        app.innerHTML = this.skeletonHTML('fav');
         const list = await this.fetchFav();
         this._renderFavUI(list);
     },
 
     _renderFavUI(list) {
         const app = document.getElementById('app');
+        const keyword = (this._favSearch || '').trim().toLowerCase();
+
+        let filtered = list;
+        if (keyword) {
+            filtered = list.filter(q =>
+                (q.q || '').toLowerCase().includes(keyword) ||
+                (q.opts || []).some(o => o.toLowerCase().includes(keyword))
+            );
+        }
+
         let listHtml;
         if (list.length === 0) {
             listHtml = `<div class="empty-state">暂无收藏题目，答题时点「收藏」即可添加</div>`;
+        } else if (filtered.length === 0) {
+            listHtml = `<div class="empty-state">没有匹配「${this._favSearch}」的题目</div>`;
         } else {
-            listHtml = list.map((q, i) => {
+            listHtml = filtered.map((q, i) => {
                 const ans = Array.isArray(q.a)
                     ? q.a.map(x => q.opts[x]).join('、')
                     : (q.opts[q.a] || q.a);
@@ -2372,10 +2771,19 @@ window.QuizApp = {
                 `;
             }).join('');
         }
-        // ★ #3 收藏练习入口
+
         const practiceBtn = list.length > 0
             ? `<button class="add-btn" onclick="QuizApp.startFavorites()">开始练习收藏</button>`
             : '';
+
+        // ★ 搜索框
+        const searchBox = list.length > 0 ? `
+            <input class="search-box" type="text"
+                   placeholder="搜索收藏..."
+                   value="${this._favSearch || ''}"
+                   oninput="QuizApp.onFavSearch(this.value)">
+        ` : '';
+
         app.innerHTML = `
             <div class="page-card">
                 <div class="bank-head">
@@ -2385,13 +2793,33 @@ window.QuizApp = {
                     </div>
                     ${practiceBtn}
                 </div>
+                ${searchBox}
                 ${listHtml}
             </div>
         `;
     },
 
+    onFavSearch(v) {
+        this._favSearch = v;
+        if (this._favSearchTimer) clearTimeout(this._favSearchTimer);
+        this._favSearchTimer = setTimeout(() => {
+            this._renderFavUI(this._cache.fav || []);
+            const inp = document.querySelector('#app .search-box');
+            if (inp) {
+                inp.focus();
+                inp.setSelectionRange(inp.value.length, inp.value.length);
+            }
+        }, 200);
+    },
+
     async removeFav(qid) {
-        if (!confirm('取消收藏？')) return;
+        const ok = await this.showConfirm({
+            title: '取消收藏',
+            message: '确定要取消收藏这道题吗？',
+            confirmText: '取消收藏',
+            cancelText: '再想想'
+        });
+        if (!ok) return;
         try {
             await fetch('/api/favorites-remove', {
                 method: 'POST',
@@ -2407,7 +2835,7 @@ window.QuizApp = {
     },
 
     // ============================================================
-    // 我的
+    // 我的页
     // ============================================================
     async renderMe() {
         const app = document.getElementById('app');
@@ -2588,7 +3016,7 @@ window.QuizApp = {
     },
 
     // ============================================================
-    // 进度/会话
+    // 进度 / 会话
     // ============================================================
     getProgress(user) {
         try {
@@ -2616,7 +3044,6 @@ window.QuizApp = {
         localStorage.setItem(`quiz_recent_${user}`, JSON.stringify(recent));
     },
 
-    // ★ #2：saveSessionContext 加 isWrong
     saveSessionContext() {
         if (this._isRestoring) return;
         if (!this.activeBank.length) return;
@@ -2643,7 +3070,6 @@ window.QuizApp = {
         localStorage.removeItem(`quiz_session_${user}`);
     },
 
-    // ★ #2：restoreSession 支持错题恢复
     async restoreSession() {
         const user = this.getCurrentUser();
         if (!user) return;
@@ -2709,7 +3135,6 @@ window.QuizApp = {
 
             this.activeBank = active;
             this.record = ctx.records.slice(0, active.length);
-            // 兼容 records 长度
             while (this.record.length < active.length) this.record.push(null);
             this.idx = Math.min(ctx.idx, active.length - 1);
             this._isRandom = ctx.isRandom;
@@ -2734,7 +3159,7 @@ window.QuizApp = {
     },
 
     // ============================================================
-    // 提示
+    // 智能提示
     // ============================================================
     async checkSmartPrompts() {
         const user = this.getCurrentUser();
@@ -2748,6 +3173,9 @@ window.QuizApp = {
         }
     },
 
+    // ============================================================
+    // Toast
+    // ============================================================
     showToast(message, duration = 2000) {
         const container = document.getElementById('toastContainer');
         if (!container) return;
@@ -2827,7 +3255,9 @@ window.QuizApp = {
         if (el) el.style.display = 'none';
     },
 
+    // ============================================================
     // 兼容旧接口
+    // ============================================================
     applyCustomBg(color) { this.applyCustomBgColor(color); },
     applyCustomBgFromSettings(color) { this.applyCustomBgColor(color); },
     updateBgOpacity(v) {
@@ -2846,7 +3276,7 @@ window.QuizApp = {
     toggleSettings() {},
     checkLoginBeforeGo(targetUrl) {
         const user = this.getCurrentUser();
-        if (!user) { alert('请先登录'); return false; }
+        if (!user) { this.showToast('请先登录'); return false; }
         window.location.href = targetUrl;
         return false;
     }
