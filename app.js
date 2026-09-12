@@ -1,12 +1,6 @@
 // ============================================================
-// QuizApp 12.0 · 完整版
-// 分段拼装说明：
-//   第1段：状态 + 通用弹窗 + 缓存 + 震动 + 用户
-//   第2段：初始化 + 背景 + 首页 + 底栏 + 拖拽
-//   第3段：欢迎词 + 数量弹窗 + 开始刷题 + 收藏练习
-//   第4段：章节选择 + 答题卡片 + 滑动 + 导航 + 选择
-//   第5段：收藏 + 完成批次 + 首页 + 错题 + 导出
-//   第6段：题库 + 收藏页 + 我的 + 设置 + 会话 + 启动
+// QuizApp 12.1 · 完整版
+// 拼装说明：按 1→2→3→4→5→6 顺序粘贴到 app.js
 // ============================================================
 
 window.QuizApp = {
@@ -52,20 +46,15 @@ window.QuizApp = {
     _wrongList: [],
     _wrongFilter: 'all',
     _wrongSearch: '',
-    _favSearch: '',
+    _wrongSearchTimer: null,
     _wrongEditMode: false,
     _wrongSelected: [],
+    _favSearch: '',
+    _favSearchTimer: null,
     _favEditMode: false,
     _favSelected: [],
     _bankCache: [],
-    _bankCache: [],
     _bankSearchTimer: null,
-
-    // 滑动控制
-    _swipeTracking: false,
-    _swipeStartX: 0,
-    _swipeStartY: 0,
-    _swipeLocked: false,
 
     _cache: {
         bank: null, bankTime: 0,
@@ -193,7 +182,6 @@ window.QuizApp = {
             `;
             modalRoot.appendChild(modal);
 
-            // 数字滚动动画
             const accEl = modal.querySelector('.result-acc-num');
             const target = acc;
             const duration = 600;
@@ -344,6 +332,7 @@ window.QuizApp = {
                'vibrate' in navigator &&
                typeof navigator.vibrate === 'function';
     },
+
     vibrate(pattern) {
         if (!this._vibrationEnabled) return;
         if (!this.isVibrationSupported()) return;
@@ -353,7 +342,9 @@ window.QuizApp = {
     // ============================================================
     // 用户
     // ============================================================
-    getCurrentUser() { return localStorage.getItem('quiz_user_id'); },
+    getCurrentUser() {
+        return localStorage.getItem('quiz_user_id');
+    },
 
     checkLogin() {
         let user = this.getCurrentUser();
@@ -405,7 +396,7 @@ window.QuizApp = {
         }
     },
 
-    // ↑ 第 1 段结束。第 2 段从这里继续（init、bindHomeClick 等）
+    // ↑ 第 1 段结束。第 2 段从 init() 开始
         // ============================================================
     // 初始化
     // ============================================================
@@ -434,7 +425,7 @@ window.QuizApp = {
         this.bindHomeClick();
         this.bindHomeSwipeDown();
         this.bindBgUpload();
-        this.bindQuizSwipe();     // ★ 新增：左右滑动切题
+        this.bindQuizSwipe();
 
         this.switchTab('home');
         setTimeout(() => this.checkSmartPrompts(), 2000);
@@ -446,7 +437,7 @@ window.QuizApp = {
     },
 
     // ============================================================
-    // ★ 左右滑动切题（绑在 #app 上）
+    // 左右滑动切题
     // ============================================================
     bindQuizSwipe() {
         const app = document.getElementById('app');
@@ -457,11 +448,8 @@ window.QuizApp = {
         let locked = false;
 
         app.addEventListener('touchstart', (e) => {
-            // 只在答题状态生效
             if (!this._inQuiz || this.activeBank.length === 0) return;
-            // 点在弹窗内不处理
             if (e.target.closest('.modal-overlay')) return;
-            // 点在按钮上不处理
             if (e.target.closest('button')) return;
 
             const t = e.touches[0];
@@ -477,13 +465,11 @@ window.QuizApp = {
             const dx = t.clientX - startX;
             const dy = t.clientY - startY;
 
-            // 确定方向：如果垂直位移更大，锁定为滚动，不再处理
             if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 12) {
                 locked = true;
                 tracking = false;
                 return;
             }
-            // 水平位移超过阈值，阻止滚动
             if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2) {
                 e.preventDefault();
             }
@@ -496,17 +482,14 @@ window.QuizApp = {
             const dx = t.clientX - startX;
             const dy = t.clientY - startY;
 
-            // 水平滑动超过 60px，且水平位移 > 垂直位移 × 1.5
             if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
                 if (dx < 0) {
-                    // 左滑 → 下一题
                     if (this.idx < this.activeBank.length - 1) {
                         this.nextQuestion();
                     } else {
                         this.showToast('已经是最后一题');
                     }
                 } else {
-                    // 右滑 → 上一题
                     if (this.idx > 0) {
                         this.prevQuestion();
                     } else {
@@ -516,7 +499,6 @@ window.QuizApp = {
             }
         });
 
-        // 桌面端鼠标拖拽
         let mouseDown = false;
         app.addEventListener('mousedown', (e) => {
             if (!this._inQuiz || this.activeBank.length === 0) return;
@@ -639,11 +621,13 @@ window.QuizApp = {
         const home = document.getElementById('home');
         if (!home) return;
         let startY = 0, startX = 0, tracking = false;
+
         home.addEventListener('touchstart', (e) => {
             if (!home.classList.contains('expanded')) return;
             const t = e.touches[0];
             startY = t.clientY; startX = t.clientX; tracking = true;
         }, { passive: true });
+
         home.addEventListener('touchmove', (e) => {
             if (!tracking) return;
             const t = e.touches[0];
@@ -654,7 +638,9 @@ window.QuizApp = {
                 this.collapseQuizActions();
             }
         }, { passive: true });
+
         home.addEventListener('touchend', () => { tracking = false; });
+
         let mouseDown = false;
         home.addEventListener('mousedown', (e) => {
             if (!home.classList.contains('expanded')) return;
@@ -873,7 +859,7 @@ window.QuizApp = {
         });
     },
 
-    // ↑ 第 2 段结束。第 3 段从这里继续（loadWelcome、renderHome、chooseMode、数量弹窗、start）
+    // ↑ 第 2 段结束。第 3 段从 loadWelcome() 开始
         // ============================================================
     // 欢迎词
     // ============================================================
@@ -1093,7 +1079,8 @@ window.QuizApp = {
                     const key = w.q || String(w.id);
                     if (!map[key]) {
                         map[key] = {
-                            id: w.id, q: w.q, opts: w.opts || [], a: w.a,
+                            id: w.id, q: w.q, opts: w.opts || [],
+                            a: w.a, answer: w.answer,
                             chapter: w.chapter || '', wrongCount: 0,
                             lastWrongAt: null, mastered: false
                         };
@@ -1211,7 +1198,7 @@ window.QuizApp = {
         this.showToast(`开始练习 ${this.activeBank.length} 道收藏题`);
     },
 
-    // ↑ 第 3 段结束。第 4 段从这里继续（章节选择、渲染答题卡片、导航、选择题）
+    // ↑ 第 3 段结束。第 4 段从 openChapterPicker() 开始
         // ============================================================
     // 答题中切换章节（卡片式）
     // ============================================================
@@ -1364,7 +1351,6 @@ window.QuizApp = {
         const isFirst = this.idx === 0;
         const isLast = this.idx === this.activeBank.length - 1;
 
-        // 选项
         let optionsHtml = q.opts.map((o, oIdx) => {
             let cls = 'opt';
             if (isMulti) {
@@ -1387,14 +1373,12 @@ window.QuizApp = {
             }
         }).join('');
 
-        // 正确答案提示（多选）
         let correctAnswerHtml = '';
         if (isMulti && (isMultiSubmitted || hasSelected)) {
             const correctText = q.a.map(idx => q.opts[idx]).join('、');
             correctAnswerHtml = `<div class="correct-note">正确答案：<strong>${correctText}</strong></div>`;
         }
 
-        // 错题重练：标记已掌握
         let masterBtnHtml = '';
         if (this._source === 'wrong' && q._isWrong && hasSelected && isCorrect) {
             masterBtnHtml = `
@@ -1407,20 +1391,17 @@ window.QuizApp = {
             `;
         }
 
-        // 提交按钮（多选）
         let submitBtnHtml = '';
         if (showSubmit) {
             submitBtnHtml = `<button class="submit-btn"
                                      onclick="QuizApp.submitMultiChoice()">提交答案</button>`;
         }
 
-        // 多选提示
         let multiHint = '';
         if (isMulti && !isMultiSubmitted && !hasSelected && tempSelected.length > 0) {
             multiHint = `<div class="multi-hint">已选 ${tempSelected.length} 个选项，点击提交确认</div>`;
         }
 
-        // 状态提示
         let statusHtml = '';
         if (hasSelected || isMultiSubmitted) {
             statusHtml = isCorrect
@@ -1684,7 +1665,7 @@ window.QuizApp = {
         }
     },
 
-    // ↑ 第 4 段结束。第 5 段从这里继续（收藏、完成批次、首页、错题、导出）
+    // ↑ 第 4 段结束。第 5 段从 toggleFavorite() 开始
         // ============================================================
     // 收藏切换
     // ============================================================
@@ -1715,7 +1696,7 @@ window.QuizApp = {
     },
 
     // ============================================================
-    // 完成批次（★ 使用成绩弹窗）
+    // 完成批次
     // ============================================================
     async finishBatch() {
         if (this._isFinishing && this.record.every(v => v === null)) return;
@@ -1731,7 +1712,6 @@ window.QuizApp = {
         const acc = done > 0 ? Math.round(correctCount / done * 100) : 0;
         const wrongCount = done - correctCount;
 
-        // 收藏模式
         if (this._isFavoritesMode) {
             const action = await this.showResultModal({
                 title: '收藏练习完成',
@@ -1750,7 +1730,6 @@ window.QuizApp = {
             return;
         }
 
-        // 顺序模式保存进度
         if (!this._isRandom && this._totalBank && this._source === 'all') {
             const newIndex = (this._pendingStart || 0) + this.activeBank.length;
             if (newIndex >= this._totalBank.length) {
@@ -1839,7 +1818,6 @@ window.QuizApp = {
             });
             return;
         }
-        // 骨架屏
         app.innerHTML = this.skeletonHTML('wrong');
         await this.fetchWrong();
         this._buildWrongData();
@@ -1855,11 +1833,9 @@ window.QuizApp = {
             if (!Array.isArray(opts) || !answerText) return undefined;
             const ans = String(answerText).trim();
 
-            // 1. 直接相等
             let idx = opts.findIndex(o => String(o).trim() === ans);
             if (idx >= 0) return idx;
 
-            // 2. 单字母（A/B/C/D）
             if (/^[A-Za-z]$/.test(ans)) {
                 const letter = ans.toUpperCase();
                 idx = opts.findIndex(o => {
@@ -1875,7 +1851,6 @@ window.QuizApp = {
                 if (charCode >= 0 && charCode < opts.length) return charCode;
             }
 
-            // 3. 剥掉前缀后再匹配
             const stripPrefix = (s) => String(s).replace(/^[A-Za-z][\.\s、．]?\s*/, '').trim();
             const ansStripped = stripPrefix(ans);
             if (ansStripped) {
@@ -2093,6 +2068,10 @@ window.QuizApp = {
             ${bottomBar}
         `;
     },
+
+    // ============================================================
+    // 错题编辑模式
+    // ============================================================
     enterWrongEditMode() {
         this._wrongEditMode = true;
         this._wrongSelected = [];
@@ -2231,7 +2210,7 @@ window.QuizApp = {
     async deleteWrongItem(id) {
         const ok = await this.showConfirm({
             title: '删除错题',
-            message: '确定要删除这条错题吗？删除后不再出现在错题本。',
+            message: '确定要删除这条错题吗？',
             confirmText: '删除',
             cancelText: '取消',
             danger: true
@@ -2379,7 +2358,7 @@ window.QuizApp = {
         modalRoot.appendChild(modal);
     },
 
-     exportWrong(format) {
+    exportWrong(format) {
         const list = this._wrongList || [];
         if (list.length === 0) {
             this.showToast('暂无错题');
@@ -2387,13 +2366,10 @@ window.QuizApp = {
         }
         this.closeModal('exportModal');
 
-        // ★ 统一取答案文本
         const getAnswerText = (w) => {
-            // 1. 后端直接给了 answer 文本（首选）
             if (w.answer !== undefined && w.answer !== null && w.answer !== '') {
                 return w.answer;
             }
-            // 2. 从索引反查
             if (Array.isArray(w.a)) {
                 return w.a.map(i => w.opts[i]).filter(Boolean).join('、');
             }
@@ -2439,20 +2415,7 @@ window.QuizApp = {
         this.showToast(`已导出 ${list.length} 道错题`);
     },
 
-        const blob = new Blob([content], { type: mime });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const date = new Date().toISOString().slice(0, 10);
-        a.download = `错题_${date}.${ext}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        this.showToast(`已导出 ${list.length} 道错题`);
-    },
-
-    // ↑ 第 5 段结束。第 6 段从这里继续（题库、收藏页、我的、设置、会话、启动）
+    // ↑ 第 5 段结束。第 6 段从 renderBank() 开始
         // ============================================================
     // 题库页
     // ============================================================
@@ -2474,7 +2437,6 @@ window.QuizApp = {
             });
             return;
         }
-        // 骨架屏
         app.innerHTML = this.skeletonHTML('bank');
         const list = await this.fetchBank();
         this._bankCache = list;
@@ -2664,7 +2626,6 @@ window.QuizApp = {
         const ids = [...this._bankSelected];
         this.showToast(`删除 ${ids.length} 道...`);
 
-        // ★ 并行删除：50 个请求同时发，总时间 = 最慢的一个
         const results = await Promise.all(
             ids.map(id =>
                 fetch('/api/questions-delete', {
@@ -2679,13 +2640,6 @@ window.QuizApp = {
         );
         const okCount = results.filter(Boolean).length;
 
-        this.showToast(`已删除 ${okCount} 道`);
-        this._bankSelected = [];
-        this.invalidateCache('bank');
-        await this.fetchBank(true);
-        this._bankCache = this._cache.bank;
-        this._renderBankUI(this._bankCache, '');
-    },
         this.showToast(`已删除 ${okCount} 道`);
         this._bankSelected = [];
         this.invalidateCache('bank');
@@ -2762,8 +2716,8 @@ window.QuizApp = {
             const m = code.match(/\[[\s\S]*\]/);
             if (m) {
                 try { arr = JSON.parse(m[0]); }
-                catch (e2) { this.showToast('JSON 格式错误：' + e2.message); return; }
-            } else { this.showToast('JSON 格式错误：' + e.message); return; }
+                catch (e2) { this.showToast('JSON 格式错误'); return; }
+            } else { this.showToast('JSON 格式错误'); return; }
         }
         if (!Array.isArray(arr)) { this.showToast('必须是数组'); return; }
         if (arr.length === 0) { this.showToast('数组为空'); return; }
@@ -2834,7 +2788,7 @@ window.QuizApp = {
     },
 
     // ============================================================
-    // 编辑题目（★ 已修复多选丢失）
+    // 编辑题目（已修复多选丢失）
     // ============================================================
     async editQuestion(id) {
         const user = this.getCurrentUser();
@@ -2853,7 +2807,6 @@ window.QuizApp = {
             return;
         }
 
-        // ★ 核心修复：正确解析多选答案
         const aHint = Array.isArray(q.a) ? q.a.join(',') : q.a;
         const aRaw = prompt('正确答案序号（从 0 开始；多选用逗号如 0,2）：', aHint);
         if (aRaw === null) return;
@@ -2868,7 +2821,7 @@ window.QuizApp = {
             }
             newA = parts.filter(n => !isNaN(n));
             if (newA.length < 2) {
-                this.showToast('多选题至少需要 2 个答案，如果要改为单选请只输入一个数字');
+                this.showToast('多选题至少需要 2 个答案');
                 return;
             }
         } else {
@@ -2934,7 +2887,6 @@ window.QuizApp = {
             });
             return;
         }
-        // 骨架屏
         app.innerHTML = this.skeletonHTML('fav');
         const list = await this.fetchFav();
         this._renderFavUI(list);
@@ -3047,7 +2999,7 @@ window.QuizApp = {
         `;
     },
 
-  enterFavEditMode() {
+    enterFavEditMode() {
         this._favEditMode = true;
         this._favSelected = [];
         this._renderFavUI(this._cache.fav || []);
@@ -3406,14 +3358,14 @@ window.QuizApp = {
             let active = [];
 
             if (ctx.isWrong || ctx.source === 'wrong') {
-                // 从错题恢复
                 const wrongRaw = await this.fetchWrong(true);
                 const map = {};
                 for (const w of wrongRaw) {
                     const key = w.q || String(w.id);
                     if (!map[key]) {
                         map[key] = {
-                            id: w.id, q: w.q, opts: w.opts || [], a: w.a,
+                            id: w.id, q: w.q, opts: w.opts || [],
+                            a: w.a, answer: w.answer,
                             chapter: w.chapter || '', wrongCount: 0,
                             lastWrongAt: null, mastered: false
                         };
@@ -3434,13 +3386,11 @@ window.QuizApp = {
                 });
                 active = ctx.ids.map(id => idMap[id]).filter(Boolean);
             } else if (ctx.isFavorites) {
-                // 从收藏恢复
                 const favList = await this.fetchFav(true);
                 const idMap = {};
                 favList.forEach(q => idMap[q.id] = q);
                 active = ctx.ids.map(id => idMap[id]).filter(Boolean);
             } else {
-                // 从题库恢复
                 const bank = await this.fetchBank(true);
                 const idMap = {};
                 bank.forEach(q => idMap[q.id] = q);
