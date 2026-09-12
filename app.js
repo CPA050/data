@@ -2721,6 +2721,7 @@ window.QuizApp = {
         }
         if (!Array.isArray(arr)) { this.showToast('必须是数组'); return; }
         if (arr.length === 0) { this.showToast('数组为空'); return; }
+
         const errors = [];
         arr.forEach((item, i) => {
             if (!item.q) errors.push(`第 ${i + 1} 题缺少 q`);
@@ -2734,25 +2735,49 @@ window.QuizApp = {
             console.error('校验失败：\n' + errors.join('\n'));
             return;
         }
-        this.showToast(`导入 ${arr.length} 道题...`);
+
+        // ★ 分批并行导入（每批 10 道）
+        const total = arr.length;
+        const BATCH_SIZE = 10;
         let ok = 0, fail = 0;
-        for (const item of arr) {
-            try {
-                const res = await fetch('/api/questions-add', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: user, q: item.q, opts: item.opts,
-                        a: item.a, chapter: item.chapter || ''
-                    })
-                });
-                const r = await res.json();
-                if (r.ok !== false) ok++;
-                else fail++;
-            } catch (e) { fail++; }
-        }
+
         this.closeModal('addQuestionModal');
+
+        const toastMsg = document.createElement('div');
+        toastMsg.className = 'toast-item import-progress';
+        toastMsg.textContent = `导入中 0/${total}...`;
+        const container = document.getElementById('toastContainer');
+        if (container) container.appendChild(toastMsg);
+
+        for (let i = 0; i < total; i += BATCH_SIZE) {
+            const batch = arr.slice(i, i + BATCH_SIZE);
+            const results = await Promise.all(
+                batch.map(item =>
+                    fetch('/api/questions-add', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_id: user,
+                            q: item.q,
+                            opts: item.opts,
+                            a: item.a,
+                            chapter: item.chapter || ''
+                        })
+                    })
+                    .then(r => r.json())
+                    .then(d => d.ok !== false)
+                    .catch(() => false)
+                )
+            );
+            results.forEach(r => r ? ok++ : fail++);
+            const done = Math.min(i + BATCH_SIZE, total);
+            toastMsg.textContent = `导入中 ${done}/${total}...`;
+        }
+
+        if (toastMsg.parentNode) toastMsg.remove();
+
         this.showToast(`成功导入 ${ok} 道${fail ? '，失败 ' + fail + ' 道' : ''}`);
+
         this.invalidateCache('bank');
         await this.fetchBank(true);
         this._bankCache = this._cache.bank;
