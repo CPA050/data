@@ -53,6 +53,11 @@ window.QuizApp = {
     _wrongFilter: 'all',
     _wrongSearch: '',
     _favSearch: '',
+    _wrongEditMode: false,
+    _wrongSelected: [],
+    _favEditMode: false,
+    _favSelected: [],
+    _bankCache: [],
     _bankCache: [],
     _bankSearchTimer: null,
 
@@ -1844,14 +1849,61 @@ window.QuizApp = {
     _buildWrongData() {
         const user = this.getCurrentUser();
         const raw = this._cache.wrong || [];
+
+        // ★ 把后端的 answer 文本（"C"）转成选项索引（2）
+        const findAnswerIndex = (answerText, opts) => {
+            if (!Array.isArray(opts) || !answerText) return undefined;
+            const ans = String(answerText).trim();
+
+            // 1. 直接相等
+            let idx = opts.findIndex(o => String(o).trim() === ans);
+            if (idx >= 0) return idx;
+
+            // 2. 单字母（A/B/C/D）
+            if (/^[A-Za-z]$/.test(ans)) {
+                const letter = ans.toUpperCase();
+                idx = opts.findIndex(o => {
+                    const s = String(o).trim();
+                    return s === letter ||
+                           s.startsWith(letter + '.') ||
+                           s.startsWith(letter + '、') ||
+                           s.startsWith(letter + ' ') ||
+                           s.startsWith(letter + '．');
+                });
+                if (idx >= 0) return idx;
+                const charCode = letter.charCodeAt(0) - 65;
+                if (charCode >= 0 && charCode < opts.length) return charCode;
+            }
+
+            // 3. 剥掉前缀后再匹配
+            const stripPrefix = (s) => String(s).replace(/^[A-Za-z][\.\s、．]?\s*/, '').trim();
+            const ansStripped = stripPrefix(ans);
+            if (ansStripped) {
+                idx = opts.findIndex(o => stripPrefix(o) === ansStripped);
+                if (idx >= 0) return idx;
+            }
+
+            return undefined;
+        };
+
         const map = {};
         for (const w of raw) {
             const key = w.q || String(w.id);
             if (!map[key]) {
+                const opts = Array.isArray(w.opts) ? w.opts : [];
+                const answerIndex = findAnswerIndex(w.answer, opts);
+
                 map[key] = {
-                    id: w.id, q: w.q, opts: w.opts || [], a: w.a,
-                    chapter: w.chapter || '', wrongCount: 0,
-                    lastWrongAt: null, mastered: false
+                    id: w.id,
+                    q: w.q,
+                    opts: opts,
+                    a: answerIndex,
+                    answer: w.answer,
+                    user_choice: w.user_choice,
+                    chapter: w.chapter || '',
+                    wrongCount: 0,
+                    lastWrongAt: null,
+                    mastered: false
                 };
             }
             map[key].wrongCount++;
@@ -1878,15 +1930,12 @@ window.QuizApp = {
         let filtered = list;
         if (filter === 'unmastered') filtered = list.filter(w => !w.mastered);
         else if (filter === 'mastered') filtered = list.filter(w => w.mastered);
-
-        // ★ 搜索过滤
         if (keyword) {
             filtered = filtered.filter(w =>
                 (w.q || '').toLowerCase().includes(keyword) ||
                 (w.opts || []).some(o => o.toLowerCase().includes(keyword))
             );
         }
-
         filtered.sort((a, b) => {
             if (a.mastered !== b.mastered) return a.mastered ? 1 : -1;
             return (b.wrongCount || 0) - (a.wrongCount || 0);
@@ -1907,8 +1956,33 @@ window.QuizApp = {
                 if (hard) badges.push(`<span class="badge hard">高难度</span>`);
                 if (w.mastered) badges.push(`<span class="badge mastered">已掌握</span>`);
                 const timeStr = this.relTime(w.lastWrongAt);
+                const selected = this._wrongSelected.includes(w.q);
+                const checkbox = this._wrongEditMode
+                    ? `<div class="q-checkbox ${selected ? 'checked' : ''}"></div>`
+                    : '';
+                const clickHandler = this._wrongEditMode
+                    ? `onclick="QuizApp.toggleSelectWrong('${this.escAttr(w.q)}')"`
+                    : '';
+                const actionsHtml = this._wrongEditMode ? '' : `
+                    <div class="wi-actions">
+                        <button class="master-toggle ${w.mastered ? 'on' : ''}"
+                                onclick="event.stopPropagation();QuizApp.toggleMastered('${this.escAttr(w.q)}', ${!w.mastered})">
+                            ${w.mastered ? '取消掌握' : '标记掌握'}
+                        </button>
+                        <button class="start-practice-btn"
+                                onclick="QuizApp.startWrongPractice('${this.escAttr(w.q)}')">
+                            开始练习
+                        </button>
+                        <button class="del-icon"
+                                onclick="QuizApp.deleteWrongItem(${w.id})">
+                            删除
+                        </button>
+                    </div>
+                `;
                 return `
-                    <div class="wrong-item">
+                    <div class="wrong-item ${this._wrongEditMode ? 'selectable' : ''} ${selected ? 'selected' : ''}"
+                         ${clickHandler}>
+                        ${checkbox}
                         <div class="wi-head">
                             <span class="wi-idx">第 ${w.id || (i + 1)} 题</span>
                             <span class="wi-badges">
@@ -1921,20 +1995,7 @@ window.QuizApp = {
                             ${w.chapter ? `<span>${w.chapter}</span>` : ''}
                             ${timeStr ? `<span>${timeStr}</span>` : ''}
                         </div>
-                        <div class="wi-actions">
-                            <button class="master-toggle ${w.mastered ? 'on' : ''}"
-                                    onclick="event.stopPropagation();QuizApp.toggleMastered('${this.escAttr(w.q)}', ${!w.mastered})">
-                                ${w.mastered ? '取消掌握' : '标记掌握'}
-                            </button>
-                            <button class="start-practice-btn"
-                                    onclick="QuizApp.startWrongPractice('${this.escAttr(w.q)}')">
-                                开始练习
-                            </button>
-                            <button class="del-icon"
-                                    onclick="QuizApp.deleteWrongItem(${w.id})">
-                                删除
-                            </button>
-                        </div>
+                        ${actionsHtml}
                     </div>
                 `;
             }).join('');
@@ -1944,14 +2005,39 @@ window.QuizApp = {
             ? `<button class="add-btn" style="background:rgba(0,0,0,0.06);color:#1d1d1f;box-shadow:none;"
                        onclick="QuizApp.showExportOptions()">导出</button>`
             : '';
-
-        // ★ 搜索框
+        const selectBtn = total > 0
+            ? `<button class="add-btn" style="background:rgba(0,0,0,0.06);color:#1d1d1f;box-shadow:none;"
+                       onclick="QuizApp.${this._wrongEditMode ? 'exitWrongEditMode' : 'enterWrongEditMode'}()">
+                    ${this._wrongEditMode ? '完成' : '选择'}
+               </button>`
+            : '';
         const searchBox = total > 0 ? `
             <input class="search-box" type="text"
                    placeholder="搜索错题..."
                    value="${this._wrongSearch || ''}"
                    oninput="QuizApp.onWrongSearch(this.value)">
         ` : '';
+
+        let bottomBar = '';
+        if (this._wrongEditMode) {
+            const allSelected = filtered.length > 0 &&
+                filtered.every(w => this._wrongSelected.includes(w.q));
+            bottomBar = `
+                <div class="bank-bottom-bar">
+                    <button class="bottom-btn" onclick="QuizApp.selectAllWrong()">
+                        ${allSelected ? '取消全选' : '全选'}
+                    </button>
+                    <button class="bottom-btn danger"
+                            onclick="QuizApp.deleteSelectedWrong()"
+                            ${this._wrongSelected.length === 0 ? 'disabled' : ''}>
+                        删除选中 (${this._wrongSelected.length})
+                    </button>
+                    <button class="bottom-btn" onclick="QuizApp.exitWrongEditMode()">
+                        完成
+                    </button>
+                </div>
+            `;
+        }
 
         app.innerHTML = `
             <div class="page-card">
@@ -1960,7 +2046,10 @@ window.QuizApp = {
                         <div class="bank-title">我的错题</div>
                         <div class="bank-count">${total} 道 · ${mastered} 道已掌握</div>
                     </div>
-                    ${exportBtn}
+                    <div style="display:flex;gap:8px;">
+                        ${selectBtn}
+                        ${exportBtn}
+                    </div>
                 </div>
                 <div class="status-tabs">
                     <button class="status-tab ${filter === 'all' ? 'active' : ''}"
@@ -2001,7 +2090,86 @@ window.QuizApp = {
                 ` : ''}
                 ${listHtml}
             </div>
+            ${bottomBar}
         `;
+    },
+    enterWrongEditMode() {
+        this._wrongEditMode = true;
+        this._wrongSelected = [];
+        this._renderWrongUI();
+    },
+
+    exitWrongEditMode() {
+        this._wrongEditMode = false;
+        this._wrongSelected = [];
+        this._renderWrongUI();
+    },
+
+    toggleSelectWrong(qText) {
+        if (!this._wrongEditMode) return;
+        const i = this._wrongSelected.indexOf(qText);
+        if (i > -1) this._wrongSelected.splice(i, 1);
+        else this._wrongSelected.push(qText);
+        this._renderWrongUI();
+    },
+
+    selectAllWrong() {
+        const list = this._wrongList || [];
+        const filter = this._wrongFilter;
+        const keyword = (this._wrongSearch || '').trim().toLowerCase();
+        let filtered = list;
+        if (filter === 'unmastered') filtered = list.filter(w => !w.mastered);
+        else if (filter === 'mastered') filtered = list.filter(w => w.mastered);
+        if (keyword) {
+            filtered = filtered.filter(w =>
+                (w.q || '').toLowerCase().includes(keyword) ||
+                (w.opts || []).some(o => o.toLowerCase().includes(keyword))
+            );
+        }
+        const allSelected = filtered.every(w => this._wrongSelected.includes(w.q));
+        if (allSelected) this._wrongSelected = [];
+        else this._wrongSelected = filtered.map(w => w.q);
+        this._renderWrongUI();
+    },
+
+    async deleteSelectedWrong() {
+        if (this._wrongSelected.length === 0) return;
+        const ok = await this.showConfirm({
+            title: '批量删除错题',
+            message: `确定删除选中的 ${this._wrongSelected.length} 道错题吗？`,
+            confirmText: '删除',
+            cancelText: '取消',
+            danger: true
+        });
+        if (!ok) return;
+        const user = this.getCurrentUser();
+        const selectedQs = [...this._wrongSelected];
+        const itemsToDelete = this._wrongList.filter(w => selectedQs.includes(w.q));
+        this.showToast(`删除 ${itemsToDelete.length} 道...`);
+
+        const results = await Promise.all(
+            itemsToDelete.map(w =>
+                fetch('/api/wrong-delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: user, id: w.id })
+                })
+                .then(r => r.json())
+                .then(d => d.ok !== false)
+                .catch(() => false)
+            )
+        );
+        const okCount = results.filter(Boolean).length;
+        this.showToast(`已删除 ${okCount} 道`);
+
+        this._wrongSelected = [];
+        this.invalidateCache('wrong');
+        if (this._cache.wrong) {
+            const deleteIds = new Set(itemsToDelete.map(w => w.id));
+            this._cache.wrong = this._cache.wrong.filter(w => !deleteIds.has(w.id));
+        }
+        this._buildWrongData();
+        this._renderWrongUI();
     },
 
     onWrongSearch(v) {
@@ -2211,7 +2379,7 @@ window.QuizApp = {
         modalRoot.appendChild(modal);
     },
 
-    exportWrong(format) {
+     exportWrong(format) {
         const list = this._wrongList || [];
         if (list.length === 0) {
             this.showToast('暂无错题');
@@ -2219,12 +2387,28 @@ window.QuizApp = {
         }
         this.closeModal('exportModal');
 
+        // ★ 统一取答案文本
+        const getAnswerText = (w) => {
+            // 1. 后端直接给了 answer 文本（首选）
+            if (w.answer !== undefined && w.answer !== null && w.answer !== '') {
+                return w.answer;
+            }
+            // 2. 从索引反查
+            if (Array.isArray(w.a)) {
+                return w.a.map(i => w.opts[i]).filter(Boolean).join('、');
+            }
+            if (typeof w.a === 'number' && w.opts && w.opts[w.a] !== undefined) {
+                return w.opts[w.a];
+            }
+            return '未记录';
+        };
+
         let content, mime, ext;
         if (format === 'json') {
             content = JSON.stringify(list.map(w => ({
                 q: w.q,
                 opts: w.opts,
-                a: w.a,
+                answer: getAnswerText(w),
                 chapter: w.chapter || '',
                 wrongCount: w.wrongCount || 1
             })), null, 2);
@@ -2232,10 +2416,8 @@ window.QuizApp = {
             ext = 'json';
         } else {
             content = list.map((w, i) => {
-                const ans = Array.isArray(w.a)
-                    ? w.a.map(x => w.opts[x]).join('、')
-                    : w.opts[w.a];
-                const optsLines = w.opts.map((o, idx) =>
+                const ans = getAnswerText(w);
+                const optsLines = (w.opts || []).map((o, idx) =>
                     `   ${String.fromCharCode(65 + idx)}. ${o}`
                 ).join('\n');
                 return `第 ${i + 1} 题${w.chapter ? `（${w.chapter}）` : ''}\n${w.q}\n${optsLines}\n答案：${ans}\n错误次数：${w.wrongCount || 1}\n`;
@@ -2243,6 +2425,19 @@ window.QuizApp = {
             mime = 'text/plain;charset=utf-8';
             ext = 'txt';
         }
+
+        const blob = new Blob([content], { type: mime });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const date = new Date().toISOString().slice(0, 10);
+        a.download = `错题_${date}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        this.showToast(`已导出 ${list.length} 道错题`);
+    },
 
         const blob = new Blob([content], { type: mime });
         const url = URL.createObjectURL(blob);
@@ -2468,17 +2663,29 @@ window.QuizApp = {
         const user = this.getCurrentUser();
         const ids = [...this._bankSelected];
         this.showToast(`删除 ${ids.length} 道...`);
-        let okCount = 0;
-        for (const id of ids) {
-            try {
-                await fetch('/api/questions-delete', {
+
+        // ★ 并行删除：50 个请求同时发，总时间 = 最慢的一个
+        const results = await Promise.all(
+            ids.map(id =>
+                fetch('/api/questions-delete', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: user, id: id })
-                });
-                okCount++;
-            } catch (e) {}
-        }
+                })
+                .then(r => r.json())
+                .then(d => d.ok !== false)
+                .catch(() => false)
+            )
+        );
+        const okCount = results.filter(Boolean).length;
+
+        this.showToast(`已删除 ${okCount} 道`);
+        this._bankSelected = [];
+        this.invalidateCache('bank');
+        await this.fetchBank(true);
+        this._bankCache = this._cache.bank;
+        this._renderBankUI(this._bankCache, '');
+    },
         this.showToast(`已删除 ${okCount} 道`);
         this._bankSelected = [];
         this.invalidateCache('bank');
@@ -2755,34 +2962,71 @@ window.QuizApp = {
                 const ans = Array.isArray(q.a)
                     ? q.a.map(x => q.opts[x]).join('、')
                     : (q.opts[q.a] || q.a);
+                const selected = this._favSelected.includes(q.id);
+                const checkbox = this._favEditMode
+                    ? `<div class="q-checkbox ${selected ? 'checked' : ''}"></div>`
+                    : '';
+                const clickHandler = this._favEditMode
+                    ? `onclick="QuizApp.toggleSelectFav(${q.id})"`
+                    : '';
+                const actionsHtml = this._favEditMode ? '' : `
+                    <div class="q-actions">
+                        <button class="del-btn"
+                                onclick="event.stopPropagation();QuizApp.removeFav(${q.id})">取消收藏</button>
+                    </div>
+                `;
                 return `
-                    <div class="q-item">
+                    <div class="q-item ${this._favEditMode ? 'selectable' : ''} ${selected ? 'selected' : ''}"
+                         ${clickHandler}>
+                        ${checkbox}
                         <div class="q-num">第 ${i + 1} 题</div>
                         <div class="q-text">${q.q}</div>
                         <div class="q-meta">
                             <span class="q-answer">答案 ${ans}</span>
                             ${q.chapter ? `<span class="q-chapter">${q.chapter}</span>` : ''}
                         </div>
-                        <div class="q-actions">
-                            <button class="del-btn"
-                                    onclick="QuizApp.removeFav(${q.id})">取消收藏</button>
-                        </div>
+                        ${actionsHtml}
                     </div>
                 `;
             }).join('');
         }
 
-        const practiceBtn = list.length > 0
+        const practiceBtn = list.length > 0 && !this._favEditMode
             ? `<button class="add-btn" onclick="QuizApp.startFavorites()">开始练习收藏</button>`
             : '';
-
-        // ★ 搜索框
+        const selectBtn = list.length > 0
+            ? `<button class="add-btn" style="background:rgba(0,0,0,0.06);color:#1d1d1f;box-shadow:none;"
+                       onclick="QuizApp.${this._favEditMode ? 'exitFavEditMode' : 'enterFavEditMode'}()">
+                    ${this._favEditMode ? '完成' : '选择'}
+               </button>`
+            : '';
         const searchBox = list.length > 0 ? `
             <input class="search-box" type="text"
                    placeholder="搜索收藏..."
                    value="${this._favSearch || ''}"
                    oninput="QuizApp.onFavSearch(this.value)">
         ` : '';
+
+        let bottomBar = '';
+        if (this._favEditMode) {
+            const allSelected = filtered.length > 0 &&
+                filtered.every(q => this._favSelected.includes(q.id));
+            bottomBar = `
+                <div class="bank-bottom-bar">
+                    <button class="bottom-btn" onclick="QuizApp.selectAllFav()">
+                        ${allSelected ? '取消全选' : '全选'}
+                    </button>
+                    <button class="bottom-btn danger"
+                            onclick="QuizApp.deleteSelectedFav()"
+                            ${this._favSelected.length === 0 ? 'disabled' : ''}>
+                        取消收藏 (${this._favSelected.length})
+                    </button>
+                    <button class="bottom-btn" onclick="QuizApp.exitFavEditMode()">
+                        完成
+                    </button>
+                </div>
+            `;
+        }
 
         app.innerHTML = `
             <div class="page-card">
@@ -2791,12 +3035,88 @@ window.QuizApp = {
                         <div class="bank-title">收藏</div>
                         <div class="bank-count">共 ${list.length} 道</div>
                     </div>
-                    ${practiceBtn}
+                    <div style="display:flex;gap:8px;">
+                        ${selectBtn}
+                        ${practiceBtn}
+                    </div>
                 </div>
                 ${searchBox}
                 ${listHtml}
             </div>
+            ${bottomBar}
         `;
+    },
+
+  enterFavEditMode() {
+        this._favEditMode = true;
+        this._favSelected = [];
+        this._renderFavUI(this._cache.fav || []);
+    },
+
+    exitFavEditMode() {
+        this._favEditMode = false;
+        this._favSelected = [];
+        this._renderFavUI(this._cache.fav || []);
+    },
+
+    toggleSelectFav(id) {
+        if (!this._favEditMode) return;
+        const i = this._favSelected.indexOf(id);
+        if (i > -1) this._favSelected.splice(i, 1);
+        else this._favSelected.push(id);
+        this._renderFavUI(this._cache.fav || []);
+    },
+
+    selectAllFav() {
+        const list = this._cache.fav || [];
+        const keyword = (this._favSearch || '').trim().toLowerCase();
+        let filtered = list;
+        if (keyword) {
+            filtered = list.filter(q =>
+                (q.q || '').toLowerCase().includes(keyword) ||
+                (q.opts || []).some(o => o.toLowerCase().includes(keyword))
+            );
+        }
+        const allSelected = filtered.every(q => this._favSelected.includes(q.id));
+        if (allSelected) this._favSelected = [];
+        else this._favSelected = filtered.map(q => q.id);
+        this._renderFavUI(this._cache.fav || []);
+    },
+
+    async deleteSelectedFav() {
+        if (this._favSelected.length === 0) return;
+        const ok = await this.showConfirm({
+            title: '批量取消收藏',
+            message: `确定取消收藏选中的 ${this._favSelected.length} 道题吗？`,
+            confirmText: '取消收藏',
+            cancelText: '再想想',
+            danger: true
+        });
+        if (!ok) return;
+        const user = this.getCurrentUser();
+        const ids = [...this._favSelected];
+        this.showToast(`处理 ${ids.length} 道...`);
+
+        const results = await Promise.all(
+            ids.map(id =>
+                fetch('/api/favorites-remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: user, question_id: id })
+                })
+                .then(r => r.json())
+                .then(d => d.ok !== false)
+                .catch(() => false)
+            )
+        );
+        const okCount = results.filter(Boolean).length;
+        this.showToast(`已取消 ${okCount} 道`);
+
+        this._favSelected = [];
+        this.invalidateCache('fav');
+        const list = (this._cache.fav || []).filter(q => !ids.includes(q.id));
+        this._cache.fav = list;
+        this._renderFavUI(list);
     },
 
     onFavSearch(v) {
