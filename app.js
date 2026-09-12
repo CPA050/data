@@ -1,6 +1,7 @@
 // ============================================================
-// QuizApp 11.6 · 完整版
-// 章节选择弹窗改为卡片式
+// QuizApp 11.7 · 第 1 批优化
+// #1 编辑多选修复 · #2 错题恢复 · #3 收藏练习
+// #5 章节可视化 · #8 导出错题
 // ============================================================
 
 window.QuizApp = {
@@ -625,8 +626,10 @@ window.QuizApp = {
                         const ctx = JSON.parse(sessionData);
                         const total = (ctx.ids || []).length;
                         const idx = (ctx.idx || 0) + 1;
+                        const isWrong = ctx.isWrong || ctx.source === 'wrong';
+                        const label = isWrong ? '错题' : '';
                         resumeWrap.innerHTML =
-                            `<div class="resume-hint" onclick="event.stopPropagation();QuizApp.restoreSession()">继续上次答题（第 ${idx}/${total} 题）</div>`;
+                            `<div class="resume-hint" onclick="event.stopPropagation();QuizApp.restoreSession()">继续上次${label}答题（第 ${idx}/${total} 题）</div>`;
                     } catch (e) {}
                 }
             }
@@ -763,6 +766,7 @@ window.QuizApp = {
             this._currentLimit = limit;
             this._tempMulti = [];
             this._multiSubmitted = false;
+            this._isFavoritesMode = false;
 
             const [favList, bankAll] = await Promise.all([
                 this.fetchFav(),
@@ -867,6 +871,45 @@ window.QuizApp = {
             alert('加载题库失败：' + err.message);
             console.error(err);
         }
+    },
+
+    // ============================================================
+    // 收藏练习（★ 新增完整实现）
+    // ============================================================
+    async startFavorites() {
+        const user = this.getCurrentUser();
+        if (!user) { alert('请先登录'); return; }
+        const list = await this.fetchFav(true);
+        if (!list || list.length === 0) {
+            this.showToast('暂无收藏题目');
+            return;
+        }
+
+        this._isFavoritesMode = true;
+        this._source = 'all';
+        this._isRandom = false;
+        this._selectedChapters = [];
+        this._isChapterMode = false;
+        this._currentLimit = list.length;
+
+        this.activeBank = list.map(q => ({
+            id: q.id, q: q.q, opts: q.opts, a: q.a, chapter: q.chapter
+        }));
+        this.idx = 0;
+        this.record = new Array(this.activeBank.length).fill(null);
+        this._multiSubmitted = false;
+        this._tempMulti = [];
+        this._isFinishing = false;
+        this._consecutiveCorrect = 0;
+        this._consecutiveWrong = 0;
+        this._inQuiz = true;
+
+        document.getElementById('home').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        document.getElementById('app').className = 'page';
+
+        this.renderCard(false);
+        this.showToast(`开始练习 ${this.activeBank.length} 道收藏题`);
     },
 
     // ============================================================
@@ -976,7 +1019,7 @@ window.QuizApp = {
     },
 
     // ============================================================
-    // 渲染答题卡片
+    // 渲染答题卡片（★ #5 加章节 chip）
     // ============================================================
     renderCard(needAnimation, direction = 'none') {
         const app = document.getElementById('app');
@@ -1007,6 +1050,9 @@ window.QuizApp = {
         } else {
             chapterLabel = '全部章节';
         }
+
+        // 收藏模式特殊标记
+        const modeLabel = this._isFavoritesMode ? '收藏练习' : '';
 
         const isFav = this._favorites && this._favorites.includes(q.id);
         const starText = isFav ? '已收藏' : '收藏';
@@ -1077,21 +1123,28 @@ window.QuizApp = {
                 : `<span class="no">再试一次</span>`;
         }
 
+        // ★ #5：quiz-info 里加章节 chip
+        const chapterChip = `<span class="chapter-tag">${chapterLabel}</span>`;
+        const modeChip = modeLabel ? `<span class="mode-tag">${modeLabel}</span>` : '';
+
         const htmlContent = `
             <div class="page-card">
                 <div class="quiz-top">
                     <div class="quiz-info">
+                        ${chapterChip}
+                        ${modeChip}
                         <span>正确率 ${acc}%</span>
                         <span>进度 ${done}/${total}</span>
                         ${remaining > 0 ? `<span>剩 ${remaining} 题</span>` : ''}
                         ${statusHtml}
                     </div>
                     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                        ${!this._isFavoritesMode ? `
                         <button class="glass-btn ghost"
                                 style="width:auto;padding:6px 12px;font-size:12px;"
                                 onclick="QuizApp.openChapterPicker()">
-                            ${chapterLabel}
-                        </button>
+                            切换章节
+                        </button>` : ''}
                         <button class="glass-btn ghost"
                                 style="width:auto;padding:6px 12px;font-size:12px;"
                                 onclick="QuizApp.openQuestionNav()">
@@ -1413,6 +1466,7 @@ window.QuizApp = {
     goHome() {
         this.clearSessionContext();
         this._inQuiz = false;
+        this._isFavoritesMode = false;
         this.showQuizActions = false;
         this.currentTab = 'home';
         this.setSlider(0, true);
@@ -1548,12 +1602,19 @@ window.QuizApp = {
                 `;
             }).join('');
         }
+        // ★ #8：导出按钮
+        const exportBtn = total > 0
+            ? `<button class="add-btn" style="background:rgba(0,0,0,0.06);color:#1d1d1f;box-shadow:none;"
+                       onclick="QuizApp.showExportOptions()">导出</button>`
+            : '';
         app.innerHTML = `
             <div class="page-card">
-                <div class="bank-title" style="margin-bottom:8px;">我的错题</div>
-                <div class="stats-head">
-                    <span class="num">${total}<small>道</small></span>
-                    <span class="num" style="color:#34c759">${mastered}<small>道已掌握</small></span>
+                <div class="bank-head">
+                    <div>
+                        <div class="bank-title">我的错题</div>
+                        <div class="bank-count">${total} 道 · ${mastered} 道已掌握</div>
+                    </div>
+                    ${exportBtn}
                 </div>
                 <div class="status-tabs">
                     <button class="status-tab ${filter === 'all' ? 'active' : ''}"
@@ -1741,6 +1802,92 @@ window.QuizApp = {
             });
             this.invalidateCache('wrong');
         } catch (e) { console.error(e); }
+    },
+
+    // ============================================================
+    // ★ #8 导出错题
+    // ============================================================
+    showExportOptions() {
+        const modalRoot = document.getElementById('modalRoot');
+        if (!modalRoot) return;
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.id = 'exportModal';
+        modal.innerHTML = `
+            <div class="modal-card" style="max-width:400px;">
+                <div class="modal-header">
+                    <span class="modal-title">导出错题</span>
+                    <button class="modal-close"
+                            onclick="QuizApp.closeModal('exportModal')">✕</button>
+                </div>
+                <div class="modal-hint" style="text-align:left;">
+                    共 ${this._wrongList.length} 道错题，选择导出格式：
+                </div>
+                <div class="export-options">
+                    <button class="export-option" onclick="QuizApp.exportWrong('json')">
+                        <div class="export-icon">JSON</div>
+                        <div class="export-info">
+                            <div class="export-name">JSON 格式</div>
+                            <div class="export-desc">结构化数据，可再次导入</div>
+                        </div>
+                    </button>
+                    <button class="export-option" onclick="QuizApp.exportWrong('txt')">
+                        <div class="export-icon">TXT</div>
+                        <div class="export-info">
+                            <div class="export-name">文本格式</div>
+                            <div class="export-desc">方便阅读打印</div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        `;
+        modalRoot.appendChild(modal);
+    },
+
+    exportWrong(format) {
+        const list = this._wrongList || [];
+        if (list.length === 0) {
+            this.showToast('暂无错题');
+            return;
+        }
+        this.closeModal('exportModal');
+
+        let content, mime, ext;
+        if (format === 'json') {
+            content = JSON.stringify(list.map(w => ({
+                q: w.q,
+                opts: w.opts,
+                a: w.a,
+                chapter: w.chapter || '',
+                wrongCount: w.wrongCount || 1
+            })), null, 2);
+            mime = 'application/json;charset=utf-8';
+            ext = 'json';
+        } else {
+            content = list.map((w, i) => {
+                const ans = Array.isArray(w.a)
+                    ? w.a.map(x => w.opts[x]).join('、')
+                    : w.opts[w.a];
+                const optsLines = w.opts.map((o, idx) =>
+                    `   ${String.fromCharCode(65 + idx)}. ${o}`
+                ).join('\n');
+                return `第 ${i + 1} 题${w.chapter ? `（${w.chapter}）` : ''}\n${w.q}\n${optsLines}\n答案：${ans}\n错误次数：${w.wrongCount || 1}\n`;
+            }).join('\n' + '─'.repeat(40) + '\n');
+            mime = 'text/plain;charset=utf-8';
+            ext = 'txt';
+        }
+
+        const blob = new Blob([content], { type: mime });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const date = new Date().toISOString().slice(0, 10);
+        a.download = `错题_${date}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        this.showToast(`已导出 ${list.length} 道错题`);
     },
 
     // ============================================================
@@ -2092,35 +2239,89 @@ window.QuizApp = {
         } catch (e) { this.showToast('删除失败'); }
     },
 
+    // ============================================================
+    // ★ #1 编辑题目（修复多选丢失）
+    // ============================================================
     async editQuestion(id) {
         const user = this.getCurrentUser();
         const all = this._bankCache || [];
         const q = all.find(x => x.id === id);
         if (!q) return;
+
         const newQ = prompt('编辑题目：', q.q);
         if (newQ === null) return;
+
         const newOptsRaw = prompt('编辑选项（逗号分隔）：', q.opts.join(', '));
         if (newOptsRaw === null) return;
         const newOpts = newOptsRaw.split(',').map(s => s.trim()).filter(Boolean);
-        const newA = parseInt(prompt('正确答案序号（从 0 开始；多选用逗号如 0,2）：',
-            Array.isArray(q.a) ? q.a.join(',') : q.a));
-        if (isNaN(newA)) { this.showToast('序号无效'); return; }
+        if (newOpts.length < 2) {
+            this.showToast('至少需要 2 个选项');
+            return;
+        }
+
+        // ★ 核心修复：正确解析多选答案
+        const aHint = Array.isArray(q.a) ? q.a.join(',') : q.a;
+        const aRaw = prompt('正确答案序号（从 0 开始；多选用逗号如 0,2）：', aHint);
+        if (aRaw === null) return;
+
+        let newA;
+        const trimmed = aRaw.trim();
+        if (trimmed.includes(',')) {
+            const parts = trimmed.split(',').map(s => parseInt(s.trim()));
+            if (parts.some(n => isNaN(n))) {
+                this.showToast('答案序号格式错误');
+                return;
+            }
+            newA = parts.filter(n => !isNaN(n));
+            if (newA.length < 2) {
+                this.showToast('多选题至少需要 2 个答案，如果要改为单选请只输入一个数字');
+                return;
+            }
+        } else {
+            newA = parseInt(trimmed);
+            if (isNaN(newA)) {
+                this.showToast('答案序号无效');
+                return;
+            }
+        }
+
+        // 范围校验
+        const validRange = Array.isArray(newA)
+            ? newA.every(n => n >= 0 && n < newOpts.length)
+            : (newA >= 0 && newA < newOpts.length);
+        if (!validRange) {
+            this.showToast('答案序号超出范围');
+            return;
+        }
+
         const newChapter = prompt('章节名称（留空则不修改）：', q.chapter || '');
+
         try {
-            await fetch('/api/questions-update', {
+            const res = await fetch('/api/questions-update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    user_id: user, id: id, q: newQ, opts: newOpts,
-                    a: newA, chapter: newChapter || q.chapter || ''
+                    user_id: user,
+                    id: id,
+                    q: newQ,
+                    opts: newOpts,
+                    a: newA,
+                    chapter: newChapter === null ? (q.chapter || '') : newChapter
                 })
             });
+            const r = await res.json();
+            if (r.ok === false) {
+                this.showToast('更新失败：' + (r.error || '未知错误'));
+                return;
+            }
             this.showToast('已更新');
             this.invalidateCache('bank');
             await this.fetchBank(true);
             this._bankCache = this._cache.bank;
             this._renderBankUI(this._bankCache, '');
-        } catch (e) { this.showToast('更新失败'); }
+        } catch (e) {
+            this.showToast('更新失败：' + e.message);
+        }
     },
 
     // ============================================================
@@ -2171,6 +2372,10 @@ window.QuizApp = {
                 `;
             }).join('');
         }
+        // ★ #3 收藏练习入口
+        const practiceBtn = list.length > 0
+            ? `<button class="add-btn" onclick="QuizApp.startFavorites()">开始练习收藏</button>`
+            : '';
         app.innerHTML = `
             <div class="page-card">
                 <div class="bank-head">
@@ -2178,6 +2383,7 @@ window.QuizApp = {
                         <div class="bank-title">收藏</div>
                         <div class="bank-count">共 ${list.length} 道</div>
                     </div>
+                    ${practiceBtn}
                 </div>
                 ${listHtml}
             </div>
@@ -2410,6 +2616,7 @@ window.QuizApp = {
         localStorage.setItem(`quiz_recent_${user}`, JSON.stringify(recent));
     },
 
+    // ★ #2：saveSessionContext 加 isWrong
     saveSessionContext() {
         if (this._isRestoring) return;
         if (!this.activeBank.length) return;
@@ -2423,6 +2630,8 @@ window.QuizApp = {
             limit: this._currentLimit,
             source: this._source,
             chapters: this._selectedChapters,
+            isWrong: this._source === 'wrong',
+            isFavorites: this._isFavoritesMode,
             timestamp: Date.now()
         };
         localStorage.setItem(`quiz_session_${user}`, JSON.stringify(ctx));
@@ -2434,6 +2643,7 @@ window.QuizApp = {
         localStorage.removeItem(`quiz_session_${user}`);
     },
 
+    // ★ #2：restoreSession 支持错题恢复
     async restoreSession() {
         const user = this.getCurrentUser();
         if (!user) return;
@@ -2445,29 +2655,82 @@ window.QuizApp = {
             localStorage.removeItem(`quiz_session_${user}`);
             return;
         }
+
         try {
-            const bank = await this.fetchBank();
-            const idMap = {};
-            bank.forEach(q => idMap[q.id] = q);
-            const active = ctx.ids.map(id => idMap[id]).filter(Boolean);
-            if (active.length === 0) return;
+            let active = [];
+
+            if (ctx.isWrong || ctx.source === 'wrong') {
+                // 从错题恢复
+                const wrongRaw = await this.fetchWrong(true);
+                const map = {};
+                for (const w of wrongRaw) {
+                    const key = w.q || String(w.id);
+                    if (!map[key]) {
+                        map[key] = {
+                            id: w.id, q: w.q, opts: w.opts || [], a: w.a,
+                            chapter: w.chapter || '', wrongCount: 0,
+                            lastWrongAt: null, mastered: false
+                        };
+                    }
+                    map[key].wrongCount++;
+                    const t = w.created_at || w.time || null;
+                    if (t && (!map[key].lastWrongAt || t > map[key].lastWrongAt))
+                        map[key].lastWrongAt = t;
+                }
+                const wrongList = Object.values(map);
+                this._wrongList = wrongList;
+                const idMap = {};
+                wrongList.forEach(w => {
+                    idMap[w.id] = {
+                        id: w.id, q: w.q, opts: w.opts, a: w.a,
+                        chapter: w.chapter, _isWrong: true, _wrongId: w.id
+                    };
+                });
+                active = ctx.ids.map(id => idMap[id]).filter(Boolean);
+            } else if (ctx.isFavorites) {
+                // 从收藏恢复
+                const favList = await this.fetchFav(true);
+                const idMap = {};
+                favList.forEach(q => idMap[q.id] = q);
+                active = ctx.ids.map(id => idMap[id]).filter(Boolean);
+            } else {
+                // 从题库恢复
+                const bank = await this.fetchBank(true);
+                const idMap = {};
+                bank.forEach(q => idMap[q.id] = q);
+                active = ctx.ids.map(id => idMap[id]).filter(Boolean);
+            }
+
+            if (active.length === 0) {
+                this.showToast('原题目已不存在，无法恢复');
+                localStorage.removeItem(`quiz_session_${user}`);
+                return;
+            }
+
             this.activeBank = active;
             this.record = ctx.records.slice(0, active.length);
+            // 兼容 records 长度
+            while (this.record.length < active.length) this.record.push(null);
             this.idx = Math.min(ctx.idx, active.length - 1);
             this._isRandom = ctx.isRandom;
             this._currentLimit = ctx.limit;
             this._source = ctx.source;
             this._selectedChapters = ctx.chapters || [];
             this._isChapterMode = this._selectedChapters.length > 0;
+            this._isFavoritesMode = !!ctx.isFavorites;
             this._isRestoring = true;
             this._inQuiz = true;
+
             document.getElementById('home').style.display = 'none';
             document.getElementById('app').style.display = 'block';
             document.getElementById('app').className = 'page';
             this.renderCard(false);
             this._isRestoring = false;
             this.showToast(`已恢复（第 ${this.idx + 1}/${active.length} 题）`);
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+            this.showToast('恢复失败');
+        }
     },
 
     // ============================================================
