@@ -3032,3 +3032,370 @@ body.theme-dark .export-name {
 body.theme-dark .export-desc {
     color: #8888a0;
 }
+/* ============================================================
+   第 2 批优化：弹窗 + 骨架屏 + 修复空白
+   ============================================================ */
+
+/* ★ 修复卡片下方空白 */
+body {
+    padding-bottom: 88px;
+}
+
+#app.page {
+    min-height: calc(100vh - 100px);
+    display: flex;
+    flex-direction: column;
+}
+
+#app.page > .page-card {
+    flex: 1;
+}
+
+/* ============================================================
+   通用确认弹窗
+   ============================================================ */
+.confirm-card {
+    padding: 24px 22px 20px;
+    animation: confirmIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes confirmIn {
+    from { opacity: 0; transform: scale(0.9) translateY(20px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes confirmOut {
+    from { opacity: 1; transform: scale(1); }
+    to   { opacity: 0; transform: scale(0.94); }
+}
+
+.confirm-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1d1d1f;
+    text-align: center;
+    margin-bottom: 10px;
+    letter-spacing: -0.2px;
+}
+
+.confirm-message {
+    font-size: 14px;
+    color: #6b6b70;
+    text-align: center;
+    line-height: 1.7;
+    margin-bottom: 22px;
+    letter-spacing: 0.2px;
+}
+
+.confirm-btns {
+    display: flex;
+    gap: 10px;
+}
+
+.confirm-btn {
+    flex: 1;
+    padding: 13px;
+    border: none;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.22s;
+    letter-spacing: 0.4px;
+}
+
+.confirm-btn.cancel {
+    background: rgba(0, 0, 0, 0.06);
+    color: #1d1d1f;
+}
+
+.confirm-btn.cancel:hover { background: rgba(0, 0, 0, 0.12); }
+
+.confirm-btn.primary {
+    background: linear-gradient(135deg, #0071e3, #5ac8fa);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 113, 227, 0.28);
+}
+
+.confirm-btn.primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(0, 113, 227, 0.35);
+}
+
+.confirm-btn.danger {
+    background: linear-gradient(135deg, #ff3b30, #ff6b60);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(255, 59, 48, 0.28);
+}
+
+.confirm-btn.danger:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(255, 59, 48, 0.35);
+}
+
+/* ============================================================
+   成绩弹窗
+   ============================================================ */
+.result-card {
+    padding: 28px 24px 22px;
+    text-align: center;
+    animation: confirmIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.result-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1d1d1f;
+    margin-bottom: 20px;
+    letter-spacing: -0.2px;
+}
+
+.result-acc {
+    margin-bottom: 22px;
+}
+
+.result-acc-num {
+    font-size: 52px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #0071e3, #5ac8fa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    letter-spacing: -2px;
+    font-variant-numeric: tabular-nums;
+}
+
+.result-acc-num span {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 0;
+}
+
+.result-acc-label {
+    font-size: 12px;
+    color: #86868b;
+    margin-top: 6px;
+    letter-spacing: 1px;
+}
+
+.result-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 24px;
+    padding: 16px 8px;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 16px;
+}
+
+.result-stat {
+    text-align: center;
+}
+
+.result-stat-num {
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    letter-spacing: -0.5px;
+}
+
+.result-stat-num.correct { color: #34c759; }
+.result-stat-num.wrong { color: #ff3b30; }
+.result-stat-num.total { color: #0071e3; }
+
+.result-stat-label {
+    font-size: 11px;
+    color: #86868b;
+    margin-top: 4px;
+    letter-spacing: 0.5px;
+}
+
+.result-btns {
+    display: flex;
+    gap: 10px;
+}
+
+.result-btn {
+    flex: 1;
+    padding: 14px;
+    border: none;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.22s;
+    letter-spacing: 0.4px;
+}
+
+.result-btn.home {
+    background: rgba(0, 0, 0, 0.06);
+    color: #1d1d1f;
+}
+
+.result-btn.home:hover { background: rgba(0, 0, 0, 0.12); }
+
+.result-btn.retry {
+    background: linear-gradient(135deg, #0071e3, #5ac8fa);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 113, 227, 0.28);
+}
+
+.result-btn.retry:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(0, 113, 227, 0.35);
+}
+
+/* ============================================================
+   骨架屏
+   ============================================================ */
+.skeleton {
+    background: linear-gradient(90deg,
+        rgba(0, 0, 0, 0.06) 0%,
+        rgba(0, 0, 0, 0.10) 50%,
+        rgba(0, 0, 0, 0.06) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+    border-radius: 8px;
+}
+
+@keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.skeleton-item {
+    padding: 18px 20px;
+    background: rgba(255, 255, 255, 0.32);
+    border-radius: 18px;
+    margin-bottom: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.skeleton-line-sm {
+    height: 10px;
+    width: 30%;
+    margin-bottom: 10px;
+}
+
+.skeleton-line {
+    height: 14px;
+    width: 90%;
+    margin-bottom: 10px;
+}
+
+.skeleton-line-md {
+    height: 12px;
+    width: 60%;
+}
+
+.skeleton-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+}
+
+.skeleton-title {
+    height: 22px;
+    width: 80px;
+}
+
+.skeleton-btn {
+    height: 32px;
+    width: 88px;
+    border-radius: 20px;
+}
+
+.skeleton-search {
+    height: 42px;
+    width: 100%;
+    margin-bottom: 16px;
+    border-radius: 14px;
+}
+
+.skeleton-stats {
+    height: 32px;
+    width: 60%;
+    margin-bottom: 14px;
+}
+
+.skeleton-tabs {
+    height: 40px;
+    width: 100%;
+    margin-bottom: 16px;
+    border-radius: 14px;
+}
+
+/* ============================================================
+   答题卡片（撑满屏幕）
+   ============================================================ */
+.quiz-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.quiz-card > .q-title {
+    flex-shrink: 0;
+}
+
+/* ============================================================
+   暗色适配
+   ============================================================ */
+body.theme-dark .confirm-title,
+body.theme-dark .result-title { color: #e0e0e8; }
+
+body.theme-dark .confirm-message { color: #a0a0b0; }
+
+body.theme-dark .confirm-btn.cancel {
+    background: rgba(255, 255, 255, 0.08);
+    color: #e0e0e8;
+}
+
+body.theme-dark .confirm-btn.cancel:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+body.theme-dark .result-stats {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+body.theme-dark .result-btn.home {
+    background: rgba(255, 255, 255, 0.08);
+    color: #e0e0e8;
+}
+
+body.theme-dark .result-btn.home:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+body.theme-dark .result-stat-label,
+body.theme-dark .result-acc-label {
+    color: #8888a0;
+}
+
+body.theme-dark .skeleton {
+    background: linear-gradient(90deg,
+        rgba(255, 255, 255, 0.06) 0%,
+        rgba(255, 255, 255, 0.12) 50%,
+        rgba(255, 255, 255, 0.06) 100%);
+    background-size: 200% 100%;
+}
+
+body.theme-dark .skeleton-item {
+    background: rgba(30, 30, 50, 0.5);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ============================================================
+   移动端适配
+   ============================================================ */
+@media (max-width: 360px) {
+    .result-acc-num { font-size: 44px; }
+    .result-acc-num span { font-size: 22px; }
+    .result-stat-num { font-size: 20px; }
+    .confirm-btn, .result-btn { padding: 12px; font-size: 14px; }
+}
