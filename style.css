@@ -2634,3 +2634,51 @@ body.theme-dark .nav-dot {
     background: rgba(50, 50, 80, 0.7);
     border-color: rgba(255, 255, 255, 0.15);
 }
+/* ============================================================
+   答题中切换章节 —— 章节选择弹窗
+   ============================================================ */
+.chapter-picker-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 4px 0;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.chapter-pick-chip {
+    padding: 10px 18px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.5);
+    font-size: 14px;
+    font-weight: 500;
+    color: #1d1d1f;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+    letter-spacing: 0.3px;
+}
+
+.chapter-pick-chip:hover {
+    background: rgba(255, 255, 255, 0.75);
+    transform: translateY(-1px);
+}
+
+.chapter-pick-chip.active {
+    background: linear-gradient(135deg, #0071e3, #5ac8fa);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.25);
+}
+
+body.theme-dark .chapter-pick-chip {
+    background: rgba(50, 50, 80, 0.5);
+    color: #e0e0e8;
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+body.theme-dark .chapter-pick-chip.active {
+    background: linear-gradient(135deg, #0071e3, #5ac8fa);
+    color: #fff;
+}
