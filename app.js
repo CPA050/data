@@ -1,6 +1,6 @@
 // ============================================================
-// QuizApp 11.5 · 完整版
-// 新增：_inQuiz 状态（切底栏保留答题）+ 答题中切换章节
+// QuizApp 11.6 · 完整版
+// 章节选择弹窗改为卡片式
 // ============================================================
 
 window.QuizApp = {
@@ -21,7 +21,6 @@ window.QuizApp = {
     _isRestoring: false,
     _isFinishing: false,
 
-    // ★ 核心新增：是否正在答题
     _inQuiz: false,
 
     _allChapters: [],
@@ -224,7 +223,6 @@ window.QuizApp = {
         this.loadSettings();
         this.loadWelcome();
 
-        // ★ 每次打开网页，强制回到首页状态
         this._inQuiz = false;
 
         const saved = localStorage.getItem('quiz_last_selected');
@@ -402,7 +400,7 @@ window.QuizApp = {
     },
 
     // ============================================================
-    // 底栏路由（★ 修复：答题中切回首页仍显示答题）
+    // 底栏路由
     // ============================================================
     bindTabs() {
         const tabbar = document.getElementById('tabbar');
@@ -428,7 +426,6 @@ window.QuizApp = {
         const home = document.getElementById('home');
         const app = document.getElementById('app');
 
-        // ★ 核心：首页 tab 特判 —— 如果正在答题，回到答题界面
         if (tab === 'home') {
             if (this._inQuiz && this.activeBank && this.activeBank.length > 0) {
                 home.style.display = 'none';
@@ -857,7 +854,6 @@ window.QuizApp = {
             this._consecutiveWrong = 0;
             this._sessionId = Date.now() + '_' + Math.random().toString(36).substr(2, 6);
 
-            // ★ 标记正在答题
             this._inQuiz = true;
 
             document.getElementById('home').style.display = 'none';
@@ -874,13 +870,22 @@ window.QuizApp = {
     },
 
     // ============================================================
-    // ★ 答题中切换章节
+    // 答题中切换章节（卡片式）
     // ============================================================
-    openChapterPicker() {
+    async openChapterPicker() {
         const modalRoot = document.getElementById('modalRoot');
         if (!modalRoot) return;
 
-        const chapters = this._allChapters || [];
+        const bank = this._cache.bank || await this.fetchBank();
+        const chapterMap = {};
+        bank.forEach(q => {
+            const c = (q.chapter || '').trim();
+            if (!c || c === '其他') return;
+            if (!chapterMap[c]) chapterMap[c] = 0;
+            chapterMap[c]++;
+        });
+        const chapters = Object.keys(chapterMap);
+
         if (chapters.length === 0) {
             this.showToast('题库暂未设置章节');
             return;
@@ -888,17 +893,45 @@ window.QuizApp = {
 
         const current = this._selectedChapters || [];
         const allActive = current.length === 0;
+        const total = bank.length;
 
-        let chipsHtml = `
-            <button class="chapter-pick-chip ${allActive ? 'active' : ''}"
-                    onclick="QuizApp.pickChapter('')">全部章节</button>
+        let listHtml = `
+            <button class="chapter-card chapter-card-all ${allActive ? 'active' : ''}"
+                    onclick="QuizApp.pickChapter('')">
+                <div class="chapter-card-left">
+                    <div class="chapter-card-num">ALL</div>
+                    <div class="chapter-card-info">
+                        <div class="chapter-card-name">全部章节</div>
+                        <div class="chapter-card-count">${total} 道题</div>
+                    </div>
+                </div>
+                <div class="chapter-card-right">
+                    ${allActive
+                        ? '<span class="chapter-card-check">✓</span>'
+                        : '<span class="chapter-card-arrow">→</span>'}
+                </div>
+            </button>
         `;
-        chapters.forEach(c => {
+
+        chapters.forEach((c, i) => {
             const active = current.includes(c);
-            chipsHtml += `
-                <button class="chapter-pick-chip ${active ? 'active' : ''}"
+            const count = chapterMap[c];
+            const num = String(i + 1).padStart(2, '0');
+            listHtml += `
+                <button class="chapter-card ${active ? 'active' : ''}"
                         onclick="QuizApp.pickChapter('${this.escAttr(c)}')">
-                    ${c}
+                    <div class="chapter-card-left">
+                        <div class="chapter-card-num">${num}</div>
+                        <div class="chapter-card-info">
+                            <div class="chapter-card-name">${c}</div>
+                            <div class="chapter-card-count">${count} 道题</div>
+                        </div>
+                    </div>
+                    <div class="chapter-card-right">
+                        ${active
+                            ? '<span class="chapter-card-check">✓</span>'
+                            : '<span class="chapter-card-arrow">→</span>'}
+                    </div>
                 </button>
             `;
         });
@@ -907,17 +940,17 @@ window.QuizApp = {
         modal.className = 'modal-overlay';
         modal.id = 'chapterPickerModal';
         modal.innerHTML = `
-            <div class="modal-card" style="max-width:440px;">
+            <div class="modal-card chapter-picker-card" style="max-width:460px;">
                 <div class="modal-header">
                     <span class="modal-title">切换章节</span>
                     <button class="modal-close"
                             onclick="QuizApp.closeModal('chapterPickerModal')">✕</button>
                 </div>
-                <div class="modal-hint" style="text-align:left;">
-                    选择章节后会从该章节的题目重新开始答题
+                <div class="chapter-picker-total">
+                    共 ${total} 道题 · ${chapters.length} 个章节
                 </div>
-                <div class="chapter-picker-list">
-                    ${chipsHtml}
+                <div class="chapter-card-list">
+                    ${listHtml}
                 </div>
             </div>
         `;
@@ -933,19 +966,17 @@ window.QuizApp = {
             this._selectedChapters = [chapter];
             this._isChapterMode = true;
         }
-        // 重新开始刷题（保留原模式：随机/顺序）
-        const user = this.getCurrentUser();
         const limit = this._currentLimit || 20;
         const isRandom = this._isRandom || false;
         const source = this._source === 'wrong' ? 'all' : this._source;
 
-        // 从该章节重新开始
-        this.start(isRandom, limit, source, this._selectedChapters.length > 0 ? this._selectedChapters : null);
+        this.start(isRandom, limit, source,
+            this._selectedChapters.length > 0 ? this._selectedChapters : null);
         this.showToast(chapter ? `已切换到「${chapter}」` : '已切换到全部章节');
     },
 
     // ============================================================
-    // 渲染答题卡片（★ 加了"章节"按钮）
+    // 渲染答题卡片
     // ============================================================
     renderCard(needAnimation, direction = 'none') {
         const app = document.getElementById('app');
@@ -1379,7 +1410,6 @@ window.QuizApp = {
         }
     },
 
-    // ★ 用户主动点"首页"按钮 = 真正退出答题
     goHome() {
         this.clearSessionContext();
         this._inQuiz = false;
