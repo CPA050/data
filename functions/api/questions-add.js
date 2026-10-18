@@ -1,26 +1,30 @@
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost(context) {
+  const { request, env } = context;
+  try {
     const body = await request.json();
-    // ✅ 修改点1：解构时加上 chapter（允许为空）
-    const { user_id, q, opts, a, chapter } = body;
+    const { user_id, q, opts, a, chapter, subject } = body;
 
-    if (!user_id || !q || !opts || a === undefined) {
-        return Response.json({ error: "缺少必要参数 (user_id, q, opts, a)" }, { status: 400 });
+    if (!user_id || !q) {
+      return new Response(JSON.stringify({ ok: false, error: '缺少必要参数' }), { status: 400 });
     }
 
-    try {
-        // ✅ 修改点2：INSERT 加上 chapter 字段
-        await env.exam_db.prepare(
-            "INSERT INTO questions (user_id, q, opts, a, chapter) VALUES (?, ?, ?, ?, ?)"
-        ).bind(
-            user_id,
-            q,
-            JSON.stringify(opts),
-            a,
-            chapter || ''  // 如果没有传 chapter，存空字符串
-        ).run();
+    const stmt = env.DB.prepare(
+      "INSERT INTO questions (user_id, q, opts, a, chapter, subject) VALUES (?, ?, ?, ?, ?, ?)"
+    ).bind(
+      user_id, 
+      q, 
+      JSON.stringify(opts), 
+      JSON.stringify(a), 
+      chapter || '', 
+      subject || '默认题库'
+    );
+    
+    await stmt.run();
 
-        return Response.json({ ok: true, message: "题目添加成功" });
-    } catch (err) {
-        return Response.json({ error: err.message }, { status: 500 });
-    }
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ ok: false, error: err.message }), { status: 500 });
+  }
 }
