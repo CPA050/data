@@ -1325,3 +1325,57 @@ window.QuizApp = {
                 } 
                 const wrongList = Object.values(map); this._wrongList = wrongList; const idMap = {}; 
                 wrongList.forEach(w => idMap[w.id] = { id: w.id, q: w.q, opts: w.opts, a: w.a, subject: w.subject, chapter: w.chapter, _isWrong: true, _wrongId: w.id }); 
+                active = ctx.ids.map(id => idMap[id]).filter(Boolean); 
+            } 
+            else if (ctx.isFavorites) { const favList = await this.fetchFav(true), idMap = {}; favList.forEach(q => idMap[q.id] = q); active = ctx.ids.map(id => idMap[id]).filter(Boolean); } 
+            else { const bank = await this.fetchBank(true), idMap = {}; bank.forEach(q => idMap[q.id] = q); active = ctx.ids.map(id => idMap[id]).filter(Boolean); }
+            
+            if (active.length === 0) { this.showToast('原题目已不存在'); return localStorage.removeItem(`quiz_session_${user}`); }
+            this.activeBank = active; this.record = ctx.records.slice(0, active.length); while (this.record.length < active.length) this.record.push(null); 
+            this.idx = Math.min(ctx.idx, active.length - 1); this._isRandom = ctx.isRandom; this._currentLimit = ctx.limit; this._source = ctx.source; 
+            this._selectedChapters = ctx.chapters || []; this._isChapterMode = this._selectedChapters.length > 0; this._isFavoritesMode = !!ctx.isFavorites; this._isRestoring = true; this._inQuiz = true;
+            document.getElementById('home').style.display = 'none'; document.getElementById('app').style.display = 'block'; document.getElementById('app').className = 'page'; 
+            this.renderCard(false); this._isRestoring = false; this.showToast(`已恢复（第 ${this.idx + 1}/${active.length} 题）`);
+        } catch (e) { console.error(e); this.showToast('恢复失败'); }
+    },
+
+    async checkSmartPrompts() { if (!this.getCurrentUser()) return; if (!localStorage.getItem('quiz_has_used')) { setTimeout(() => { this.showToast('点击屏幕中央开始刷题', 4000); localStorage.setItem('quiz_has_used', '1'); }, 1000); } },
+    
+    showToast(message, duration = 2000) { 
+        const container = document.getElementById('toastContainer'); if (!container) return; 
+        const item = document.createElement('div'); item.className = 'toast-item'; item.textContent = message; container.appendChild(item); 
+        setTimeout(() => { item.style.opacity = '0'; item.style.transition = 'opacity 0.3s'; setTimeout(() => item.remove(), 300); }, duration); 
+        while (container.children.length > 3) container.firstChild.remove(); 
+    },
+
+    bindKeyboard() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return; 
+            const k = e.key.toLowerCase(), app = document.getElementById('app');
+            if (this.currentTab === 'home' && app && app.style.display === 'none') {
+                if (k === 's') { e.preventDefault(); this.chooseMode('sequential'); } 
+                if (k === 'r') { e.preventDefault(); this.chooseMode('random'); }
+                if (k === 'w') { e.preventDefault(); this.switchTab('wrong'); } 
+                if (k === 'm') { e.preventDefault(); this.switchTab('bank'); }
+                if (k === 'h') { e.preventDefault(); this.goHome(); } 
+                if (k === 't') { e.preventDefault(); this.setTheme(['light', 'dark', 'eye'][( ['light', 'dark', 'eye'].indexOf(localStorage.getItem('quiz_theme') || 'light') + 1) % 3]); }
+                if (k === 'f') { e.preventDefault(); if (!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.(); } 
+                if (e.key === '?') { e.preventDefault(); this.openShortcutHelp(); } return;
+            }
+            const num = parseInt(e.key); 
+            if (num >= 1 && num <= 4) { const opts = document.querySelectorAll('.opt:not(.correct):not(.wrong):not(.selected)'); if (opts[num - 1]) opts[num - 1].click(); }
+            if (e.key === 'ArrowLeft') this.prevQuestion(); 
+            if (e.key === 'ArrowRight') this.nextQuestion();
+            if (e.key === 'Escape') { document.querySelectorAll('.modal-overlay').forEach(m => { if (m.id === 'quantityModal' || m.id === 'shortcutHelp') m.style.display = 'none'; else m.remove(); }); this.closeQuantityModal(); this.closeShortcutHelp(); }
+            if (e.key === '?') { e.preventDefault(); this.openShortcutHelp(); }
+        });
+    },
+
+    openShortcutHelp() { const el = document.getElementById('shortcutHelp'); if (el) el.style.display = 'flex'; },
+    closeShortcutHelp() { const el = document.getElementById('shortcutHelp'); if (el) el.style.display = 'none'; }
+};
+
+// ============================================================
+// 启动
+// ============================================================
+window.addEventListener('DOMContentLoaded', () => { QuizApp.init(); });
