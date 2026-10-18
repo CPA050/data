@@ -3407,3 +3407,4 @@ body.theme-dark .skeleton-item {
     min-width: 180px;
     text-align: center;
 }
+@keyframes spin { to { transform: rotate(360deg); } }
