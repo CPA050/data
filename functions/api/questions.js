@@ -1,12 +1,11 @@
-export async function onRequestGet(context) {
-  const { request, env } = context;
+export async function onRequestGet({ request, env }) {
   try {
     const url = new URL(request.url);
     const user_id = url.searchParams.get('user_id');
-    const subject = url.searchParams.get('subject');
+    const subject = url.searchParams.get('subject'); 
 
     if (!user_id) {
-      return new Response(JSON.stringify({ error: '缺少 user_id' }), { status: 400 });
+      return Response.json({ error: '缺少 user_id' }, { status: 400 });
     }
 
     let sql = "SELECT * FROM questions WHERE user_id = ?";
@@ -17,7 +16,8 @@ export async function onRequestGet(context) {
       params.push(subject);
     }
 
-    const { results } = await env.DB.prepare(sql).bind(...params).all();
+    // ★ 必须用 env.exam_db
+    const { results } = await env.exam_db.prepare(sql).bind(...params).all();
 
     const questions = results.map(row => ({
       ...row,
@@ -25,10 +25,8 @@ export async function onRequestGet(context) {
       a: JSON.parse(row.a)
     }));
 
-    return new Response(JSON.stringify(questions), {
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return Response.json(questions);
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    return Response.json({ error: err.message }, { status: 500 });
   }
 }
