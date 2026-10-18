@@ -1264,11 +1264,21 @@ window.QuizApp = {
         modal.innerHTML = `
             <div class="modal-card" style="max-width:520px;">
                 <div class="modal-header"><span class="modal-title">添加题目</span><button class="modal-close" onclick="QuizApp.closeModal('addQuestionModal')">✕</button></div>
-                <div style="margin-bottom: 12px; display: flex; gap: 10px;"><input type="text" id="importSubject" class="search-box" style="flex:1; margin:0;" placeholder="输入学科/题库（如：高等数学）" value="默认题库"></div>
                 
-                <!-- ★ 新增：AI 识别入口 -->
+                <div style="margin-bottom: 12px; display: flex; gap: 10px;">
+                    <input type="text" id="importSubject" class="search-box" style="flex:1; margin:0;" placeholder="输入学科/题库（如：高等数学）" value="默认题库">
+                </div>
+                
+                <!-- 方式一：上传 JSON/TXT 文件 -->
+                <div style="margin-bottom: 12px; padding: 12px; background: rgba(0,0,0,0.03); border-radius: 12px; display: flex; align-items: center; justify-content: space-between;">
+                    <div style="font-size: 14px; color: #1d1d1f;">📄 已有 JSON 文件？</div>
+                    <button class="mini-btn" style="background: rgba(0,0,0,0.08);" onclick="document.getElementById('jsonFileInput').click()">上传本地文件</button>
+                    <input type="file" id="jsonFileInput" accept=".json,.txt" style="display: none;" onchange="QuizApp.handleFileSelect(event)">
+                </div>
+
+                <!-- 方式二：AI 智能识别（图片/文本） -->
                 <div style="margin-bottom: 12px; padding: 12px; background: rgba(0,113,227,0.05); border-radius: 12px; border: 1px dashed rgba(0,113,227,0.2);">
-                    <div style="font-size: 13px; color: #0071e3; margin-bottom: 8px; font-weight: 600;">✨ AI 智能识别（支持图片或文本）</div>
+                    <div style="font-size: 13px; color: #0071e3; margin-bottom: 8px; font-weight: 600;">✨ 让 AI 帮你识别格式</div>
                     <div style="display: flex; gap: 10px;">
                         <button class="mini-btn" style="flex:1; background: #0071e3; color: #fff;" onclick="document.getElementById('aiImageInput').click()">📷 上传图片识别</button>
                         <button class="mini-btn" style="flex:1;" onclick="QuizApp.aiExtractText()">📝 从下方文本识别</button>
@@ -1276,12 +1286,34 @@ window.QuizApp = {
                     </div>
                 </div>
 
-                <div class="modal-hint">粘贴 AI 生成的 JSON 代码，自动解析导入<br><strong>格式：</strong><code>[{"q":"题目","opts":["A","B"],"a":0}]</code> 或简答题 <code>{"q":"题目","opts":[],"a":"答案"}</code></div>
-                <textarea class="modal-textarea" id="importCode" placeholder='支持直接粘贴原始文本，然后点击上面的“从下方文本识别”'></textarea>
-                <div class="modal-btns"><button class="btn-cancel" onclick="QuizApp.closeModal('addQuestionModal')">取消</button><button class="btn-primary" onclick="QuizApp.doImport()">直接导入</button></div>
+                <div class="modal-hint">支持直接粘贴纯文本让 AI 识别，或粘贴 JSON 代码直接导入。</div>
+                <textarea class="modal-textarea" id="importCode" placeholder='在这里粘贴内容...'></textarea>
+                
+                <div class="modal-btns">
+                    <button class="btn-cancel" onclick="QuizApp.closeModal('addQuestionModal')">取消</button>
+                    <button class="btn-primary" onclick="QuizApp.doImport()">直接导入 (解析JSON)</button>
+                </div>
             </div>
         `;
-        modalRoot.appendChild(modal); setTimeout(() => { const ta = document.getElementById('importCode'); if (ta) ta.focus(); }, 100);
+        modalRoot.appendChild(modal); 
+        setTimeout(() => { const ta = document.getElementById('importCode'); if (ta) ta.focus(); }, 100);
+    },
+
+    // 读取本地 JSON/TXT 文件，直接填入输入框
+    handleFileSelect(event) { 
+        const file = event.target.files[0]; if (!file) return; 
+        if (file.size > 5 * 1024 * 1024) { this.showToast('文件过大，请选择小于 5MB 的文件'); event.target.value = ''; return; } 
+        const reader = new FileReader(); 
+        reader.onload = (e) => { 
+            const content = e.target.result; 
+            const ta = document.getElementById('importCode'); 
+            if (ta) { 
+                ta.value = content; 
+                this.showToast('文件已读取，请点击「直接导入」'); 
+            } 
+        }; 
+        reader.readAsText(file); 
+        event.target.value = ''; 
     },
 
     // 处理图片上传并转 Base64
@@ -1346,17 +1378,17 @@ window.QuizApp = {
         reader.readAsText(file); event.target.value = ''; 
     },
 
-       async doImport() {
+    async doImport() {
         const user = this.getCurrentUser(); if (!user) return this.showToast('请先登录');
         const ta = document.getElementById('importCode'), subjectInput = document.getElementById('importSubject'); if (!ta) return;
         let code = ta.value.trim(), defaultSubject = subjectInput ? subjectInput.value.trim() : '默认题库';
         
         if (!code) return alert('请输入内容');
         
-        // ★ 只清理 AI 可能带的 markdown 标记，绝不乱改里面的文字符号！
+        // 清理首尾可能存在的 markdown 符号
         code = code.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
         
-        // 尝试截取数组部分（去掉 AI 的废话）
+        // 确保只截取 [ 到 ] 之间的内容，防止文件头尾有其他备注
         if (code.includes('[') && code.includes(']')) {
             code = code.substring(code.indexOf('['), code.lastIndexOf(']') + 1);
         }
@@ -1365,7 +1397,8 @@ window.QuizApp = {
         try { 
             arr = JSON.parse(code); 
         } catch (e) { 
-            return alert('❌ JSON 语法错误：\n' + e.message + '\n\n请检查文件内容是否完整。'); 
+            // 如果依然报错，直接弹出浏览器的 alert
+            return alert('❌ JSON 语法错误：\n' + e.message + '\n\n请确认文件是标准的 JSON 格式。'); 
         }
         
         if (!Array.isArray(arr) || arr.length === 0) return alert('❌ 内容必须是用方括号 [ ] 包起来的数组');
@@ -1382,7 +1415,6 @@ window.QuizApp = {
             let opts = item.opts || [];
             let a = item.a;
 
-            // 兼容 AI 把 opts 弄成字符串的情况
             if (typeof opts === 'string') {
                 opts = opts.split(/[,，\n]/).map(s => s.trim()).filter(Boolean);
             }
@@ -1391,7 +1423,6 @@ window.QuizApp = {
             const isEssay = opts.length === 0;
 
             if (!isEssay) {
-                // 兼容 AI 把答案 a 输出成字母 "A" 的情况
                 if (typeof a === 'string' && /^[A-Za-z]$/.test(a.trim())) {
                     a = a.trim().toUpperCase().charCodeAt(0) - 65;
                 } 
@@ -1419,11 +1450,9 @@ window.QuizApp = {
         });
 
         if (errors.length > 0) { 
-            alert('❌ 校验失败：\n' + errors.join('\n')); 
-            return; 
+            return alert('❌ 校验失败：\n' + errors.join('\n')); 
         }
 
-        // 开始导入
         this.closeModal('addQuestionModal');
         const toastMsg = document.createElement('div'); 
         toastMsg.className = 'toast-item import-progress'; 
