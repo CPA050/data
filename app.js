@@ -1351,11 +1351,14 @@ window.QuizApp = {
         const ta = document.getElementById('importCode'), subjectInput = document.getElementById('importSubject'); if (!ta) return;
         let code = ta.value.trim(), defaultSubject = subjectInput ? subjectInput.value.trim() : '默认题库';
         
-        if (!code) return this.showToast('请输入内容');
+        if (!code) return alert('请输入内容');
         
-        // ★ 1. 强力清洗：去掉 AI 可能带的 markdown 标记
+        // ★ 1. 暴力清洗：替换中文标点为英文标点
+        code = code.replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/，/g, ',').replace(/：/g, ':');
+        // 去掉 markdown 标记
         code = code.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
-        // 如果 AI 在前面说了废话（比如 "好的，这是解析结果："），尝试截取第一个 [ 到最后一个 ]
+        
+        // 尝试截取数组部分（去掉 AI 的废话）
         if (code.includes('[') && code.includes(']')) {
             code = code.substring(code.indexOf('['), code.lastIndexOf(']') + 1);
         }
@@ -1364,10 +1367,12 @@ window.QuizApp = {
         try { 
             arr = JSON.parse(code); 
         } catch (e) { 
-            return this.showToast('❌ JSON 语法错误，请检查括号或逗号是否匹配'); 
+            // ★ 如果解析失败，直接弹窗显示具体原因，不让你瞎猜
+            alert('❌ JSON 语法错误：\n' + e.message + '\n\n请检查是否多了或少了逗号、引号。'); 
+            return; 
         }
         
-        if (!Array.isArray(arr) || arr.length === 0) return this.showToast('❌ 必须是包含题目的有效数组');
+        if (!Array.isArray(arr) || arr.length === 0) return alert('❌ 内容必须是用方括号 [ ] 包起来的数组');
 
         // ★ 2. 智能纠错与格式整理
         const errors = [];
@@ -1375,7 +1380,7 @@ window.QuizApp = {
 
         arr.forEach((item, i) => {
             if (!item.q) {
-                errors.push(`第 ${i + 1} 题缺少 q（题目）`);
+                errors.push(`第 ${i + 1} 题缺少 q（题目内容）`);
                 return;
             }
             
@@ -1395,14 +1400,12 @@ window.QuizApp = {
                 if (typeof a === 'string' && /^[A-Za-z]$/.test(a.trim())) {
                     a = a.trim().toUpperCase().charCodeAt(0) - 65;
                 } 
-                // 兼容多选答案输出成字符串 "0,2" 或 ["0", "2"]
                 if (Array.isArray(a)) {
                     a = a.map(x => typeof x === 'string' && /^[A-Za-z]$/.test(x) ? x.charCodeAt(0) - 65 : parseInt(x));
                     a = a.filter(n => !isNaN(n));
-                    if (a.length === 1) a = a[0]; // 如果只有一个答案，转成单选
+                    if (a.length === 1) a = a[0];
                 }
             } else {
-                // 如果是简答题，a 必须是文本
                 a = String(a || '');
             }
 
@@ -1421,8 +1424,7 @@ window.QuizApp = {
         });
 
         if (errors.length > 0) { 
-            this.showToast('❌ ' + errors[0]); 
-            console.error('校验失败：\n' + errors.join('\n')); 
+            alert('❌ 校验失败：\n' + errors.join('\n')); 
             return; 
         }
 
@@ -1442,9 +1444,9 @@ window.QuizApp = {
             }); 
             const d = await res.json(); 
             if (d.ok) this.showToast(`✅ 成功导入 ${d.count} 道题`); 
-            else this.showToast('导入失败：' + (d.error || '未知错误')); 
+            else alert('导入失败：' + (d.error || '未知错误')); 
         } catch (e) { 
-            this.showToast('网络请求失败'); 
+            alert('网络请求失败'); 
         }
         
         if (toastMsg.parentNode) toastMsg.remove();
