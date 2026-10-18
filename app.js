@@ -1285,14 +1285,14 @@ window.QuizApp = {
     },
 
     // 处理图片上传并转 Base64
-    handleAIImage(event) {
+     handleAIImage(event) {
         const file = event.target.files[0];
         if (!file) return;
-        if (file.size > 5 * 1024 * 1024) return this.showToast('图片不能超过 5MB');
+        if (file.size > 5 * 1024 * 1024) return this.showToast('图片不能超过 5MB，请压缩后再试');
 
         const reader = new FileReader();
         reader.onload = async (e) => {
-            const base64 = e.target.result;
+            const base64 = e.target.result; // 包含了 data:image/jpeg;base64,
             await this.aiExtract(null, base64);
         };
         reader.readAsDataURL(file);
