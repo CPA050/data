@@ -987,10 +987,74 @@ window.QuizApp = {
     onBankSearch(v) { if (this._bankSearchTimer) clearTimeout(this._bankSearchTimer); this._bankSearchTimer = setTimeout(() => { this._renderBankUI(this._bankCache || [], v); const inp = document.querySelector('#app .search-box'); if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); } }, 200); },
 
     showAddQuestionModal() {
-        const modalRoot = document.getElementById('modalRoot'); if (!modalRoot) return this.showToast('容器缺失');
-        const modal = document.createElement('div'); modal.className = 'modal-overlay'; modal.id = 'addQuestionModal';
-        modal.innerHTML = `<div class="modal-card" style="max-width:520px;"><div class="modal-header"><span class="modal-title">添加题目</span><button class="modal-close" onclick="QuizApp.closeModal('addQuestionModal')">✕</button></div><div style="margin-bottom: 12px; display: flex; gap: 10px;"><input type="text" id="importSubject" class="search-box" style="flex:1; margin:0;" placeholder="输入学科/题库（如：高等数学）" value="默认题库"></div><div class="modal-hint">粘贴 AI 生成的 JSON 代码，自动解析导入<br><strong>格式说明：</strong><br><code>[{"q":"题目","opts":["A","B"],"a":0,"chapter":"第一章"}]</code><br>如果 JSON 里带了 <code>"subject":"学科名"</code>，会优先使用 JSON 里的。</div><textarea class="modal-textarea" id="importCode" placeholder='[{"q":"示例题目","opts":["A","B","C","D"],"a":0,"chapter":"第一章"}]'></textarea><div class="modal-btns"><button class="btn-cancel" onclick="QuizApp.closeModal('addQuestionModal')">取消</button><button class="btn-primary" onclick="QuizApp.doImport()">导入</button></div></div>`;
-        modalRoot.appendChild(modal); setTimeout(() => { const ta = document.getElementById('importCode'); if (ta) ta.focus(); }, 100);
+        const modalRoot = document.getElementById('modalRoot');
+        if (!modalRoot) { this.showToast('页面容器缺失，请刷新重试'); return; }
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.id = 'addQuestionModal';
+        modal.innerHTML = `
+            <div class="modal-card" style="max-width:520px;">
+                <div class="modal-header">
+                    <span class="modal-title">添加题目</span>
+                    <button class="modal-close" onclick="QuizApp.closeModal('addQuestionModal')">✕</button>
+                </div>
+                <div style="margin-bottom: 12px; display: flex; gap: 10px;">
+                    <input type="text" id="importSubject" class="search-box" style="flex:1; margin:0;" placeholder="输入学科/题库（如：高等数学）" value="默认题库">
+                </div>
+                
+                <!-- ★ 新增：本地文件导入按钮 -->
+                <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 10px;">
+                    <button class="mini-btn" onclick="document.getElementById('importFileInput').click()">📂 选择本地文件导入</button>
+                    <span style="font-size: 12px; color: #86868b;">支持 .json 或 .txt 文件</span>
+                    <input type="file" id="importFileInput" accept=".json,.txt" style="display: none;" onchange="QuizApp.handleFileSelect(event)">
+                </div>
+
+                <div class="modal-hint">
+                    粘贴 AI 生成的 JSON 代码，自动解析导入<br>
+                    <strong>格式说明：</strong><br>
+                    <code>[{"q":"题目","opts":["A","B"],"a":0,"chapter":"第一章"}]</code><br>
+                    如果 JSON 里带了 <code>"subject":"学科名"</code>，会优先使用 JSON 里的。
+                </div>
+                <textarea class="modal-textarea" id="importCode" placeholder='[{"q":"示例题目","opts":["A","B","C","D"],"a":0,"chapter":"第一章"}]'></textarea>
+                <div class="modal-btns">
+                    <button class="btn-cancel" onclick="QuizApp.closeModal('addQuestionModal')">取消</button>
+                    <button class="btn-primary" onclick="QuizApp.doImport()">导入</button>
+                </div>
+            </div>
+        `;
+        modalRoot.appendChild(modal);
+        setTimeout(() => {
+            const ta = document.getElementById('importCode');
+            if (ta) ta.focus();
+        }, 100);
+    },
+
+    // ★ 新增：处理文件读取
+    handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        if (file.size > 2 * 1024 * 1024) {
+            this.showToast('文件过大，请选择小于 2MB 的文件');
+            event.target.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const content = e.target.result;
+            const ta = document.getElementById('importCode');
+            if (ta) {
+                ta.value = content;
+                try {
+                    const parsed = JSON.parse(content);
+                    ta.value = JSON.stringify(parsed, null, 2);
+                } catch (err) {}
+                this.showToast('文件已读取，请确认后点击导入');
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = '';
     },
     async doImport() {
         const user = this.getCurrentUser(); if (!user) return this.showToast('请先登录');
