@@ -2610,64 +2610,6 @@ window.QuizApp = {
         `;
     },
 
-    setBankSubject(sub) {
-        this._bankSubjectFilter = sub;
-        this._bankChapterFilter = 'all';
-        this._bankSelected = [];
-        this._renderBankUI(this._bankCache || [], '');
-    },
-
-        let bottomBar = '';
-        if (this._bankEditMode) {
-            const allSelected = filtered.length > 0 &&
-                filtered.every(q => this._bankSelected.includes(q.id));
-            bottomBar = `
-                <div class="bank-bottom-bar">
-                    <button class="bottom-btn" onclick="QuizApp.selectAllQuestions()">
-                        ${allSelected ? '取消全选' : '全选'}
-                    </button>
-                    <button class="bottom-btn danger"
-                            onclick="QuizApp.deleteSelectedQuestions()"
-                            ${this._bankSelected.length === 0 ? 'disabled' : ''}>
-                        删除选中 (${this._bankSelected.length})
-                    </button>
-                    <button class="bottom-btn" onclick="QuizApp.exitBankEditMode()">
-                        完成
-                    </button>
-                </div>
-            `;
-        }
-
-        app.innerHTML = `
-            <div class="page-card">
-                <div class="bank-head">
-                    <div>
-                        <div class="bank-title">题库</div>
-                        <div class="bank-count">共 ${total} 道${this._bankChapterFilter !== 'all' ? ` · 当前章节 ${filteredTotal} 道` : ''}</div>
-                    </div>
-                    <div style="display:flex;gap:8px;">
-                        ${total > 0 ? `
-                            <button class="add-btn" style="background:rgba(0,0,0,0.06);color:#1d1d1f;box-shadow:none;"
-                                    onclick="QuizApp.${this._bankEditMode ? 'exitBankEditMode' : 'enterBankEditMode'}()">
-                                ${this._bankEditMode ? '完成' : '选择'}
-                            </button>
-                        ` : ''}
-                        <button class="add-btn" onclick="QuizApp.showAddQuestionModal()">添加题目</button>
-                    </div>
-                </div>
-                ${chapterBar}
-                ${total > 0 ? `
-                    <input class="search-box" type="text"
-                           placeholder="搜索题目..."
-                           value="${keyword}"
-                           oninput="QuizApp.onBankSearch(this.value)">
-                ` : ''}
-                ${listHtml}
-            </div>
-            ${bottomBar}
-        `;
-    },
-
     setBankChapter(ch) {
         this._bankChapterFilter = ch;
         this._bankSelected = [];
@@ -2884,53 +2826,6 @@ window.QuizApp = {
         this._renderBankUI(this._bankCache, '');
     },
 
-        // ★ 分批并行导入（每批 10 道）
-        const total = arr.length;
-        const BATCH_SIZE = 10;
-        let ok = 0, fail = 0;
-
-        this.closeModal('addQuestionModal');
-
-        const toastMsg = document.createElement('div');
-        toastMsg.className = 'toast-item import-progress';
-        toastMsg.textContent = `导入中 0/${total}...`;
-        const container = document.getElementById('toastContainer');
-        if (container) container.appendChild(toastMsg);
-
-        for (let i = 0; i < total; i += BATCH_SIZE) {
-            const batch = arr.slice(i, i + BATCH_SIZE);
-            const results = await Promise.all(
-                batch.map(item =>
-                    fetch('/api/questions-add', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            user_id: user,
-                            q: item.q,
-                            opts: item.opts,
-                            a: item.a,
-                            chapter: item.chapter || ''
-                        })
-                    })
-                    .then(r => r.json())
-                    .then(d => d.ok !== false)
-                    .catch(() => false)
-                )
-            );
-            results.forEach(r => r ? ok++ : fail++);
-            const done = Math.min(i + BATCH_SIZE, total);
-            toastMsg.textContent = `导入中 ${done}/${total}...`;
-        }
-
-        if (toastMsg.parentNode) toastMsg.remove();
-
-        this.showToast(`成功导入 ${ok} 道${fail ? '，失败 ' + fail + ' 道' : ''}`);
-
-        this.invalidateCache('bank');
-        await this.fetchBank(true);
-        this._bankCache = this._cache.bank;
-        this._renderBankUI(this._bankCache, '');
-    },
 
     closeModal(id) {
         const el = document.getElementById(id);
