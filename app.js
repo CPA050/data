@@ -320,18 +320,42 @@ window.QuizApp = {
 
     showSetPasswordModal(username) {
         return new Promise((resolve) => {
+            this._pwdResolve = resolve; // ★ 把 resolve 存在全局对象上
             const modal = document.createElement('div'); modal.className = 'modal-overlay';
-            modal.innerHTML = `<div class="modal-card" style="max-width:380px;"><div class="modal-title">设置密码</div><div style="font-size:13px;color:#86868b;margin-bottom:12px;">账户：${username}</div><input type="password" id="newPwd" class="search-box" placeholder="设置密码（至少4位）" style="width:100%;margin-bottom:12px;"><input type="password" id="newPwd2" class="search-box" placeholder="确认密码" style="width:100%;margin-bottom:16px;"><div class="modal-btns"><button class="btn-primary" id="setPwdBtn" onclick="QuizApp._doSetPwd('${username}', ${resolve})">确定</button></div></div>`;
+            modal.innerHTML = `<div class="modal-card" style="max-width:380px;"><div class="modal-title">设置密码</div><div style="font-size:13px;color:#86868b;margin-bottom:12px;">账户：${username}</div><input type="password" id="newPwd" class="search-box" placeholder="设置密码（至少4位）" style="width:100%;margin-bottom:12px;"><input type="password" id="newPwd2" class="search-box" placeholder="确认密码" style="width:100%;margin-bottom:16px;"><div class="modal-btns"><button class="btn-primary" id="setPwdBtn" onclick="QuizApp._doSetPwd('${username}')">确定</button></div></div>`;
             document.getElementById('modalRoot').appendChild(modal);
         });
     },
 
-    async _doSetPwd(username, resolveCallback) {
-        const p1 = document.getElementById('newPwd').value, p2 = document.getElementById('newPwd2').value;
-        if (p1.length < 4) return this.showToast('密码至少4位'); if (p1 !== p2) return this.showToast('两次密码不一致');
-        const btn = document.getElementById('setPwdBtn'); btn.textContent = '保存中...';
-        const res = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set', username, password: p1 }) }).then(r => r.json());
-        if (res.ok) { document.querySelector('.modal-overlay').remove(); resolveCallback(true); } else { this.showToast(res.error); btn.textContent = '确定'; }
+    async _doSetPwd(username) {
+        const p1 = document.getElementById('newPwd').value;
+        const p2 = document.getElementById('newPwd2').value;
+        
+        if (p1.length < 4) return this.showToast('密码至少4位'); 
+        if (p1 !== p2) return this.showToast('两次密码不一致');
+        
+        const btn = document.getElementById('setPwdBtn'); 
+        btn.textContent = '保存中...';
+        
+        try {
+            const res = await fetch('/api/auth', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ action: 'set', username, password: p1 }) 
+            }).then(r => r.json());
+            
+            if (res.ok) { 
+                document.querySelector('.modal-overlay').remove(); 
+                // ★ 成功后，调用刚才存下来的 resolve
+                if (this._pwdResolve) this._pwdResolve(true); 
+            } else { 
+                this.showToast(res.error); 
+                btn.textContent = '确定'; 
+            }
+        } catch (e) {
+            this.showToast('网络请求失败');
+            btn.textContent = '确定';
+        }
     },
 
     showChangePasswordModal() {
