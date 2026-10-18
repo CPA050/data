@@ -353,39 +353,103 @@ window.QuizApp = {
     // AI 智能解析与批改
     // ============================================================
     async aiExplain(question, options, answer) {
+        // 1. 立刻弹出 Loading 弹窗
+        const modalRoot = document.getElementById('modalRoot');
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-card" style="max-width:500px;">
+                <div class="modal-header">
+                    <span class="modal-title">🤖 AI 解析</span>
+                    <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
+                </div>
+                <div id="aiContent" style="padding:16px; line-height:1.8; font-size:15px; color:#1d1d1f; min-height:100px; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                    <div style="width:24px;height:24px;border:3px solid #e5e5ea;border-top-color:#0071e3;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:12px;"></div>
+                    <span style="color:#86868b;">AI 正在努力思考中...</span>
+                </div>
+            </div>
+        `;
+        modalRoot.appendChild(modal);
+
+        // 2. 发送请求
         const prompt = `题目：${question}\n选项：${options || '无'}\n正确答案：${answer}\n请解析这道题。`;
-        this.showToast('🤖 AI 正在思考...');
         try {
             const res = await fetch('/api/ai', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ prompt, action: 'explain' })
             });
             const data = await res.json();
+            
+            const contentDiv = document.getElementById('aiContent');
+            if (!contentDiv) return; // 用户可能中途关闭了弹窗
+
             if (data.ok) {
-                const modal = document.createElement('div');
-                modal.className = 'modal-overlay';
-                modal.innerHTML = `<div class="modal-card" style="max-width:500px;"><div class="modal-header"><span class="modal-title">🤖 AI 解析</span><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div style="padding:16px; line-height:1.8; font-size:15px; color:#1d1d1f; white-space:pre-wrap; max-height:60vh; overflow-y:auto;">${this.escapeHtml(data.result)}</div></div>`;
-                document.getElementById('modalRoot').appendChild(modal);
-            } else { this.showToast('AI 解析失败：' + data.error); }
-        } catch (e) { this.showToast('请求失败'); }
+                contentDiv.style.display = 'block';
+                contentDiv.innerHTML = `<div style="white-space:pre-wrap;">${this.escapeHtml(data.result)}</div>`;
+            } else {
+                contentDiv.innerHTML = `<span style="color:#ff3b30;">解析失败：${data.error}</span>`;
+            }
+        } catch (e) {
+            const contentDiv = document.getElementById('aiContent');
+            if (contentDiv) contentDiv.innerHTML = `<span style="color:#ff3b30;">请求超时或网络错误</span>`;
+        }
     },
 
     async aiGrade(question, studentAnswer, standardAnswer) {
+        // 1. 立刻弹出 Loading 弹窗
+        const modalRoot = document.getElementById('modalRoot');
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-card" style="max-width:400px;">
+                <div class="modal-header">
+                    <span class="modal-title">🤖 AI 批改</span>
+                    <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
+                </div>
+                <div id="aiGradeContent" style="padding:16px; line-height:1.8; font-size:15px; color:#1d1d1f; min-height:100px; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                    <div style="width:24px;height:24px;border:3px solid #e5e5ea;border-top-color:#0071e3;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:12px;"></div>
+                    <span style="color:#86868b;">阅卷老师正在批改...</span>
+                </div>
+            </div>
+        `;
+        modalRoot.appendChild(modal);
+
+        // 2. 发送请求
         const prompt = `题目：${question}\n学生回答：${studentAnswer}\n标准答案：${standardAnswer}`;
-        this.showToast('🤖 AI 正在批改...');
         try {
             const res = await fetch('/api/ai', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ prompt, action: 'grade' })
             });
             const data = await res.json();
+            
+            const contentDiv = document.getElementById('aiGradeContent');
+            if (!contentDiv) return;
+
             if (data.ok) {
                 const isCorrect = data.result.includes('得分') && !data.result.includes('不得分');
                 this.record[this.idx].isCorrect = isCorrect;
-                this.showToast(isCorrect ? '✅ AI 判定：回答正确' : '❌ AI 判定：回答错误', 3000);
-                this.renderCard(false);
-            } else { this.showToast('AI 批改失败：' + data.error); }
-        } catch (e) { this.showToast('请求失败'); }
+                
+                contentDiv.innerHTML = `
+                    <div style="text-align:center;">
+                        <div style="font-size:32px; margin-bottom:12px;">${isCorrect ? '✅' : '❌'}</div>
+                        <div style="font-size:18px; font-weight:bold; color:${isCorrect ? '#34c759' : '#ff3b30'}; margin-bottom:8px;">
+                            ${isCorrect ? '回答正确' : '回答错误'}
+                        </div>
+                        <div style="color:#86868b; font-size:14px;">${this.escapeHtml(data.result)}</div>
+                    </div>
+                `;
+                setTimeout(() => {
+                    modal.remove();
+                    this.renderCard(false);
+                }, 2000);
+            } else {
+                contentDiv.innerHTML = `<span style="color:#ff3b30;">批改失败：${data.error}</span>`;
+            }
+        } catch (e) {
+            const contentDiv = document.getElementById('aiGradeContent');
+            if (contentDiv) contentDiv.innerHTML = `<span style="color:#ff3b30;">请求超时或网络错误</span>`;
+        }
     },
 
     // ============================================================
