@@ -1350,37 +1350,108 @@ window.QuizApp = {
         const user = this.getCurrentUser(); if (!user) return this.showToast('请先登录');
         const ta = document.getElementById('importCode'), subjectInput = document.getElementById('importSubject'); if (!ta) return;
         let code = ta.value.trim(), defaultSubject = subjectInput ? subjectInput.value.trim() : '默认题库';
+        
         if (!code) return this.showToast('请输入内容');
+        
+        // ★ 1. 强力清洗：去掉 AI 可能带的 markdown 标记
         code = code.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
-        let arr; 
-        try { arr = JSON.parse(code); } catch (e) { const m = code.match(/\[[\s\S]*\]/); if (m) { try { arr = JSON.parse(m[0]); } catch (e2) { return this.showToast('JSON 格式错误'); } } else return this.showToast('JSON 格式错误'); }
-        if (!Array.isArray(arr) || arr.length === 0) return this.showToast('必须是有效数组');
-        
-        const errors = [];
-        arr.forEach((item, i) => {
-            if (!item.q) errors.push(`第 ${i + 1} 题缺少 q`);
-            const isEssay = !item.opts || item.opts.length === 0;
-            if (!isEssay && (!Array.isArray(item.opts) || item.opts.length < 2))
-                errors.push(`第 ${i + 1} 题 opts 必须为数组且至少 2 项`);
-            if (item.a === undefined || item.a === null)
-                errors.push(`第 ${i + 1} 题缺少 a`);
-        });
-        if (errors.length > 0) { this.showToast('校验失败：' + errors[0]); console.error('校验失败：\n' + errors.join('\n')); return; }
+        // 如果 AI 在前面说了废话（比如 "好的，这是解析结果："），尝试截取第一个 [ 到最后一个 ]
+        if (code.includes('[') && code.includes(']')) {
+            code = code.substring(code.indexOf('['), code.lastIndexOf(']') + 1);
+        }
 
-        const formattedQuestions = arr.map(item => ({ q: item.q, opts: item.opts || [], a: item.a, chapter: item.chapter || '', subject: item.subject || defaultSubject }));
-        this.closeModal('addQuestionModal');
+        let arr; 
+        try { 
+            arr = JSON.parse(code); 
+        } catch (e) { 
+            return this.showToast('❌ JSON 语法错误，请检查括号或逗号是否匹配'); 
+        }
         
-        const toastMsg = document.createElement('div'); toastMsg.className = 'toast-item import-progress'; toastMsg.textContent = `正在上传 ${arr.length} 道题...`; 
-        const container = document.getElementById('toastContainer'); if (container) container.appendChild(toastMsg);
+        if (!Array.isArray(arr) || arr.length === 0) return this.showToast('❌ 必须是包含题目的有效数组');
+
+        // ★ 2. 智能纠错与格式整理
+        const errors = [];
+        const formattedQuestions = [];
+
+        arr.forEach((item, i) => {
+            if (!item.q) {
+                errors.push(`第 ${i + 1} 题缺少 q（题目）`);
+                return;
+            }
+            
+            let opts = item.opts || [];
+            let a = item.a;
+
+            // 兼容 AI 把 opts 弄成字符串的情况
+            if (typeof opts === 'string') {
+                opts = opts.split(/[,，\n]/).map(s => s.trim()).filter(Boolean);
+            }
+            if (!Array.isArray(opts)) opts = [];
+
+            const isEssay = opts.length === 0;
+
+            if (!isEssay) {
+                // 兼容 AI 把答案 a 输出成字母 "A" 的情况
+                if (typeof a === 'string' && /^[A-Za-z]$/.test(a.trim())) {
+                    a = a.trim().toUpperCase().charCodeAt(0) - 65;
+                } 
+                // 兼容多选答案输出成字符串 "0,2" 或 ["0", "2"]
+                if (Array.isArray(a)) {
+                    a = a.map(x => typeof x === 'string' && /^[A-Za-z]$/.test(x) ? x.charCodeAt(0) - 65 : parseInt(x));
+                    a = a.filter(n => !isNaN(n));
+                    if (a.length === 1) a = a[0]; // 如果只有一个答案，转成单选
+                }
+            } else {
+                // 如果是简答题，a 必须是文本
+                a = String(a || '');
+            }
+
+            if (a === undefined || a === null) {
+                errors.push(`第 ${i + 1} 题缺少 a（答案）`);
+                return;
+            }
+
+            formattedQuestions.push({
+                q: item.q,
+                opts: opts,
+                a: a,
+                chapter: item.chapter || '默认章节',
+                subject: item.subject || defaultSubject
+            });
+        });
+
+        if (errors.length > 0) { 
+            this.showToast('❌ ' + errors[0]); 
+            console.error('校验失败：\n' + errors.join('\n')); 
+            return; 
+        }
+
+        // 3. 开始导入
+        this.closeModal('addQuestionModal');
+        const toastMsg = document.createElement('div'); 
+        toastMsg.className = 'toast-item import-progress'; 
+        toastMsg.textContent = `正在上传 ${formattedQuestions.length} 道题...`; 
+        const container = document.getElementById('toastContainer'); 
+        if (container) container.appendChild(toastMsg);
         
         try { 
-            const res = await fetch('/api/questions-add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user, questions: formattedQuestions }) }); 
+            const res = await fetch('/api/questions-add', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ user_id: user, questions: formattedQuestions }) 
+            }); 
             const d = await res.json(); 
-            if (d.ok) this.showToast(`成功导入 ${d.count} 道题`); else this.showToast('导入失败：' + (d.error || '未知错误')); 
-        } catch (e) { this.showToast('请求失败'); }
+            if (d.ok) this.showToast(`✅ 成功导入 ${d.count} 道题`); 
+            else this.showToast('导入失败：' + (d.error || '未知错误')); 
+        } catch (e) { 
+            this.showToast('网络请求失败'); 
+        }
         
         if (toastMsg.parentNode) toastMsg.remove();
-        this.invalidateCache('bank'); await this.fetchBank(true); this._bankCache = this._cache.bank; this._renderBankUI(this._bankCache, '');
+        this.invalidateCache('bank'); 
+        await this.fetchBank(true); 
+        this._bankCache = this._cache.bank; 
+        this._renderBankUI(this._bankCache, '');
     },
 
     closeModal(id) { const el = document.getElementById(id); if (el) el.remove(); },
