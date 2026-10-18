@@ -331,13 +331,150 @@ window.QuizApp = {
     vibrate(pattern) { if (this._vibrationEnabled && this.isVibrationSupported()) try { navigator.vibrate(pattern); } catch (e) {} },
     getCurrentUser() { return localStorage.getItem('quiz_user_id'); },
     checkLogin() {
-        let user = this.getCurrentUser();
-        if (!user) {
-            user = prompt('请输入您的用户名：');
-            if (user && user.trim()) { localStorage.setItem('quiz_user_id', user.trim()); this.updateUserUI(); this.invalidateCache(); return user.trim(); }
-            return null;
+        return new Promise((resolve) => {
+            let user = this.getCurrentUser();
+            if (user) { resolve(user); return; }
+
+            const modalRoot = document.getElementById('modalRoot');
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-card" style="max-width:380px;">
+                    <div class="modal-title">登录 / 注册</div>
+                    <input type="text" id="loginUser" class="search-box" placeholder="请输入用户名" style="width:100%;margin-bottom:12px;">
+                    <div id="loginPwdWrap" style="display:none;">
+                        <input type="password" id="loginPwd" class="search-box" placeholder="请输入密码" style="width:100%;margin-bottom:12px;">
+                    </div>
+                    <div class="modal-btns">
+                        <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove(); QuizApp._loginResolve(null);">取消</button>
+                        <button class="btn-primary" id="loginBtn" onclick="QuizApp._doLogin()">下一步</button>
+                    </div>
+                </div>
+            `;
+            modalRoot.appendChild(modal);
+            this._loginResolve = resolve;
+            setTimeout(() => document.getElementById('loginUser').focus(), 100);
+        });
+    },
+
+    async _doLogin() {
+        const userInp = document.getElementById('loginUser').value.trim();
+        if (!userInp) return this.showToast('请输入用户名');
+        
+        const pwdWrap = document.getElementById('loginPwdWrap');
+        const pwdInp = document.getElementById('loginPwd');
+        const btn = document.getElementById('loginBtn');
+
+        if (pwdWrap.style.display === 'none') {
+            btn.textContent = '检查中...';
+            const res = await fetch('/api/auth', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'check', username: userInp })
+            }).then(r => r.json());
+
+            if (!res.ok) { this.showToast(res.error); btn.textContent = '下一步'; return; }
+
+            if (res.hasPassword) {
+                pwdWrap.style.display = 'block';
+                btn.textContent = '登录';
+                pwdInp.focus();
+            } else {
+                this.showToast('首次登录，请设置密码');
+                this.showSetPasswordModal(userInp).then(success => {
+                    if (success) {
+                        localStorage.setItem('quiz_user_id', userInp);
+                        this.updateUserUI(); this.invalidateCache(); this.showToast('设置成功，已登录');
+                        this.renderMe(); this._loginResolve(userInp);
+                    }
+                });
+            }
+        } else {
+            btn.textContent = '登录中...';
+            const res = await fetch('/api/auth', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'login', username: userInp, password: pwdInp.value })
+            }).then(r => r.json());
+
+            if (res.ok) {
+                localStorage.setItem('quiz_user_id', userInp);
+                this.updateUserUI(); this.invalidateCache(); this.showToast('登录成功');
+                document.querySelector('.modal-overlay').remove();
+                this.renderMe(); this._loginResolve(userInp);
+            } else {
+                this.showToast(res.error); btn.textContent = '登录';
+            }
         }
-        return user;
+    },
+
+    showSetPasswordModal(username) {
+        return new Promise((resolve) => {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-card" style="max-width:380px;">
+                    <div class="modal-title">设置密码</div>
+                    <div style="font-size:13px;color:#86868b;margin-bottom:12px;">账户：${username}</div>
+                    <input type="password" id="newPwd" class="search-box" placeholder="设置密码（至少4位）" style="width:100%;margin-bottom:12px;">
+                    <input type="password" id="newPwd2" class="search-box" placeholder="确认密码" style="width:100%;margin-bottom:16px;">
+                    <div class="modal-btns">
+                        <button class="btn-primary" id="setPwdBtn" onclick="QuizApp._doSetPwd('${username}', ${resolve})">确定</button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modalRoot').appendChild(modal);
+        });
+    },
+
+    async _doSetPwd(username, resolveCallback) {
+        const p1 = document.getElementById('newPwd').value;
+        const p2 = document.getElementById('newPwd2').value;
+        if (p1.length < 4) return this.showToast('密码至少4位');
+        if (p1 !== p2) return this.showToast('两次密码不一致');
+        
+        const btn = document.getElementById('setPwdBtn'); btn.textContent = '保存中...';
+        const res = await fetch('/api/auth', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'set', username, password: p1 })
+        }).then(r => r.json());
+
+        if (res.ok) { document.querySelector('.modal-overlay').remove(); resolveCallback(true); } 
+        else { this.showToast(res.error); btn.textContent = '确定'; }
+    },
+
+    showChangePasswordModal() {
+        const user = this.getCurrentUser();
+        if (!user) return;
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-card" style="max-width:380px;">
+                <div class="modal-title">修改密码</div>
+                <input type="password" id="oldPwd" class="search-box" placeholder="原密码" style="width:100%;margin-bottom:12px;">
+                <input type="password" id="chgPwd" class="search-box" placeholder="新密码（至少4位）" style="width:100%;margin-bottom:12px;">
+                <div class="modal-btns">
+                    <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">取消</button>
+                    <button class="btn-primary" id="chgBtn" onclick="QuizApp._doChangePwd()">确认修改</button>
+                </div>
+            </div>
+        `;
+        document.getElementById('modalRoot').appendChild(modal);
+    },
+
+    async _doChangePwd() {
+        const user = this.getCurrentUser();
+        const p1 = document.getElementById('oldPwd').value;
+        const p2 = document.getElementById('chgPwd').value;
+        if (!p1) return this.showToast('请输入原密码');
+        if (p2.length < 4) return this.showToast('新密码至少4位');
+        
+        const btn = document.getElementById('chgBtn'); btn.textContent = '修改中...';
+        const res = await fetch('/api/auth', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'change', username: user, password: p1, newPassword: p2 })
+        }).then(r => r.json());
+
+        if (res.ok) { this.showToast('密码修改成功'); document.querySelector('.modal-overlay').remove(); } 
+        else { this.showToast(res.error); btn.textContent = '确认修改'; }
     },
     async logout() {
         const ok = await this.showConfirm({ title: '退出登录', message: '确定要退出当前账号吗？', confirmText: '退出', cancelText: '取消', danger: true });
@@ -1217,8 +1354,7 @@ window.QuizApp = {
         const customColor = localStorage.getItem('quiz_custom_bg_color') || '#e8eef7', hasCustomImg = !!localStorage.getItem('quiz_custom_bg_image');
         const hasCustomBg = !!(localStorage.getItem('quiz_custom_bg_color') || localStorage.getItem('quiz_custom_bg_image'));
 
-        app.innerHTML = `<div class="page-card"><div class="profile-header"><div class="avatar">${user ? initial : ''}</div><div class="user-name">${user || '未登录'}</div><div class="user-sub">${user ? '已登录' : '登录后可同步数据'}</div>${user ? `<div class="stats-grid"><div class="stat-box"><div class="sv">${totalQ}</div><div class="sl">题库</div></div><div class="stat-box"><div class="sv">${wrongN}</div><div class="sl">错题</div></div><div class="stat-box"><div class="sv">${masteredN}</div><div class="sl">已掌握</div></div><div class="stat-box"><div class="sv">${favN}</div><div class="sl">收藏</div></div></div>` : `<button class="glass-btn primary" style="margin-top:20px;" onclick="QuizApp.loginNow()">登录账号</button>`}</div>${user ? `<div><div class="setting-row"><span class="setting-label">主题</span><div class="theme-btns"><button class="theme-btn ${theme === 'light' ? 'active' : ''}" onclick="QuizApp.setTheme('light')">明亮</button><button class="theme-btn ${theme === 'dark' ? 'active' : ''}" onclick="QuizApp.setTheme('dark')">夜间</button><button class="theme-btn ${theme === 'eye' ? 'active' : ''}" onclick="QuizApp.setTheme('eye')">护眼</button></div></div><div class="setting-row"><span class="setting-label">震动反馈 ${!vibSupported ? '<span class="setting-note">设备不支持</span>' : ''}</span><label class="toggle-switch ${!vibSupported ? 'disabled' : ''}"><input type="checkbox" ${s.vibration ? 'checked' : ''} ${!vibSupported ? 'disabled' : ''} onchange="QuizApp.setVibration(this.checked)"><span class="toggle-slider"></span></label></div><div class="setting-row"><span class="setting-label">自动跳转延迟</span><select onchange="QuizApp.setAutoDelay(parseInt(this.value))">${[200,400,600,800,1000].map(v => `<option value="${v}" ${s.autoDelay === v ? 'selected' : ''}>${v}ms</option>`).join('')}</select></div><div class="setting-row"><span class="setting-label">连续答对提示</span><label class="toggle-switch"><input type="checkbox" ${s.streakAlert ? 'checked' : ''} onchange="QuizApp.setStreakAlert(this.checked)"><span class="toggle-slider"></span></label></div><div class="setting-row"><span class="setting-label">背景颜色</span><div class="color-picker-wrap"><input type="color" class="color-picker" value="${customColor}" onchange="QuizApp.applyCustomBgColor(this.value)"><span class="color-value">${customColor}</span></div></div><div class="setting-row"><span class="setting-label">背景图片</span><button class="mini-btn" onclick="QuizApp.uploadBgImage()">${hasCustomImg ? '更换图片' : '选择图片'}</button></div><div class="setting-row"><span class="setting-label">重置背景</span><button class="mini-btn danger" onclick="QuizApp.resetCustomBg()" ${!hasCustomBg ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>恢复默认</button></div></div><button class="logout-btn" onclick="QuizApp.logout()">退出账号</button>` : ''}</div>`;
-    },
+       app.innerHTML = `<div class="page-card"><div class="profile-header"><div class="avatar">${user ? initial : ''}</div><div class="user-name">${user || '未登录'}</div><div class="user-sub">${user ? '已登录' : '登录后可同步数据'}</div>${user ? `<div class="stats-grid"><div class="stat-box"><div class="sv">${totalQ}</div><div class="sl">题库</div></div><div class="stat-box"><div class="sv">${wrongN}</div><div class="sl">错题</div></div><div class="stat-box"><div class="sv">${masteredN}</div><div class="sl">已掌握</div></div><div class="stat-box"><div class="sv">${favN}</div><div class="sl">收藏</div></div></div>` : `<button class="glass-btn primary" style="margin-top:20px;" onclick="QuizApp.loginNow()">登录账号</button>`}</div>${user ? `<div><div class="setting-row"><span class="setting-label">主题</span><div class="theme-btns"><button class="theme-btn ${theme === 'light' ? 'active' : ''}" onclick="QuizApp.setTheme('light')">明亮</button><button class="theme-btn ${theme === 'dark' ? 'active' : ''}" onclick="QuizApp.setTheme('dark')">夜间</button><button class="theme-btn ${theme === 'eye' ? 'active' : ''}" onclick="QuizApp.setTheme('eye')">护眼</button></div></div><div class="setting-row"><span class="setting-label">🔐 密码管理</span><button class="mini-btn" onclick="QuizApp.showChangePasswordModal()">修改密码</button></div><div class="setting-row"><span class="setting-label">震动反馈 ${!vibSupported ? '<span class="setting-note">设备不支持</span>' : ''}</span><label class="toggle-switch ${!vibSupported ? 'disabled' : ''}"><input type="checkbox" ${s.vibration ? 'checked' : ''} ${!vibSupported ? 'disabled' : ''} onchange="QuizApp.setVibration(this.checked)"><span class="toggle-slider"></span></label></div><div class="setting-row"><span class="setting-label">自动跳转延迟</span><select onchange="QuizApp.setAutoDelay(parseInt(this.value))">${[200,400,600,800,1000].map(v => `<option value="${v}" ${s.autoDelay === v ? 'selected' : ''}>${v}ms</option>`).join('')}</select></div><div class="setting-row"><span class="setting-label">连续答对提示</span><label class="toggle-switch"><input type="checkbox" ${s.streakAlert ? 'checked' : ''} onchange="QuizApp.setStreakAlert(this.checked)"><span class="toggle-slider"></span></label></div><div class="setting-row"><span class="setting-label">背景颜色</span><div class="color-picker-wrap"><input type="color" class="color-picker" value="${customColor}" onchange="QuizApp.applyCustomBgColor(this.value)"><span class="color-value">${customColor}</span></div></div><div class="setting-row"><span class="setting-label">背景图片</span><button class="mini-btn" onclick="QuizApp.uploadBgImage()">${hasCustomImg ? '更换图片' : '选择图片'}</button></div><div class="setting-row"><span class="setting-label">重置背景</span><button class="mini-btn danger" onclick="QuizApp.resetCustomBg()" ${!hasCustomBg ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>恢复默认</button></div></div><button class="logout-btn" onclick="QuizApp.logout()">退出账号</button>` : ''}</div>`;
     loadSettings() { const s = { theme: 'light', vibration: true, autoDelay: 200, streakAlert: true }; try { Object.assign(s, JSON.parse(localStorage.getItem('quiz_settings') || '{}')); } catch (e) {} this._vibrationEnabled = s.vibration; this._autoDelay = s.autoDelay; this._streakAlertEnabled = s.streakAlert; return s; },
     saveSettings() { localStorage.setItem('quiz_settings', JSON.stringify(this._settingsCache || {})); },
     loadTheme() { const t = localStorage.getItem('quiz_theme') || 'light'; document.body.classList.remove('theme-dark', 'theme-eye'); if (t === 'dark') document.body.classList.add('theme-dark'); else if (t === 'eye') document.body.classList.add('theme-eye'); },
