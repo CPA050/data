@@ -1,5 +1,5 @@
 // ============================================================
-// QuizApp 15.0 · 终极完整版（多学科 + 笔记 + 密码 + 简答题）
+// QuizApp 16.0 · 终极完整版（AI解析 + 多学科 + 笔记 + 密码 + 简答题）
 // ============================================================
 
 window.QuizApp = {
@@ -102,7 +102,11 @@ window.QuizApp = {
                 </div>
             `;
             modalRoot.appendChild(modal);
-            const close = (result) => { modal.style.animation = 'confirmOut 0.2s forwards'; setTimeout(() => modal.remove(), 200); resolve(result); };
+            const close = (result) => {
+                modal.style.animation = 'confirmOut 0.2s forwards';
+                setTimeout(() => modal.remove(), 200);
+                resolve(result);
+            };
             modal.querySelector('[data-action="cancel"]').onclick = () => close(false);
             modal.querySelector('[data-action="ok"]').onclick = () => close(true);
             modal.addEventListener('click', (e) => { if (e.target === modal) close(false); });
@@ -118,20 +122,35 @@ window.QuizApp = {
             modal.innerHTML = `
                 <div class="modal-card result-card" style="max-width:400px;">
                     <div class="result-title">${title}</div>
-                    <div class="result-acc"><div class="result-acc-num" data-target="${acc}">0<span>%</span></div><div class="result-acc-label">正确率</div></div>
+                    <div class="result-acc">
+                        <div class="result-acc-num" data-target="${acc}">0<span>%</span></div>
+                        <div class="result-acc-label">正确率</div>
+                    </div>
                     <div class="result-stats">
                         <div class="result-stat"><div class="result-stat-num correct">${correct}</div><div class="result-stat-label">正确</div></div>
                         <div class="result-stat"><div class="result-stat-num wrong">${wrong}</div><div class="result-stat-label">错误</div></div>
                         <div class="result-stat"><div class="result-stat-num total">${total}</div><div class="result-stat-label">总题数</div></div>
                     </div>
-                    <div class="result-btns"><button class="result-btn home" data-action="home">返回首页</button><button class="result-btn retry" data-action="retry">再来一组</button></div>
+                    <div class="result-btns">
+                        <button class="result-btn home" data-action="home">返回首页</button>
+                        <button class="result-btn retry" data-action="retry">再来一组</button>
+                    </div>
                 </div>
             `;
             modalRoot.appendChild(modal);
-            const accEl = modal.querySelector('.result-acc-num'); const startTime = performance.now();
-            const animate = (now) => { const progress = Math.min((now - startTime) / 600, 1); accEl.innerHTML = `${Math.round(acc * (1 - Math.pow(1 - progress, 3)))}<span>%</span>`; if (progress < 1) requestAnimationFrame(animate); };
+            const accEl = modal.querySelector('.result-acc-num');
+            const startTime = performance.now();
+            const animate = (now) => {
+                const progress = Math.min((now - startTime) / 600, 1);
+                accEl.innerHTML = `${Math.round(acc * (1 - Math.pow(1 - progress, 3)))}<span>%</span>`;
+                if (progress < 1) requestAnimationFrame(animate);
+            };
             requestAnimationFrame(animate);
-            const close = (action) => { modal.style.animation = 'confirmOut 0.2s forwards'; setTimeout(() => modal.remove(), 200); resolve(action); };
+            const close = (action) => {
+                modal.style.animation = 'confirmOut 0.2s forwards';
+                setTimeout(() => modal.remove(), 200);
+                resolve(action);
+            };
             modal.querySelector('[data-action="home"]').onclick = () => close('home');
             modal.querySelector('[data-action="retry"]').onclick = () => close('retry');
         });
@@ -331,7 +350,46 @@ window.QuizApp = {
     loginNow() { this.checkLogin().then(user => { if (user) { this.updateUserUI(); this.invalidateCache(); this.renderMe(); } }); },
 
     // ============================================================
-    // 初始化与滑动、背景
+    // AI 智能解析与批改
+    // ============================================================
+    async aiExplain(question, options, answer) {
+        const prompt = `题目：${question}\n选项：${options || '无'}\n正确答案：${answer}\n请解析这道题。`;
+        this.showToast('🤖 AI 正在思考...');
+        try {
+            const res = await fetch('/api/ai', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt, action: 'explain' })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                const modal = document.createElement('div');
+                modal.className = 'modal-overlay';
+                modal.innerHTML = `<div class="modal-card" style="max-width:500px;"><div class="modal-header"><span class="modal-title">🤖 AI 解析</span><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div style="padding:16px; line-height:1.8; font-size:15px; color:#1d1d1f; white-space:pre-wrap; max-height:60vh; overflow-y:auto;">${this.escapeHtml(data.result)}</div></div>`;
+                document.getElementById('modalRoot').appendChild(modal);
+            } else { this.showToast('AI 解析失败：' + data.error); }
+        } catch (e) { this.showToast('请求失败'); }
+    },
+
+    async aiGrade(question, studentAnswer, standardAnswer) {
+        const prompt = `题目：${question}\n学生回答：${studentAnswer}\n标准答案：${standardAnswer}`;
+        this.showToast('🤖 AI 正在批改...');
+        try {
+            const res = await fetch('/api/ai', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt, action: 'grade' })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                const isCorrect = data.result.includes('得分') && !data.result.includes('不得分');
+                this.record[this.idx].isCorrect = isCorrect;
+                this.showToast(isCorrect ? '✅ AI 判定：回答正确' : '❌ AI 判定：回答错误', 3000);
+                this.renderCard(false);
+            } else { this.showToast('AI 批改失败：' + data.error); }
+        } catch (e) { this.showToast('请求失败'); }
+    },
+
+    // ============================================================
+    // 初始化与底栏路由
     // ============================================================
     init() {
         this.updateUserUI(); this.loadTheme(); this.loadSettings(); this.loadWelcome(); this._inQuiz = false;
@@ -493,7 +551,8 @@ window.QuizApp = {
     updatePreview(num, total, mode) { const preview = document.getElementById('modalPreview'); if (!preview) return; let text = ''; if (num === -1 || num >= total) text = `将加载全部 ${total} 道${mode === 'wrong' ? '错题' : '题'}`; else if (mode === 'sequential') { const start = this.getProgress(this.getCurrentUser()).sequential_index || 0; text = `顺序：第 ${start + 1} ~ ${Math.min(start + num, total)} 题（剩余 ${total - Math.min(start + num, total)} 题）`; } else if (mode === 'wrong') text = `错题重练：${num} 道（共 ${total} 道错题）`; else text = `随机抽取 ${num} 道题（共 ${total} 题）`; preview.textContent = text; },
     startWithQuantity() { if (this._selectedNum === undefined) return this.showToast('请选择刷题数量'); const mode = this._modalMode || 'sequential'; this.lastSelected = this._selectedNum; localStorage.setItem('quiz_last_selected', String(this._selectedNum)); this.closeQuantityModal(); this.start(mode === 'random', this._selectedNum, mode === 'wrong' ? 'wrong' : 'all'); },
 
-    // ============================================================
+    // ↑ 上半部分结束，请紧接着粘贴下半部分...
+        // ============================================================
     // 开始刷题
     // ============================================================
     async start(isRandom, limit = -1, source = 'all', selectedChapters = null) {
@@ -551,7 +610,7 @@ window.QuizApp = {
     pickChapter(chapter) { this.closeModal('chapterPickerModal'); if (!chapter) { this._selectedChapters = []; this._isChapterMode = false; } else { this._selectedChapters = [chapter]; this._isChapterMode = true; } this.start(this._isRandom || false, this._currentLimit || 20, this._source === 'wrong' ? 'all' : this._source, this._selectedChapters.length > 0 ? this._selectedChapters : null); this.showToast(chapter ? `已切换到「${chapter}」` : '已切换到全部章节'); },
 
     // ============================================================
-    // 渲染答题卡片（包含简答题）
+    // 渲染答题卡片（整合了 AI 解析与批改）
     // ============================================================
     renderCard(needAnimation, direction = 'none') {
         const app = document.getElementById('app'); if (!app) return;
@@ -585,6 +644,11 @@ window.QuizApp = {
         let submitBtnHtml = '';
         let correctAnswerHtml = '';
         
+        // 提取 AI 参数并转义
+        const qText = this.escAttr(q.q || '');
+        const qOpts = this.escAttr((q.opts || []).join('、'));
+        const qAns = this.escAttr(String(q.a || ''));
+
         if (isEssay) {
             const savedText = hasSelected ? this.record[this.idx].text : '';
             const isMarked = hasSelected && this.record[this.idx].isCorrect !== null;
@@ -599,7 +663,16 @@ window.QuizApp = {
                     correctAnswerHtml = `<div class="correct-note" style="margin-top:16px;">参考答案：<br><strong>${q.a}</strong></div><div style="margin-top:14px;text-align:center;"><span class="${isMarkedCorrect ? 'ok' : 'no'}" style="font-size:14px;">${isMarkedCorrect ? '✅ 回答正确' : '❌ 回答错误'}</span></div>`;
                 } else {
                     correctAnswerHtml = `<div class="correct-note" style="margin-top:16px;">参考答案：<br><strong>${q.a}</strong></div>`;
-                    submitBtnHtml = `<div style="margin-top:16px; padding-top:16px; border-top:1px dashed rgba(0,0,0,0.1); text-align:center;"><div style="font-size:13px; color:#86868b; margin-bottom:12px;">请对比参考答案，你的回答是否正确？</div><div style="display:flex; gap:12px;"><button class="glass-btn ghost" style="flex:1; background:rgba(255,59,48,0.1); color:#ff3b30;" onclick="QuizApp.markEssay(false)">❌ 答错了</button><button class="glass-btn primary" style="flex:1; background:rgba(52,199,89,0.9);" onclick="QuizApp.markEssay(true)">✅ 答对了</button></div></div>`;
+                    submitBtnHtml = `
+                        <div style="margin-top:16px; padding-top:16px; border-top:1px dashed rgba(0,0,0,0.1); text-align:center;">
+                            <div style="font-size:13px; color:#86868b; margin-bottom:12px;">请对比参考答案，或让 AI 帮你批改：</div>
+                            <div style="display:flex; gap:12px;">
+                                <button class="glass-btn ghost" style="flex:1; background:rgba(255,59,48,0.1); color:#ff3b30;" onclick="QuizApp.markEssay(false)">❌ 答错了</button>
+                                <button class="glass-btn primary" style="flex:1; background:rgba(52,199,89,0.9);" onclick="QuizApp.markEssay(true)">✅ 答对了</button>
+                            </div>
+                            <button class="glass-btn ghost" style="width:100%; margin-top:10px; color:#0071e3; border-color:rgba(0,113,227,0.3);" onclick="QuizApp.aiGrade('${qText}', '${this.escAttr(this.record[this.idx].text)}', '${qAns}')">🤖 让 AI 帮我批改</button>
+                        </div>
+                    `;
                 }
             }
         } else {
@@ -628,6 +701,12 @@ window.QuizApp = {
                 </div>
                 <div class="type-tag">${typeLabel}</div><div class="q-title">第 ${this.idx + 1} 题 · ${q.q}</div>
                 ${optionsHtml} ${correctAnswerHtml} ${submitBtnHtml} ${multiHint} ${masterBtnHtml}
+                
+                <!-- ★ AI 解析按钮 -->
+                <button class="glass-btn ghost" style="width:100%;margin-top:14px;padding:10px;font-size:14px;color:#0071e3;border-color:rgba(0,113,227,0.2);" onclick="QuizApp.aiExplain('${qText}', '${qOpts}', '${qAns}')">
+                    🤖 AI 解析这道题
+                </button>
+
                 <div style="display:flex;gap:12px;margin-top:18px;">
                     ${!isFirst ? `<button class="glass-btn ghost" style="flex:1;padding:12px;font-size:14px;" onclick="QuizApp.prevQuestion()">上一题</button>` : `<div style="flex:1;"></div>`}
                     ${!isLast ? `<button class="glass-btn primary" style="flex:1;padding:12px;font-size:14px;" onclick="QuizApp.nextQuestion()">下一题</button>` : `<div style="flex:1;"></div>`}
@@ -660,19 +739,15 @@ window.QuizApp = {
         if (isCorrect) { this._consecutiveCorrect++; this._consecutiveWrong = 0; this.vibrate(10); }
         else { this._consecutiveWrong++; this._consecutiveCorrect = 0; this.vibrate([10, 50, 10]); if (this._source !== 'wrong') this.uploadWrongQuestion(this.getCurrentUser(), this.activeBank[this.idx]); }
         this.renderCard(false);
-        
         const isDone = (v) => v !== null && (typeof v !== 'object' || v.isCorrect !== null);
         if (this.record.every(isDone)) { this._isFinishing = true; setTimeout(() => this.finishBatch(), 400); } 
         else {
             clearTimeout(this._selectTimer);
-            this._selectTimer = setTimeout(() => {
-                if (this.idx < this.activeBank.length - 1) { this.idx++; this.renderCard(true, 'right'); }
-            }, 800);
+            this._selectTimer = setTimeout(() => { if (this.idx < this.activeBank.length - 1) { this.idx++; this.renderCard(true, 'right'); } }, 800);
         }
     },
 
-    // ↑ 上半部分结束，请紧接着粘贴下半部分...
-        openQuestionNav() { 
+    openQuestionNav() { 
         const modalRoot = document.getElementById('modalRoot'); if (!modalRoot) return; 
         let html = ''; 
         for (let i = 0; i < this.activeBank.length; i++) { 
@@ -707,14 +782,8 @@ window.QuizApp = {
         if (this._tempMulti.length === 0) return this.showToast('请至少选择一个选项', 1500); 
         const isCorrect = this._tempMulti.every(idx => q.a.includes(idx)) && q.a.every(idx => this._tempMulti.includes(idx)); 
         this.record[this.idx] = this._tempMulti.slice(); this._multiSubmitted = true; 
-        if (isCorrect) { 
-            this.vibrate(10); this._consecutiveCorrect++; this._consecutiveWrong = 0; 
-            if (this._streakAlertEnabled && this._consecutiveCorrect === 5) this.showToast('连续答对 5 题！'); 
-        } else { 
-            this.vibrate([10, 50, 10]); this._consecutiveWrong++; this._consecutiveCorrect = 0; 
-            if (this._streakAlertEnabled && this._consecutiveWrong === 3) this.showToast('别灰心，再想想'); 
-            if (this._source !== 'wrong') this.uploadWrongQuestion(this.getCurrentUser(), q); 
-        } 
+        if (isCorrect) { this.vibrate(10); this._consecutiveCorrect++; this._consecutiveWrong = 0; if (this._streakAlertEnabled && this._consecutiveCorrect === 5) this.showToast('连续答对 5 题！'); } 
+        else { this.vibrate([10, 50, 10]); this._consecutiveWrong++; this._consecutiveCorrect = 0; if (this._streakAlertEnabled && this._consecutiveWrong === 3) this.showToast('别灰心，再想想'); if (this._source !== 'wrong') this.uploadWrongQuestion(this.getCurrentUser(), q); } 
         this.renderCard(false); 
         if (this.record.every(v => v !== null)) { this._isFinishing = true; setTimeout(() => this.finishBatch(), 400); } 
     },
@@ -724,14 +793,8 @@ window.QuizApp = {
         if (Array.isArray(q.a) || this.record[this.idx] !== null || this._isFinishing) return; 
         this.record[this.idx] = oIdx; 
         const isCorrect = (oIdx === q.a); 
-        if (isCorrect) { 
-            this.vibrate(10); this._consecutiveCorrect++; this._consecutiveWrong = 0; 
-            if (this._streakAlertEnabled && this._consecutiveCorrect === 5) this.showToast('连续答对 5 题！'); 
-        } else { 
-            this.vibrate([10, 50, 10]); this._consecutiveWrong++; this._consecutiveCorrect = 0; 
-            if (this._streakAlertEnabled && this._consecutiveWrong === 3) this.showToast('别灰心，再想想'); 
-            if (this._source !== 'wrong') this.uploadWrongQuestion(this.getCurrentUser(), q); 
-        } 
+        if (isCorrect) { this.vibrate(10); this._consecutiveCorrect++; this._consecutiveWrong = 0; if (this._streakAlertEnabled && this._consecutiveCorrect === 5) this.showToast('连续答对 5 题！'); } 
+        else { this.vibrate([10, 50, 10]); this._consecutiveWrong++; this._consecutiveCorrect = 0; if (this._streakAlertEnabled && this._consecutiveWrong === 3) this.showToast('别灰心，再想想'); if (this._source !== 'wrong') this.uploadWrongQuestion(this.getCurrentUser(), q); } 
         this.renderCard(false); 
         if (this.record.every(v => v !== null)) { this._isFinishing = true; return setTimeout(() => this.finishBatch(), 400); } 
         clearTimeout(this._selectTimer); 
@@ -743,19 +806,8 @@ window.QuizApp = {
         }, this._autoDelay || 200); 
     },
 
-    prevQuestion() { 
-        if (this.idx > 0) { 
-            this.idx--; this._tempMulti = []; this._multiSubmitted = false; 
-            this.renderCard(true, 'left'); 
-        } 
-    },
-
-    nextQuestion() { 
-        if (this.idx < this.activeBank.length - 1) { 
-            this.idx++; this._tempMulti = []; this._multiSubmitted = false; 
-            this.renderCard(true, 'right'); 
-        } 
-    },
+    prevQuestion() { if (this.idx > 0) { this.idx--; this._tempMulti = []; this._multiSubmitted = false; this.renderCard(true, 'left'); } },
+    nextQuestion() { if (this.idx < this.activeBank.length - 1) { this.idx++; this._tempMulti = []; this._multiSubmitted = false; this.renderCard(true, 'right'); } },
 
     async toggleFavorite(questionId) {
         const user = this.getCurrentUser(); if (!user) return this.showToast('请先登录');
@@ -766,8 +818,7 @@ window.QuizApp = {
             if (data.ok !== false) {
                 if (isFav) { this._favorites = this._favorites.filter(id => id !== questionId); this.showToast('已取消收藏', 1500); } 
                 else { this._favorites.push(questionId); this.showToast('已收藏', 1500); }
-                this.invalidateCache('fav'); 
-                this.renderCard(false);
+                this.invalidateCache('fav'); this.renderCard(false);
             }
         } catch (e) { this.showToast('操作失败'); }
     },
@@ -782,8 +833,7 @@ window.QuizApp = {
         
         if (this._isFavoritesMode) { 
             const action = await this.showResultModal({ title: '收藏练习完成', correct: correctCount, wrong: done - correctCount, total: done, acc: acc }); 
-            this._isFinishing = false; 
-            return action === 'retry' ? this.startFavorites() : this.goHome(); 
+            this._isFinishing = false; return action === 'retry' ? this.startFavorites() : this.goHome(); 
         }
         
         if (!this._isRandom && this._totalBank && this._source === 'all') { 
@@ -792,14 +842,9 @@ window.QuizApp = {
             else { this.saveProgress(user, { sequential_index: newIndex }); } 
         }
         
-        this.saveRecentQuestions(user, this.activeBank.map(q => q.id)); 
-        this.clearSessionContext(); 
-        if (this._source === 'all') this.invalidateCache('wrong');
-        
+        this.saveRecentQuestions(user, this.activeBank.map(q => q.id)); this.clearSessionContext(); if (this._source === 'all') this.invalidateCache('wrong');
         const action = await this.showResultModal({ title: `${this._source === 'wrong' ? '错题重练' : '刷题'}完成`, correct: correctCount, wrong: done - correctCount, total: done, acc: acc });
-        this._isFinishing = false; 
-        if (action === 'retry') this.start(this._isRandom || false, this._currentLimit || 20, this._source || 'all'); 
-        else this.goHome();
+        this._isFinishing = false; if (action === 'retry') this.start(this._isRandom || false, this._currentLimit || 20, this._source || 'all'); else this.goHome();
     },
 
     goHome() {
@@ -841,13 +886,7 @@ window.QuizApp = {
             if (!map[key]) { 
                 const opts = Array.isArray(w.opts) ? w.opts : []; 
                 const isEssay = !opts || opts.length === 0;
-                map[key] = { 
-                    id: w.id, q: w.q, opts: opts, 
-                    a: isEssay ? w.answer : findAnswerIndex(w.answer, opts), 
-                    answer: w.answer, user_choice: w.user_choice, 
-                    subject: w.subject || '默认题库', chapter: w.chapter || '', 
-                    wrongCount: 0, lastWrongAt: null, mastered: false 
-                }; 
+                map[key] = { id: w.id, q: w.q, opts: opts, a: isEssay ? w.answer : findAnswerIndex(w.answer, opts), answer: w.answer, user_choice: w.user_choice, subject: w.subject || '默认题库', chapter: w.chapter || '', wrongCount: 0, lastWrongAt: null, mastered: false }; 
             }
             map[key].wrongCount++; 
             const t = w.created_at || w.time || null; 
@@ -863,8 +902,7 @@ window.QuizApp = {
     _renderWrongUI() {
         const app = document.getElementById('app'), list = this._wrongList, total = list.length, mastered = list.filter(w => w.mastered).length, filter = this._wrongFilter, keyword = (this._wrongSearch || '').trim().toLowerCase();
         let filtered = list;
-        if (filter === 'unmastered') filtered = list.filter(w => !w.mastered); 
-        else if (filter === 'mastered') filtered = list.filter(w => w.mastered);
+        if (filter === 'unmastered') filtered = list.filter(w => !w.mastered); else if (filter === 'mastered') filtered = list.filter(w => w.mastered);
         if (this._wrongSubjectFilter !== 'all') filtered = filtered.filter(w => w.subject === this._wrongSubjectFilter);
         if (keyword) filtered = filtered.filter(w => (w.q || '').toLowerCase().includes(keyword) || (w.opts || []).some(o => o.toLowerCase().includes(keyword)));
         filtered.sort((a, b) => { if (a.mastered !== b.mastered) return a.mastered ? 1 : -1; return (b.wrongCount || 0) - (a.wrongCount || 0); });
@@ -879,14 +917,10 @@ window.QuizApp = {
         } else {
             listHtml = filtered.map((w, i) => {
                 const hard = (w.wrongCount || 0) >= 5; const badges = [];
-                if (hard) badges.push(`<span class="badge hard">高难度</span>`); 
-                if (w.mastered) badges.push(`<span class="badge mastered">已掌握</span>`);
-                const selected = this._wrongSelected.includes(w.q); 
-                const checkbox = this._wrongEditMode ? `<div class="q-checkbox ${selected ? 'checked' : ''}"></div>` : '';
+                if (hard) badges.push(`<span class="badge hard">高难度</span>`); if (w.mastered) badges.push(`<span class="badge mastered">已掌握</span>`);
+                const selected = this._wrongSelected.includes(w.q); const checkbox = this._wrongEditMode ? `<div class="q-checkbox ${selected ? 'checked' : ''}"></div>` : '';
                 const clickHandler = this._wrongEditMode ? `onclick="QuizApp.toggleSelectWrong('${this.escAttr(w.q)}')"` : '';
-                const note = this.getNote(w.q); 
-                const noteDot = note ? `<span class="note-dot" title="有笔记">📝</span>` : ''; 
-                const notePreview = note ? `<div class="note-preview">${this.escapeHtml(note.text.substring(0, 60))}...</div>` : '';
+                const note = this.getNote(w.q); const noteDot = note ? `<span class="note-dot" title="有笔记">📝</span>` : ''; const notePreview = note ? `<div class="note-preview">${this.escapeHtml(note.text.substring(0, 60))}...</div>` : '';
                 const actionsHtml = this._wrongEditMode ? '' : `<div class="wi-actions"><button class="note-btn-small" onclick="event.stopPropagation();QuizApp.openNoteModal('${this.escAttr(w.q)}')">${note ? '编辑笔记' : '笔记'}</button><button class="master-toggle ${w.mastered ? 'on' : ''}" onclick="event.stopPropagation();QuizApp.toggleMastered('${this.escAttr(w.q)}', ${!w.mastered})">${w.mastered ? '取消掌握' : '标记掌握'}</button><button class="start-practice-btn" onclick="QuizApp.startWrongPractice('${this.escAttr(w.q)}')">开始练习</button><button class="del-icon" onclick="QuizApp.deleteWrongItem(${w.id})">删除</button></div>`;
                 return `<div class="wrong-item ${this._wrongEditMode ? 'selectable' : ''} ${selected ? 'selected' : ''}" ${clickHandler}>${checkbox}<div class="wi-head"><span class="wi-idx">第 ${w.id || (i + 1)} 题 ${noteDot}</span><span class="wi-badges">${badges.join('')}<span>错误 ${w.wrongCount || 1} 次</span></span></div><div class="wi-q">${w.q}</div>${notePreview}<div class="wi-meta"><span>${w.subject}</span>${w.chapter ? `<span>${w.chapter}</span>` : ''}<span>${this.relTime(w.lastWrongAt)}</span></div>${actionsHtml}</div>`;
             }).join('');
@@ -1090,7 +1124,7 @@ window.QuizApp = {
     },
 
     // ============================================================
-    // 题库页
+    // 题库页 & 我的设置
     // ============================================================
     async renderBank() { 
         const app = document.getElementById('app'); if (!this.getCurrentUser()) return app.innerHTML = `<div class="page-card empty-state">请先在「我的」页面登录</div>`; 
@@ -1242,17 +1276,9 @@ window.QuizApp = {
         if (newOpts.length > 0) {
             const aRaw = prompt('正确答案序号（从0开始，多选用逗号）：', Array.isArray(q.a) ? q.a.join(',') : q.a); if (aRaw === null) return;
             const trimmed = aRaw.trim(); 
-            if (trimmed.includes(',')) { 
-                const parts = trimmed.split(',').map(s => parseInt(s.trim())); 
-                if (parts.some(isNaN)) return this.showToast('格式错误'); 
-                newA = parts.filter(n => !isNaN(n)); 
-                if (newA.length < 2) return this.showToast('多选题至少 2 个答案'); 
-            } else { 
-                newA = parseInt(trimmed); 
-                if (isNaN(newA)) return this.showToast('序号无效'); 
-            }
-            const validRange = Array.isArray(newA) ? newA.every(n => n >= 0 && n < newOpts.length) : (newA >= 0 && newA < newOpts.length); 
-            if (!validRange) return this.showToast('序号超出范围');
+            if (trimmed.includes(',')) { const parts = trimmed.split(',').map(s => parseInt(s.trim())); if (parts.some(isNaN)) return this.showToast('格式错误'); newA = parts.filter(n => !isNaN(n)); if (newA.length < 2) return this.showToast('多选题至少 2 个答案'); } 
+            else { newA = parseInt(trimmed); if (isNaN(newA)) return this.showToast('序号无效'); }
+            const validRange = Array.isArray(newA) ? newA.every(n => n >= 0 && n < newOpts.length) : (newA >= 0 && newA < newOpts.length); if (!validRange) return this.showToast('序号超出范围');
         } else {
             const aRaw = prompt('简答题标准答案：', q.a); if (aRaw === null) return;
             newA = aRaw;
@@ -1263,8 +1289,7 @@ window.QuizApp = {
         
         try { 
             const res = await fetch('/api/questions-update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user, id, q: newQ, opts: newOpts, a: newA, subject: newSubject === null ? (q.subject || '默认题库') : newSubject, chapter: newChapter === null ? (q.chapter || '') : newChapter }) }); 
-            const r = await res.json(); 
-            if (r.ok === false) return this.showToast('更新失败'); 
+            const r = await res.json(); if (r.ok === false) return this.showToast('更新失败'); 
             this.showToast('已更新'); this.invalidateCache('bank'); await this.fetchBank(true); this._bankCache = this._cache.bank; this._renderBankUI(this._bankCache, ''); 
         } catch (e) { this.showToast('更新失败'); }
     },
