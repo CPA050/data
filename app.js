@@ -1346,16 +1346,14 @@ window.QuizApp = {
         reader.readAsText(file); event.target.value = ''; 
     },
 
-    async doImport() {
+       async doImport() {
         const user = this.getCurrentUser(); if (!user) return this.showToast('请先登录');
         const ta = document.getElementById('importCode'), subjectInput = document.getElementById('importSubject'); if (!ta) return;
         let code = ta.value.trim(), defaultSubject = subjectInput ? subjectInput.value.trim() : '默认题库';
         
         if (!code) return alert('请输入内容');
         
-        // ★ 1. 暴力清洗：替换中文标点为英文标点
-        code = code.replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/，/g, ',').replace(/：/g, ':');
-        // 去掉 markdown 标记
+        // ★ 只清理 AI 可能带的 markdown 标记，绝不乱改里面的文字符号！
         code = code.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
         
         // 尝试截取数组部分（去掉 AI 的废话）
@@ -1367,14 +1365,11 @@ window.QuizApp = {
         try { 
             arr = JSON.parse(code); 
         } catch (e) { 
-            // ★ 如果解析失败，直接弹窗显示具体原因，不让你瞎猜
-            alert('❌ JSON 语法错误：\n' + e.message + '\n\n请检查是否多了或少了逗号、引号。'); 
-            return; 
+            return alert('❌ JSON 语法错误：\n' + e.message + '\n\n请检查文件内容是否完整。'); 
         }
         
         if (!Array.isArray(arr) || arr.length === 0) return alert('❌ 内容必须是用方括号 [ ] 包起来的数组');
 
-        // ★ 2. 智能纠错与格式整理
         const errors = [];
         const formattedQuestions = [];
 
@@ -1428,7 +1423,7 @@ window.QuizApp = {
             return; 
         }
 
-        // 3. 开始导入
+        // 开始导入
         this.closeModal('addQuestionModal');
         const toastMsg = document.createElement('div'); 
         toastMsg.className = 'toast-item import-progress'; 
