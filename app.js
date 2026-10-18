@@ -353,6 +353,16 @@ window.QuizApp = {
         const ok = await this.showConfirm({ title: '退出登录', message: '确定要退出当前账号吗？', confirmText: '退出', cancelText: '取消', danger: true });
         if (!ok) return; localStorage.removeItem('quiz_user_id'); this.clearSessionContext(); this.invalidateCache(); this._inQuiz = false; this.updateUserUI(); this.showToast('已退出登录'); if (this.currentTab === 'me') this.renderMe();
     },
+        loginNow() {
+        this.checkLogin().then(user => {
+            if (user) {
+                this.updateUserUI();
+                this.invalidateCache();
+                this.showToast('登录成功');
+                this.renderMe();
+            }
+        });
+    },
 
     // ============================================================
     // 初始化与底栏路由
