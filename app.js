@@ -27,6 +27,8 @@ window.QuizApp = {
     _inQuiz: false,
 
     _allChapters: [],
+    _bankSubjects: [],     // ★ 新增：所有学科列表
+    _currentBank: '全部',   // ★ 新增：当前选中的学科
     _selectedChapters: [],
     _isChapterMode: false,
     _currentLimit: -1,
@@ -63,7 +65,8 @@ window.QuizApp = {
     },
     CACHE_TTL: 5 * 60 * 1000,
 
-    _bankChapterFilter: 'all',
+    _bankChapterFilter: 'all', 
+    _bankSubjectFilter: 'all',
     _bankEditMode: false,
     _bankSelected: [],
 
@@ -2446,9 +2449,18 @@ window.QuizApp = {
     _renderBankUI(questions, keyword = '') {
         const app = document.getElementById('app');
         let filtered = questions;
+
+        // ★ 1. 学科过滤
+        if (this._bankSubjectFilter !== 'all') {
+            filtered = filtered.filter(q => (q.subject || '默认题库') === this._bankSubjectFilter);
+        }
+
+        // 2. 章节过滤
         if (this._bankChapterFilter !== 'all') {
             filtered = filtered.filter(q => q.chapter === this._bankChapterFilter);
         }
+        
+        // 3. 关键词过滤
         if (keyword) {
             const k = keyword.toLowerCase();
             filtered = filtered.filter(q =>
@@ -2459,15 +2471,31 @@ window.QuizApp = {
         const total = questions.length;
         const filteredTotal = filtered.length;
 
+        // ★ 渲染学科标签栏
+        const subjects = [...new Set(questions.map(q => q.subject || '默认题库'))];
+        const subjectBar = subjects.length > 0 ? `
+            <div class="chapter-bar" style="border-bottom: none; margin-bottom: 0; padding-bottom: 4px;">
+                <button class="chapter-chip ${this._bankSubjectFilter === 'all' ? 'active' : ''}"
+                        onclick="QuizApp.setBankSubject('all')">全部学科</button>
+                ${subjects.map(s => {
+                    return `<button class="chapter-chip ${this._bankSubjectFilter === s ? 'active' : ''}"
+                                    onclick="QuizApp.setBankSubject('${this.escAttr(s)}')">
+                        ${s}
+                    </button>`;
+                }).join('')}
+            </div>
+        ` : '';
+
+        // 渲染章节标签栏
         const chapters = [...new Set(
-            questions.map(q => q.chapter).filter(c => c && c.trim() && c !== '其他')
+            filtered.map(q => q.chapter).filter(c => c && c.trim() && c !== '其他')
         )];
         const chapterBar = chapters.length > 0 ? `
             <div class="chapter-bar">
                 <button class="chapter-chip ${this._bankChapterFilter === 'all' ? 'active' : ''}"
-                        onclick="QuizApp.setBankChapter('all')">全部 (${total})</button>
+                        onclick="QuizApp.setBankChapter('all')">全部章节 (${filteredTotal})</button>
                 ${chapters.map(c => {
-                    const count = questions.filter(q => q.chapter === c).length;
+                    const count = filtered.filter(q => q.chapter === c).length;
                     return `<button class="chapter-chip ${this._bankChapterFilter === c ? 'active' : ''}"
                                     onclick="QuizApp.setBankChapter('${this.escAttr(c)}')">
                         ${c} (${count})
@@ -2492,8 +2520,20 @@ window.QuizApp = {
                     : '';
                 const clickHandler = this._bankEditMode
                     ? `onclick="QuizApp.toggleSelectQ(${q.id})"` : '';
+                
+                // 笔记支持
+                const note = this.getNote ? this.getNote(q.q) : null;
+                const noteDot = note ? `<span class="note-dot" title="有笔记">📝</span>` : '';
+                const notePreview = note
+                    ? `<div class="note-preview">${this.escapeHtml ? this.escapeHtml(note.text.substring(0, 60)) : note.text.substring(0, 60)}...</div>`
+                    : '';
+
                 const actionsHtml = this._bankEditMode ? '' : `
                     <div class="q-actions">
+                        ${this.getNote ? `<button class="note-btn-small"
+                                onclick="event.stopPropagation();QuizApp.openNoteModal('${this.escAttr(q.q)}')">
+                            ${note ? '编辑笔记' : '笔记'}
+                        </button>` : ''}
                         <button class="edit-btn"
                                 onclick="event.stopPropagation();QuizApp.editQuestion(${q.id})">编辑</button>
                         <button class="del-btn"
@@ -2504,10 +2544,12 @@ window.QuizApp = {
                     <div class="q-item ${this._bankEditMode ? 'selectable' : ''} ${selected ? 'selected' : ''}"
                          ${clickHandler}>
                         ${checkbox}
-                        <div class="q-num">第 ${i + 1} 题</div>
+                        <div class="q-num">第 ${i + 1} 题 ${noteDot}</div>
                         <div class="q-text">${q.q}</div>
+                        ${notePreview}
                         <div class="q-meta">
                             <span class="q-answer">答案 ${ans}</span>
+                            ${q.subject ? `<span class="q-chapter" style="color:#0071e3;border-color:rgba(0,113,227,0.3);">${q.subject}</span>` : ''}
                             ${q.chapter ? `<span class="q-chapter">${q.chapter}</span>` : ''}
                         </div>
                         ${actionsHtml}
@@ -2515,6 +2557,65 @@ window.QuizApp = {
                 `;
             }).join('');
         }
+
+        let bottomBar = '';
+        if (this._bankEditMode) {
+            const allSelected = filtered.length > 0 &&
+                filtered.every(q => this._bankSelected.includes(q.id));
+            bottomBar = `
+                <div class="bank-bottom-bar">
+                    <button class="bottom-btn" onclick="QuizApp.selectAllQuestions()">
+                        ${allSelected ? '取消全选' : '全选'}
+                    </button>
+                    <button class="bottom-btn danger"
+                            onclick="QuizApp.deleteSelectedQuestions()"
+                            ${this._bankSelected.length === 0 ? 'disabled' : ''}>
+                        删除选中 (${this._bankSelected.length})
+                    </button>
+                    <button class="bottom-btn" onclick="QuizApp.exitBankEditMode()">
+                        完成
+                    </button>
+                </div>
+            `;
+        }
+
+        app.innerHTML = `
+            <div class="page-card">
+                <div class="bank-head">
+                    <div>
+                        <div class="bank-title">题库</div>
+                        <div class="bank-count">共 ${total} 道${this._bankChapterFilter !== 'all' ? ` · 当前章节 ${filteredTotal} 道` : ''}</div>
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        ${total > 0 ? `
+                            <button class="add-btn" style="background:rgba(0,0,0,0.06);color:#1d1d1f;box-shadow:none;"
+                                    onclick="QuizApp.${this._bankEditMode ? 'exitBankEditMode' : 'enterBankEditMode'}()">
+                                ${this._bankEditMode ? '完成' : '选择'}
+                            </button>
+                        ` : ''}
+                        <button class="add-btn" onclick="QuizApp.showAddQuestionModal()">添加题目</button>
+                    </div>
+                </div>
+                ${subjectBar}
+                ${chapterBar}
+                ${total > 0 ? `
+                    <input class="search-box" type="text"
+                           placeholder="搜索题目..."
+                           value="${keyword}"
+                           oninput="QuizApp.onBankSearch(this.value)">
+                ` : ''}
+                ${listHtml}
+            </div>
+            ${bottomBar}
+        `;
+    },
+
+    setBankSubject(sub) {
+        this._bankSubjectFilter = sub;
+        this._bankChapterFilter = 'all';
+        this._bankSelected = [];
+        this._renderBankUI(this._bankCache || [], '');
+    },
 
         let bottomBar = '';
         if (this._bankEditMode) {
@@ -2663,7 +2764,7 @@ window.QuizApp = {
     // ============================================================
     // 添加题目弹窗
     // ============================================================
-    showAddQuestionModal() {
+       showAddQuestionModal() {
         const modalRoot = document.getElementById('modalRoot');
         if (!modalRoot) { this.showToast('页面容器缺失，请刷新重试'); return; }
         const modal = document.createElement('div');
@@ -2676,14 +2777,14 @@ window.QuizApp = {
                     <button class="modal-close"
                             onclick="QuizApp.closeModal('addQuestionModal')">✕</button>
                 </div>
+                <div style="margin-bottom: 12px; display: flex; gap: 10px;">
+                    <input type="text" id="importSubject" class="search-box" style="flex:1; margin:0;" placeholder="输入学科/题库（如：高等数学）" value="默认题库">
+                </div>
                 <div class="modal-hint">
                     粘贴 AI 生成的 JSON 代码，自动解析导入<br>
                     <strong>格式说明：</strong><br>
-                    <code>[{"q":"题目","opts":["A","B","C","D"],"a":0,"chapter":"第一章"}]</code><br>
-                    · 单选：<code>"a":0</code>（从 0 开始的序号）<br>
-                    · 多选：<code>"a":[0,2]</code><br>
-                    · 判断：<code>"a":0</code>（0=正确，1=错误）<br>
-                    · 章节：<code>"chapter":"xxx"</code>（可选，用于章节筛选）
+                    <code>[{"q":"题目","opts":["A","B"],"a":0,"chapter":"第一章"}]</code><br>
+                    如果 JSON 里带了 <code>"subject":"学科名"</code>，会优先使用 JSON 里的。
                 </div>
                 <textarea class="modal-textarea" id="importCode"
                           placeholder='[{"q":"示例题目","opts":["A","B","C","D"],"a":0,"chapter":"第一章"}]'></textarea>
@@ -2706,8 +2807,11 @@ window.QuizApp = {
         const user = this.getCurrentUser();
         if (!user) { this.showToast('请先登录'); return; }
         const ta = document.getElementById('importCode');
+        const subjectInput = document.getElementById('importSubject');
         if (!ta) return;
         let code = ta.value.trim();
+        const defaultSubject = subjectInput ? subjectInput.value.trim() : '默认题库';
+        
         if (!code) { this.showToast('请输入内容'); return; }
         code = code.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
         let arr;
@@ -2721,7 +2825,7 @@ window.QuizApp = {
         }
         if (!Array.isArray(arr)) { this.showToast('必须是数组'); return; }
         if (arr.length === 0) { this.showToast('数组为空'); return; }
-
+        
         const errors = [];
         arr.forEach((item, i) => {
             if (!item.q) errors.push(`第 ${i + 1} 题缺少 q`);
@@ -2732,9 +2836,53 @@ window.QuizApp = {
         });
         if (errors.length > 0) {
             this.showToast('校验失败：' + errors[0]);
-            console.error('校验失败：\n' + errors.join('\n'));
             return;
         }
+
+        const total = arr.length;
+        const BATCH_SIZE = 10;
+        let ok = 0, fail = 0;
+
+        this.closeModal('addQuestionModal');
+        const toastMsg = document.createElement('div');
+        toastMsg.className = 'toast-item import-progress';
+        toastMsg.textContent = `导入中 0/${total}...`;
+        const container = document.getElementById('toastContainer');
+        if (container) container.appendChild(toastMsg);
+
+        for (let i = 0; i < total; i += BATCH_SIZE) {
+            const batch = arr.slice(i, i + BATCH_SIZE);
+            const results = await Promise.all(
+                batch.map(item =>
+                    fetch('/api/questions-add', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_id: user,
+                            q: item.q,
+                            opts: item.opts,
+                            a: item.a,
+                            chapter: item.chapter || '',
+                            subject: item.subject || defaultSubject // ★ 优先用 JSON 里的学科
+                        })
+                    })
+                    .then(r => r.json())
+                    .then(d => d.ok !== false)
+                    .catch(() => false)
+                )
+            );
+            results.forEach(r => r ? ok++ : fail++);
+            const done = Math.min(i + BATCH_SIZE, total);
+            toastMsg.textContent = `导入中 ${done}/${total}...`;
+        }
+
+        if (toastMsg.parentNode) toastMsg.remove();
+        this.showToast(`成功导入 ${ok} 道${fail ? '，失败 ' + fail + ' 道' : ''}`);
+        this.invalidateCache('bank');
+        await this.fetchBank(true);
+        this._bankCache = this._cache.bank;
+        this._renderBankUI(this._bankCache, '');
+    },
 
         // ★ 分批并行导入（每批 10 道）
         const total = arr.length;
@@ -2815,7 +2963,7 @@ window.QuizApp = {
     // ============================================================
     // 编辑题目（已修复多选丢失）
     // ============================================================
-    async editQuestion(id) {
+        async editQuestion(id) {
         const user = this.getCurrentUser();
         const all = this._bankCache || [];
         const q = all.find(x => x.id === id);
@@ -2865,6 +3013,8 @@ window.QuizApp = {
             return;
         }
 
+        // ★ 新增：允许修改学科
+        const newSubject = prompt('所属学科（留空则不修改）：', q.subject || '默认题库');
         const newChapter = prompt('章节名称（留空则不修改）：', q.chapter || '');
 
         try {
@@ -2877,6 +3027,8 @@ window.QuizApp = {
                     q: newQ,
                     opts: newOpts,
                     a: newA,
+                    // ★ 核心修改：把这俩加进 body 里
+                    subject: newSubject === null ? (q.subject || '默认题库') : newSubject,
                     chapter: newChapter === null ? (q.chapter || '') : newChapter
                 })
             });
@@ -2894,7 +3046,6 @@ window.QuizApp = {
             this.showToast('更新失败：' + e.message);
         }
     },
-
     // ============================================================
     // 收藏页
     // ============================================================
