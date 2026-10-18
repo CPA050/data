@@ -1196,7 +1196,7 @@ window.QuizApp = {
         app.innerHTML = this.skeletonHTML('bank'); const list = await this.fetchBank(); this._bankCache = list; this._renderBankUI(list, ''); 
     },
 
-    _renderBankUI(questions, keyword = '') {
+     _renderBankUI(questions, keyword = '') {
         const app = document.getElementById('app'); let filtered = questions;
         if (this._bankSubjectFilter !== 'all') filtered = filtered.filter(q => (q.subject || '默认题库') === this._bankSubjectFilter);
         if (this._bankChapterFilter !== 'all') filtered = filtered.filter(q => q.chapter === this._bankChapterFilter);
@@ -1225,13 +1225,34 @@ window.QuizApp = {
             }).join(''); 
         }
         
+        // ★ 底部操作栏（支持全选、批量删除、导出选中）
         let bottomBar = '';
         if (this._bankEditMode) { 
             const allSelected = filtered.length > 0 && filtered.every(q => this._bankSelected.includes(q.id)); 
-            bottomBar = `<div class="bank-bottom-bar"><button class="bottom-btn" onclick="QuizApp.selectAllQuestions()">${allSelected ? '取消全选' : '全选'}</button><button class="bottom-btn danger" onclick="QuizApp.deleteSelectedQuestions()" ${this._bankSelected.length === 0 ? 'disabled' : ''}>删除选中 (${this._bankSelected.length})</button><button class="bottom-btn" onclick="QuizApp.exitBankEditMode()">完成</button></div>`; 
+            bottomBar = `
+                <div class="bank-bottom-bar" style="display:flex; gap:6px; flex-wrap:wrap;">
+                    <button class="bottom-btn" style="flex:1;" onclick="QuizApp.selectAllQuestions()">
+                        ${allSelected ? '取消全选' : '全选'}
+                    </button>
+                    <button class="bottom-btn" style="flex:1.2; background:rgba(0,113,227,0.12); color:#0071e3;" onclick="QuizApp.exportBank(true)">
+                        导出选中 (${this._bankSelected.length})
+                    </button>
+                    <button class="bottom-btn danger" style="flex:1.2;" onclick="QuizApp.deleteSelectedQuestions()" ${this._bankSelected.length === 0 ? 'disabled' : ''}>
+                        删除 (${this._bankSelected.length})
+                    </button>
+                    <button class="bottom-btn" style="flex:0.8;" onclick="QuizApp.exitBankEditMode()">
+                        完成
+                    </button>
+                </div>
+            `; 
         }
         
-        app.innerHTML = `<div class="page-card"><div class="bank-head"><div><div class="bank-title">题库</div><div class="bank-count">共 ${total} 道${this._bankChapterFilter !== 'all' ? ` · 当前章节 ${filteredTotal} 道` : ''}</div></div><div style="display:flex;gap:8px;">${total > 0 ? `<button class="add-btn" style="background:rgba(0,0,0,0.06);color:#1d1d1f;box-shadow:none;" onclick="QuizApp.${this._bankEditMode ? 'exitBankEditMode' : 'enterBankEditMode'}()">${this._bankEditMode ? '完成' : '选择'}</button>` : ''}<button class="add-btn" onclick="QuizApp.showAddQuestionModal()">添加题目</button></div></div>${subjectBar}${chapterBar}${total > 0 ? `<input class="search-box" type="text" placeholder="搜索题目..." value="${keyword}" oninput="QuizApp.onBankSearch(this.value)">` : ''}${listHtml}</div>${bottomBar}`;
+        // ★ 顶部操作栏（包含导出和选择按钮）
+        app.innerHTML = `<div class="page-card"><div class="bank-head"><div><div class="bank-title">题库</div><div class="bank-count">共 ${total} 道${this._bankChapterFilter !== 'all' ? ` · 当前章节 ${filteredTotal} 道` : ''}</div></div><div style="display:flex;gap:8px;">
+            ${total > 0 ? `<button class="add-btn" style="background:rgba(0,0,0,0.06);color:#1d1d1f;box-shadow:none;" onclick="QuizApp.exportBank(false)">导出</button>` : ''}
+            ${total > 0 ? `<button class="add-btn" style="background:rgba(0,0,0,0.06);color:#1d1d1f;box-shadow:none;" onclick="QuizApp.${this._bankEditMode ? 'exitBankEditMode' : 'enterBankEditMode'}()">${this._bankEditMode ? '完成' : '选择'}</button>` : ''}
+            <button class="add-btn" onclick="QuizApp.showAddQuestionModal()">添加题目</button>
+        </div></div>${subjectBar}${chapterBar}${total > 0 ? `<input class="search-box" type="text" placeholder="搜索题目..." value="${keyword}" oninput="QuizApp.onBankSearch(this.value)">` : ''}${listHtml}</div>${bottomBar}`;
     },
 
     setBankSubject(sub) { this._bankSubjectFilter = sub; this._bankChapterFilter = 'all'; this._bankSelected = []; this._renderBankUI(this._bankCache || [], ''); },
@@ -1253,6 +1274,60 @@ window.QuizApp = {
         this._bankSelected = []; this.invalidateCache('bank'); await this.fetchBank(true); this._bankCache = this._cache.bank; this._renderBankUI(this._bankCache, ''); 
     },
 
+        exportBank(isSelected = false) {
+        let list = [];
+
+        if (isSelected) {
+            // 如果是从底部导出的，只导出勾选的
+            if (!this._bankSelected || this._bankSelected.length === 0) {
+                return this.showToast('请先勾选要导出的题目');
+            }
+            list = (this._bankCache || []).filter(q => this._bankSelected.includes(q.id));
+        } else {
+            // 如果是从顶部导出的，导出当前学科、章节、搜索条件下的题
+            list = this._bankCache || [];
+            if (this._bankSubjectFilter !== 'all') list = list.filter(q => (q.subject || '默认题库') === this._bankSubjectFilter);
+            if (this._bankChapterFilter !== 'all') list = list.filter(q => q.chapter === this._bankChapterFilter);
+            const searchBox = document.querySelector('#app .search-box');
+            if (searchBox && searchBox.value.trim()) {
+                const k = searchBox.value.trim().toLowerCase();
+                list = list.filter(q => q.q.toLowerCase().includes(k) || (q.opts || []).some(o => o.toLowerCase().includes(k)));
+            }
+        }
+
+        if (list.length === 0) return this.showToast('当前没有可导出的题目');
+
+        // 整理纯净数据
+        const exportData = list.map(q => ({
+            q: q.q,
+            opts: q.opts || [],
+            a: q.a,
+            chapter: q.chapter || '',
+            subject: q.subject || '默认题库'
+        }));
+        
+        // 生成下载
+        const content = JSON.stringify(exportData, null, 2);
+        const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // 动态文件名
+        const date = new Date().toISOString().slice(0, 10);
+        let fileName = '题库';
+        if (isSelected) fileName = '自定义选中题目';
+        else if (this._bankSubjectFilter !== 'all') fileName = this._bankSubjectFilter;
+        
+        a.download = `${fileName}_${date}.json`;
+        
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        
+        this.showToast(`✅ 成功导出 ${list.length} 道题`);
+    },
     onBankSearch(v) { 
         if (this._bankSearchTimer) clearTimeout(this._bankSearchTimer); 
         this._bankSearchTimer = setTimeout(() => { this._renderBankUI(this._bankCache || [], v); const inp = document.querySelector('#app .search-box'); if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); } }, 200); 
