@@ -8,16 +8,17 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="format-detection" content="telephone=no">
-    <title>原点 · Origin</title>
-        <!-- 电脑浏览器标签页图标 -->
-    <link rel="icon" type="image/png" href="/favicon.png">
     
-    <!-- 苹果手机添加到主屏幕时的图标 -->
+    <!-- 网页标签名字 -->
+    <title>原点 · Origin</title>
+    
+    <!-- 手机添加到主屏幕的名字 -->
+    <meta name="apple-mobile-web-app-title" content="原点">
+
+    <!-- 电脑浏览器标签页图标 / 手机主屏幕图标 -->
+    <link rel="icon" type="image/png" href="/favicon.png">
     <link rel="apple-touch-icon" href="/favicon.png">
     
-    <!-- 让手机网页看起来像独立 App（去掉顶部 Safari 地址栏） -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -31,6 +32,13 @@
          首页（欢迎词 + 刷题按钮）
          ============================================================ -->
     <div id="home" class="page">
+
+        <!-- ★ 新增：原点 高级排版大标题 -->
+        <div style="margin-top: 40px;">
+            <h1 style="text-align:center; font-size:32px; font-weight:800; letter-spacing:6px; color:#1d1d1f; margin:0 0 6px 0; padding-left:6px;">原 点</h1>
+            <div style="text-align:center; font-size:12px; font-weight:600; letter-spacing:8px; color:#a0a0a5; margin-bottom:4px; padding-left:8px;">O R I G I N</div>
+            <div style="text-align:center; font-size:13px; color:#86868b; letter-spacing:2px; margin-bottom:20px;">回归本质 · 探本溯源</div>
+        </div>
 
         <!-- 欢迎词区域：点击任意位置展开刷题按钮 -->
         <div class="welcome-text" id="welcomeText"></div>
