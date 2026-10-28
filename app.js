@@ -18,8 +18,7 @@ window.QuizApp = {
         return new Promise((resolve) => {
             const modalRoot = document.getElementById('modalRoot');
             if (!modalRoot) { resolve(false); return; }
-            const modal = document.createElement('div');
-            modal.className = 'modal-overlay';
+            const modal = document.createElement('div'); modal.className = 'modal-overlay';
             modal.innerHTML = `<div class="modal-card confirm-card" style="max-width:380px;"><div class="confirm-title">${title}</div>${message ? `<div class="confirm-message">${message}</div>` : ''}<div class="confirm-btns"><button class="confirm-btn cancel" data-action="cancel">${cancelText}</button><button class="confirm-btn ${danger ? 'danger' : 'primary'}" data-action="ok">${confirmText}</button></div></div>`;
             modalRoot.appendChild(modal);
             const close = (result) => { modal.style.animation = 'confirmOut 0.2s forwards'; setTimeout(() => modal.remove(), 200); resolve(result); };
@@ -31,8 +30,7 @@ window.QuizApp = {
 
     showResultModal({ title = '本次完成', correct = 0, wrong = 0, total = 0, acc = 0 } = {}) {
         return new Promise((resolve) => {
-            const modalRoot = document.getElementById('modalRoot');
-            if (!modalRoot) { resolve('home'); return; }
+            const modalRoot = document.getElementById('modalRoot'); if (!modalRoot) { resolve('home'); return; }
             const modal = document.createElement('div'); modal.className = 'modal-overlay';
             modal.innerHTML = `<div class="modal-card result-card" style="max-width:400px;"><div class="result-title">${title}</div><div class="result-acc"><div class="result-acc-num" data-target="${acc}">0<span>%</span></div><div class="result-acc-label">正确率</div></div><div class="result-stats"><div class="result-stat"><div class="result-stat-num correct">${correct}</div><div class="result-stat-label">正确</div></div><div class="result-stat"><div class="result-stat-num wrong">${wrong}</div><div class="result-stat-label">错误</div></div><div class="result-stat"><div class="result-stat-num total">${total}</div><div class="result-stat-label">总题数</div></div></div><div class="result-btns"><button class="result-btn home" data-action="home">返回首页</button><button class="result-btn retry" data-action="retry">再来一组</button></div></div>`;
             modalRoot.appendChild(modal);
@@ -42,6 +40,7 @@ window.QuizApp = {
             const close = (action) => { modal.style.animation = 'confirmOut 0.2s forwards'; setTimeout(() => modal.remove(), 200); resolve(action); };
             modal.querySelector('[data-action="home"]').onclick = () => close('home');
             modal.querySelector('[data-action="retry"]').onclick = () => close('retry');
+            // 成绩弹窗不允许点击空白关闭，防止误触
         });
     },
 
@@ -59,30 +58,24 @@ window.QuizApp = {
     },
 
     async fetchBank(force = false) {
-        const user = this.getCurrentUser(); if (!user) return [];
-        const now = Date.now();
+        const user = this.getCurrentUser(); if (!user) return []; const now = Date.now();
         if (!force && this._cache.bank && now - this._cache.bankTime < this.CACHE_TTL) return this._cache.bank;
         try { const res = await fetch(`/api/questions?user_id=${encodeURIComponent(user)}`); const data = await res.json(); this._cache.bank = data.questions || data || []; this._cache.bankTime = now; return this._cache.bank; } catch (e) { return this._cache.bank || []; }
     },
-
     async fetchWrong(force = false) {
-        const user = this.getCurrentUser(); if (!user) return [];
-        const now = Date.now();
+        const user = this.getCurrentUser(); if (!user) return []; const now = Date.now();
         if (!force && this._cache.wrong && now - this._cache.wrongTime < this.CACHE_TTL) return this._cache.wrong;
         try { const res = await fetch(`/api/wrong?user_id=${encodeURIComponent(user)}`); const data = await res.json(); this._cache.wrong = data || []; this._cache.wrongTime = now; return this._cache.wrong; } catch (e) { return this._cache.wrong || []; }
     },
-
     async fetchFav(force = false) {
-        const user = this.getCurrentUser(); if (!user) return [];
-        const now = Date.now();
+        const user = this.getCurrentUser(); if (!user) return []; const now = Date.now();
         if (!force && this._cache.fav && now - this._cache.favTime < this.CACHE_TTL) return this._cache.fav;
         try { const res = await fetch(`/api/favorites?user_id=${encodeURIComponent(user)}`); const data = await res.json(); this._cache.fav = data || []; this._cache.favTime = now; return this._cache.fav; } catch (e) { return this._cache.fav || []; }
     },
 
     getNotes() { const user = this.getCurrentUser(); if (!user) return {}; try { return JSON.parse(localStorage.getItem(`quiz_notes_${user}`) || '{}'); } catch (e) { return {}; } },
     saveNotes(notes) { const user = this.getCurrentUser(); if (user) localStorage.setItem(`quiz_notes_${user}`, JSON.stringify(notes)); },
-    getNote(qText) { return this.getNotes()[qText] || null; },
-    hasNote(qText) { return !!this.getNote(qText); },
+    getNote(qText) { return this.getNotes()[qText] || null; }, hasNote(qText) { return !!this.getNote(qText); },
 
     openNoteModal(qText) {
         const modalRoot = document.getElementById('modalRoot'); if (!modalRoot) return;
@@ -92,28 +85,18 @@ window.QuizApp = {
         const modal = document.createElement('div'); modal.className = 'modal-overlay'; modal.id = 'noteModal';
         modal.innerHTML = `<div class="modal-card note-card" style="max-width:480px;"><div class="modal-header"><span class="modal-title">题目笔记</span><button class="modal-close" onclick="QuizApp.closeModal('noteModal')">✕</button></div><div class="note-question">${this.escapeHtml(qText)}</div><textarea class="note-textarea" id="noteTextarea" placeholder="在这里写下你的理解、易错点...">${noteText}</textarea><div class="note-meta"><span>${updatedAt ? `上次编辑：${updatedAt}` : '还没有笔记'}</span><span class="note-count" id="noteCount">${noteText.length} 字</span></div><div class="note-btns">${note ? `<button class="note-btn delete" onclick="QuizApp.doDeleteNote('${this.escAttr(qText)}')">删除笔记</button>` : ''}<button class="note-btn cancel" onclick="QuizApp.closeModal('noteModal')">取消</button><button class="note-btn save" onclick="QuizApp.doSaveNote('${this.escAttr(qText)}')">保存</button></div></div>`;
         modalRoot.appendChild(modal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) this.closeModal('noteModal'); }); // 点击空白关闭
         setTimeout(() => { const ta = document.getElementById('noteTextarea'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } const counter = document.getElementById('noteCount'); if (ta && counter) ta.addEventListener('input', () => { counter.textContent = ta.value.length + ' 字'; }); }, 100);
     },
-
-    async doSaveNote(qText) {
-        const ta = document.getElementById('noteTextarea'); if (!ta) return;
-        const text = ta.value.trim(); const notes = this.getNotes();
-        if (!text) { delete notes[qText]; this.showToast('笔记已删除'); } else { notes[qText] = { text: text, updatedAt: Date.now() }; this.showToast('笔记已保存'); }
-        this.saveNotes(notes); this.closeModal('noteModal'); this.refreshCurrentView();
-    },
-
-    async doDeleteNote(qText) {
-        const ok = await this.showConfirm({ title: '删除笔记', message: '确定要删除这道题的笔记吗？', confirmText: '删除', cancelText: '取消', danger: true }); if (!ok) return;
-        const notes = this.getNotes(); delete notes[qText]; this.saveNotes(notes); this.closeModal('noteModal'); this.showToast('笔记已删除'); this.refreshCurrentView();
-    },
-
+    async doSaveNote(qText) { const ta = document.getElementById('noteTextarea'); if (!ta) return; const text = ta.value.trim(); const notes = this.getNotes(); if (!text) { delete notes[qText]; this.showToast('笔记已删除'); } else { notes[qText] = { text: text, updatedAt: Date.now() }; this.showToast('笔记已保存'); } this.saveNotes(notes); this.closeModal('noteModal'); this.refreshCurrentView(); },
+    async doDeleteNote(qText) { const ok = await this.showConfirm({ title: '删除笔记', message: '确定要删除这道题的笔记吗？', confirmText: '删除', cancelText: '取消', danger: true }); if (!ok) return; const notes = this.getNotes(); delete notes[qText]; this.saveNotes(notes); this.closeModal('noteModal'); this.showToast('笔记已删除'); this.refreshCurrentView(); },
+    
     refreshCurrentView() {
         if (this._inQuiz && this.activeBank.length > 0) this.renderCard(false);
         else if (this.currentTab === 'bank') this._renderBankUI(this._bankCache || [], '');
         else if (this.currentTab === 'wrong') this._renderWrongUI();
         else if (this.currentTab === 'fav') this._renderFavUI(this._cache.fav || []);
     },
-
     escapeHtml(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); },
     isVibrationSupported() { return typeof navigator !== 'undefined' && 'vibrate' in navigator; },
     vibrate(pattern) { if (this._vibrationEnabled && this.isVibrationSupported()) try { navigator.vibrate(pattern); } catch (e) {} },
@@ -125,10 +108,11 @@ window.QuizApp = {
             let user = this.getCurrentUser(); if (user) { resolve(user); return; }
             const modalRoot = document.getElementById('modalRoot'); const modal = document.createElement('div'); modal.className = 'modal-overlay';
             modal.innerHTML = `<div class="modal-card" style="max-width:380px;"><div class="modal-title">登录 / 注册</div><input type="text" id="loginUser" class="search-box" placeholder="请输入用户名" style="width:100%;margin-bottom:12px;"><div id="loginPwdWrap" style="display:none;"><input type="password" id="loginPwd" class="search-box" placeholder="请输入密码" style="width:100%;margin-bottom:12px;"></div><div class="modal-btns"><button class="btn-cancel" onclick="this.closest('.modal-overlay').remove(); QuizApp._loginResolve(null);">取消</button><button class="btn-primary" id="loginBtn" onclick="QuizApp._doLogin()">下一步</button></div></div>`;
-            modalRoot.appendChild(modal); this._loginResolve = resolve; setTimeout(() => document.getElementById('loginUser').focus(), 100);
+            modalRoot.appendChild(modal);
+            modal.addEventListener('click', (e) => { if (e.target === modal) { modal.remove(); this._loginResolve(null); } }); // 点击空白关闭
+            this._loginResolve = resolve; setTimeout(() => document.getElementById('loginUser').focus(), 100);
         });
     },
-
     async _doLogin() {
         const userInp = document.getElementById('loginUser').value.trim(); if (!userInp) return this.showToast('请输入用户名');
         const pwdWrap = document.getElementById('loginPwdWrap'), pwdInp = document.getElementById('loginPwd'), btn = document.getElementById('loginBtn');
@@ -141,13 +125,13 @@ window.QuizApp = {
             if (res.ok) { localStorage.setItem('quiz_user_id', userInp); this.updateUserUI(); this.invalidateCache(); this.showToast('登录成功'); document.querySelector('.modal-overlay').remove(); this.renderMe(); if (this._loginResolve) this._loginResolve(userInp); } else { this.showToast(res.error); btn.textContent = '登录'; }
         }
     },
-
     showSetPasswordModal(username) {
         const modal = document.createElement('div'); modal.className = 'modal-overlay';
         modal.innerHTML = `<div class="modal-card" style="max-width:380px;"><div class="modal-title">设置密码</div><div style="font-size:13px;color:#86868b;margin-bottom:12px;">账户：${username}</div><input type="password" id="newPwd" class="search-box" placeholder="设置密码（至少4位）" style="width:100%;margin-bottom:12px;"><input type="password" id="newPwd2" class="search-box" placeholder="确认密码" style="width:100%;margin-bottom:16px;"><div class="modal-btns"><button class="btn-primary" id="setPwdBtn" onclick="QuizApp._doSetPwd('${username}')">确定</button></div></div>`;
-        document.getElementById('modalRoot').appendChild(modal); setTimeout(() => document.getElementById('newPwd').focus(), 100);
+        document.getElementById('modalRoot').appendChild(modal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); }); // 点击空白关闭
+        setTimeout(() => document.getElementById('newPwd').focus(), 100);
     },
-
     async _doSetPwd(username) {
         const p1 = document.getElementById('newPwd').value, p2 = document.getElementById('newPwd2').value;
         if (p1.length < 4) return this.showToast('密码至少4位'); if (p1 !== p2) return this.showToast('两次密码不一致');
@@ -157,14 +141,12 @@ window.QuizApp = {
             if (res.ok) { localStorage.setItem('quiz_user_id', username); this.updateUserUI(); this.invalidateCache(); this.showToast('设置成功，已登录'); document.querySelector('.modal-overlay').remove(); this.renderMe(); if (this._loginResolve) this._loginResolve(username); } else { this.showToast(res.error || '设置失败'); btn.textContent = '确定'; }
         } catch (e) { this.showToast('网络请求失败'); btn.textContent = '确定'; }
     },
-
     showChangePasswordModal() {
-        const user = this.getCurrentUser(); if (!user) return;
-        const modal = document.createElement('div'); modal.className = 'modal-overlay';
+        const user = this.getCurrentUser(); if (!user) return; const modal = document.createElement('div'); modal.className = 'modal-overlay';
         modal.innerHTML = `<div class="modal-card" style="max-width:380px;"><div class="modal-title">修改密码</div><input type="password" id="oldPwd" class="search-box" placeholder="原密码" style="width:100%;margin-bottom:12px;"><input type="password" id="chgPwd" class="search-box" placeholder="新密码（至少4位）" style="width:100%;margin-bottom:12px;"><div class="modal-btns"><button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">取消</button><button class="btn-primary" id="chgBtn" onclick="QuizApp._doChangePwd()">确认修改</button></div></div>`;
         document.getElementById('modalRoot').appendChild(modal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); }); // 点击空白关闭
     },
-
     async _doChangePwd() {
         const user = this.getCurrentUser(); const p1 = document.getElementById('oldPwd').value, p2 = document.getElementById('chgPwd').value;
         if (!p1) return this.showToast('请输入原密码'); if (p2.length < 4) return this.showToast('新密码至少4位');
@@ -172,18 +154,17 @@ window.QuizApp = {
         const res = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'change', username: user, password: p1, newPassword: p2 }) }).then(r => r.json());
         if (res.ok) { this.showToast('密码修改成功'); document.querySelector('.modal-overlay').remove(); } else { this.showToast(res.error); btn.textContent = '确认修改'; }
     },
-
     async logout() {
         const ok = await this.showConfirm({ title: '退出登录', message: '确定要退出当前账号吗？', confirmText: '退出', cancelText: '取消', danger: true }); if (!ok) return;
         localStorage.removeItem('quiz_user_id'); this.clearSessionContext(); this.invalidateCache(); this._inQuiz = false; this.updateUserUI(); this.showToast('已退出登录'); if (this.currentTab === 'me') this.renderMe();
     },
-
     loginNow() { this.checkLogin().then(user => { if (user) { this.updateUserUI(); this.invalidateCache(); this.renderMe(); } }); },
 
     async aiExplain(question, options, answer) {
         const modalRoot = document.getElementById('modalRoot'); const modal = document.createElement('div'); modal.className = 'modal-overlay';
         modal.innerHTML = `<div class="modal-card" style="max-width:500px;"><div class="modal-header"><span class="modal-title">🤖 AI 解析</span><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div id="aiContent" style="padding:16px; line-height:1.8; font-size:15px; color:#1d1d1f; min-height:100px; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="width:24px;height:24px;border:3px solid #e5e5ea;border-top-color:#0071e3;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:12px;"></div><span style="color:#86868b;">AI 正在努力思考中...</span></div></div>`;
         modalRoot.appendChild(modal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); }); // 点击空白关闭
         const prompt = `题目：${question}\n选项：${options || '无'}\n正确答案：${answer}\n请解析这道题。`;
         try {
             const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, action: 'explain' }) }); const data = await res.json();
@@ -191,11 +172,11 @@ window.QuizApp = {
             if (data.ok) { contentDiv.style.display = 'block'; contentDiv.innerHTML = `<div style="white-space:pre-wrap;">${this.escapeHtml(data.result)}</div>`; } else { contentDiv.innerHTML = `<span style="color:#ff3b30;">解析失败：${data.error}</span>`; }
         } catch (e) { const contentDiv = document.getElementById('aiContent'); if (contentDiv) contentDiv.innerHTML = `<span style="color:#ff3b30;">请求超时或网络错误</span>`; }
     },
-
     async aiGrade(question, studentAnswer, standardAnswer) {
         const modalRoot = document.getElementById('modalRoot'); const modal = document.createElement('div'); modal.className = 'modal-overlay';
         modal.innerHTML = `<div class="modal-card" style="max-width:400px;"><div class="modal-header"><span class="modal-title">🤖 AI 批改</span><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div id="aiGradeContent" style="padding:16px; line-height:1.8; font-size:15px; color:#1d1d1f; min-height:100px; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="width:24px;height:24px;border:3px solid #e5e5ea;border-top-color:#0071e3;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:12px;"></div><span style="color:#86868b;">阅卷老师正在批改...</span></div></div>`;
         modalRoot.appendChild(modal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); }); // 点击空白关闭
         const prompt = `题目：${question}\n学生回答：${studentAnswer}\n标准答案：${standardAnswer}`;
         try {
             const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, action: 'grade' }) }); const data = await res.json();
@@ -216,7 +197,6 @@ window.QuizApp = {
     },
 
     bindBgUpload() { const el = document.getElementById('bgImageInput'); if (el) el.addEventListener('change', (e) => this.handleBgImageUpload(e)); },
-
     bindQuizSwipe() {
         const app = document.getElementById('app'); if (!app) return;
         let startX = 0, startY = 0, tracking = false, locked = false;
@@ -261,7 +241,6 @@ window.QuizApp = {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     },
     setSlider(idx, animate = true) { const slider = document.getElementById('tabSlider'); if (!slider) return; if (!animate) slider.style.transition = 'none'; slider.style.transform = `translateX(${idx * 100}%)`; if (!animate) { void slider.offsetWidth; slider.style.transition = ''; } },
-
     bindDragSlider() {
         const tabbar = document.getElementById('tabbar'), slider = document.getElementById('tabSlider'); if (!tabbar || !slider) return;
         let isDragging = false, isPressing = false, pressTimer = null, startX = 0, startY = 0, currentIdx = 0;
@@ -381,6 +360,7 @@ window.QuizApp = {
         const modal = document.createElement('div'); modal.className = 'modal-overlay'; modal.id = 'chapterPickerModal';
         modal.innerHTML = `<div class="modal-card chapter-picker-card" style="max-width:460px;"><div class="modal-header"><span class="modal-title">切换章节</span><button class="modal-close" onclick="QuizApp.closeModal('chapterPickerModal')">✕</button></div><div class="chapter-picker-total">共 ${bank.length} 道题 · ${chapters.length} 个章节</div><div class="chapter-card-list">${listHtml}</div></div>`;
         modalRoot.appendChild(modal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) this.closeModal('chapterPickerModal'); }); // 点击空白关闭
     },
     pickChapter(chapter) { this.closeModal('chapterPickerModal'); if (!chapter) { this._selectedChapters = []; this._isChapterMode = false; } else { this._selectedChapters = [chapter]; this._isChapterMode = true; } this.start(this._isRandom || false, this._currentLimit || 20, this._source === 'wrong' ? 'all' : this._source, this._selectedChapters.length > 0 ? this._selectedChapters : null); this.showToast(chapter ? `已切换到「${chapter}」` : '已切换到全部章节'); },
 
@@ -400,24 +380,19 @@ window.QuizApp = {
         const app = document.getElementById('app'); if (!app) return;
         if (!this.activeBank || this.activeBank.length === 0) return app.innerHTML = `<div class="page-card empty-state">暂无题目</div>`;
         const q = this.activeBank[this.idx];
-        
         const isDone = (v) => v !== null && (typeof v !== 'object' || v.isCorrect !== null);
         const done = this.record.filter(isDone).length;
         const correct = this.record.filter((v, i) => isDone(v) && this.checkAnswer(this.activeBank[i], v)).length;
         const acc = done ? Math.round(correct / done * 100) : 0; const total = this.activeBank.length; const remaining = total - done;
-        
         const isEssay = !q.opts || q.opts.length === 0; const isMulti = !isEssay && Array.isArray(q.a); 
         const isJudge = !isEssay && !isMulti && q.opts.length === 2 && ((q.opts[0].includes('正确') && q.opts[1].includes('错误')) || (q.opts[0].includes('对') && q.opts[1].includes('错')));
         const typeLabel = isEssay ? '简答题' : (isMulti ? '多选题' : (isJudge ? '判断题' : '单选题'));
-        
         let chapterLabel = (this._selectedChapters && this._selectedChapters.length > 0) ? this._selectedChapters.join('、') : '全部章节';
         const modeLabel = this._isFavoritesMode ? '收藏练习' : '';
         const isFav = this._favorites && this._favorites.includes(q.id); const starText = isFav ? '已收藏' : '收藏';
-        
         const hasSelected = this.record[this.idx] !== null; const isCorrect = hasSelected && this.checkAnswer(q, this.record[this.idx]);
         const tempSelected = this._tempMulti || []; const isMultiSubmitted = this._multiSubmitted || false; const showSubmit = isMulti && !isMultiSubmitted && !hasSelected;
         const isFirst = this.idx === 0; const isLast = this.idx === this.activeBank.length - 1;
-
         let optionsHtml = ''; let submitBtnHtml = ''; let correctAnswerHtml = '';
         const qText = this.escAttr(q.q || ''); const qOpts = this.escAttr((q.opts || []).join('、')); const qAns = this.escAttr(String(q.a || ''));
 
@@ -435,7 +410,6 @@ window.QuizApp = {
             if (isMulti && (isMultiSubmitted || hasSelected)) correctAnswerHtml = `<div class="correct-note">正确答案：<strong>${q.a.map(idx => q.opts[idx]).join('、')}</strong></div>`;
             if (showSubmit) submitBtnHtml = `<button class="submit-btn" onclick="QuizApp.submitMultiChoice()">提交答案</button>`;
         }
-
         let masterBtnHtml = ''; if (this._source === 'wrong' && q._isWrong && hasSelected && isCorrect) masterBtnHtml = `<div style="margin-top:14px;text-align:center;"><button class="master-action-btn" onclick="QuizApp.markMastered(${q._wrongId})">标记为已掌握</button></div>`;
         let multiHint = (isMulti && !isMultiSubmitted && !hasSelected && tempSelected.length > 0) ? `<div class="multi-hint">已选 ${tempSelected.length} 个选项，点击提交确认</div>` : '';
         let statusHtml = (!isEssay && (hasSelected || isMultiSubmitted)) ? (isCorrect ? `<span class="ok">回答正确</span>` : `<span class="no">再试一次</span>`) : '';
@@ -454,23 +428,12 @@ window.QuizApp = {
                 </div>
                 <div class="type-tag">${typeLabel}</div><div class="q-title">第 ${this.idx + 1} 题 · ${q.q}</div>
                 ${optionsHtml} ${correctAnswerHtml} ${submitBtnHtml} ${multiHint} ${masterBtnHtml}
-                
-                <button class="glass-btn ghost" style="width:100%;margin-top:14px;padding:10px;font-size:14px;color:#0071e3;border-color:rgba(0,113,227,0.2);" onclick="QuizApp.aiExplain('${qText}', '${qOpts}', '${qAns}')">
-                    🤖 AI 解析这道题
-                </button>
-
-                <!-- 底部操作区：左侧导航图标 + 上一题/下一题 -->
+                <button class="glass-btn ghost" style="width:100%;margin-top:14px;padding:10px;font-size:14px;color:#0071e3;border-color:rgba(0,113,227,0.2);" onclick="QuizApp.aiExplain('${qText}', '${qOpts}', '${qAns}')">🤖 AI 解析这道题</button>
                 <div style="display:flex;gap:12px;margin-top:18px;align-items:stretch;">
-                    <!-- 左下角导航图标按钮 -->
-                    <button class="glass-btn ghost" style="width:48px; flex:none; padding:0; display:flex; justify-content:center; align-items:center; font-size:24px; border-radius:16px; color:#0071e3;" onclick="QuizApp.openQuestionNav()" title="题目导航">
-                        ⊞
-                    </button>
-                    
+                    <button class="glass-btn ghost" style="width:48px; flex:none; padding:0; display:flex; justify-content:center; align-items:center; font-size:24px; border-radius:16px; color:#0071e3;" onclick="QuizApp.openQuestionNav()" title="题目导航">⊞</button>
                     ${!isFirst ? `<button class="glass-btn ghost" style="flex:1;padding:12px;font-size:14px;" onclick="QuizApp.prevQuestion()">上一题</button>` : `<div style="flex:1;"></div>`}
-                    
                     ${!isLast ? `<button class="glass-btn primary" style="flex:1;padding:12px;font-size:14px;" onclick="QuizApp.nextQuestion()">下一题</button>` : `<div style="flex:1;"></div>`}
                 </div>
-                
                 <button class="glass-btn ghost" style="width:100%;margin-top:12px;padding:12px;font-size:14px;" onclick="QuizApp.finishBatch()">结束本次练习</button>
             </div>
         `;
@@ -479,9 +442,7 @@ window.QuizApp = {
     },
 
     checkAnswer(q, val) { if (val === null || val === undefined) return false; const isEssay = !q.opts || q.opts.length === 0; if (isEssay) return val.isCorrect === true; return Array.isArray(q.a) ? (Array.isArray(val) && val.length === q.a.length && val.every(x => q.a.includes(x))) : val === q.a; },
-
     submitEssay() { const text = document.getElementById('essayInput').value.trim(); if (!text) return this.showToast('请输入你的回答'); this.record[this.idx] = { text: text, isCorrect: null }; this.renderCard(false); },
-
     markEssay(isCorrect) {
         const record = this.record[this.idx]; if (!record || record.isCorrect !== null) return; record.isCorrect = isCorrect;
         if (isCorrect) { this._consecutiveCorrect++; this._consecutiveWrong = 0; this.vibrate(10); } else { this._consecutiveWrong++; this._consecutiveCorrect = 0; this.vibrate([10, 50, 10]); if (this._source !== 'wrong') this.uploadWrongQuestion(this.getCurrentUser(), this.activeBank[this.idx]); }
@@ -496,8 +457,8 @@ window.QuizApp = {
         const modal = document.createElement('div'); modal.className = 'modal-overlay'; modal.id = 'questionNavModal';
         modal.innerHTML = `<div class="modal-card" style="max-width:520px;"><div class="modal-header"><span class="modal-title">题目导航</span><button class="modal-close" onclick="QuizApp.closeModal('questionNavModal')">✕</button></div><div class="nav-legend"><span class="nav-legend-item"><span class="nav-dot correct"></span>正确</span><span class="nav-legend-item"><span class="nav-dot wrong"></span>错误</span><span class="nav-legend-item"><span class="nav-dot"></span>未做</span></div><div class="nav-grid">${html}</div></div>`;
         modalRoot.appendChild(modal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) this.closeModal('questionNavModal'); }); // 点击空白关闭
     },
-
     jumpToQuestion(index) { if (index >= 0 && index < this.activeBank.length) { this.idx = index; this._tempMulti = []; this._multiSubmitted = false; this.closeModal('questionNavModal'); this.renderCard(true); } },
 
     toggleMultiOption(oIdx) {
@@ -507,7 +468,6 @@ window.QuizApp = {
         const hintDom = document.querySelector('.multi-hint');
         if (this._tempMulti.length > 0) { if (hintDom) { hintDom.textContent = `已选 ${this._tempMulti.length} 个选项，点击提交确认`; } else { const submitBtn = document.querySelector('.submit-btn'); if (submitBtn) { submitBtn.insertAdjacentHTML('beforebegin', `<div class="multi-hint">已选 ${this._tempMulti.length} 个选项，点击提交确认</div>`); } } } else if (hintDom) { hintDom.remove(); }
     },
-
     submitMultiChoice() {
         const q = this.activeBank[this.idx]; if (!Array.isArray(q.a) || this._multiSubmitted || this.record[this.idx] !== null) return; if (this._tempMulti.length === 0) return this.showToast('请至少选择一个选项', 1500);
         const isCorrect = this._tempMulti.every(idx => q.a.includes(idx)) && q.a.every(idx => this._tempMulti.includes(idx));
@@ -521,7 +481,6 @@ window.QuizApp = {
         this.updateTopBar(isCorrect);
         if (this.record.every(v => v !== null)) { this._isFinishing = true; setTimeout(() => this.finishBatch(), 800); }
     },
-
     select(oIdx) {
         const q = this.activeBank[this.idx]; if (Array.isArray(q.a) || this.record[this.idx] !== null || this._isFinishing) return;
         this.record[this.idx] = oIdx; const isCorrect = (oIdx === q.a);
@@ -560,14 +519,12 @@ window.QuizApp = {
         if (this._cache.wrong) { this._buildWrongData(); this._renderWrongUI(); this.fetchWrong(true).then(() => { if (this.currentTab === 'wrong') { this._buildWrongData(); this._renderWrongUI(); } }); return; }
         app.innerHTML = this.skeletonHTML('wrong'); await this.fetchWrong(); this._buildWrongData(); this._renderWrongUI();
     },
-
     _buildWrongData() {
         const user = this.getCurrentUser(), raw = this._cache.wrong || [], map = {};
         const findAnswerIndex = (answerText, opts) => { if (!Array.isArray(opts) || !answerText) return undefined; const ans = String(answerText).trim(); let idx = opts.findIndex(o => String(o).trim() === ans); if (idx >= 0) return idx; if (/^[A-Za-z]$/.test(ans)) { const letter = ans.toUpperCase(); idx = opts.findIndex(o => String(o).trim() === letter || String(o).trim().startsWith(letter + '.') || String(o).trim().startsWith(letter + '、') || String(o).trim().startsWith(letter + ' ')); if (idx >= 0) return idx; const charCode = letter.charCodeAt(0) - 65; if (charCode >= 0 && charCode < opts.length) return charCode; } return undefined; };
         for (const w of raw) { const key = w.q || String(w.id); if (!map[key]) { const opts = Array.isArray(w.opts) ? w.opts : []; const isEssay = !opts || opts.length === 0; map[key] = { id: w.id, q: w.q, opts: opts, a: isEssay ? w.answer : findAnswerIndex(w.answer, opts), answer: w.answer, user_choice: w.user_choice, subject: w.subject || '默认题库', chapter: w.chapter || '', wrongCount: 0, lastWrongAt: null, mastered: false }; } map[key].wrongCount++; const t = w.created_at || w.time || null; if (t && (!map[key].lastWrongAt || t > map[key].lastWrongAt)) map[key].lastWrongAt = t; }
         const list = Object.values(map), mKey = `quiz_mastered_${user}`; let mastered = {}; try { mastered = JSON.parse(localStorage.getItem(mKey) || '{}'); } catch (e) {} list.forEach(w => { if (mastered[w.q]) w.mastered = true; }); this._wrongList = list;
     },
-
     _renderWrongUI() {
         const app = document.getElementById('app'), list = this._wrongList, total = list.length, mastered = list.filter(w => w.mastered).length, filter = this._wrongFilter, keyword = (this._wrongSearch || '').trim().toLowerCase();
         let filtered = list; if (filter === 'unmastered') filtered = list.filter(w => !w.mastered); else if (filter === 'mastered') filtered = list.filter(w => w.mastered);
@@ -592,7 +549,6 @@ window.QuizApp = {
         let bottomBar = ''; if (this._wrongEditMode) { const allSelected = filtered.length > 0 && filtered.every(w => this._wrongSelected.includes(w.q)); bottomBar = `<div class="bank-bottom-bar"><button class="bottom-btn" onclick="QuizApp.selectAllWrong()">${allSelected ? '取消全选' : '全选'}</button><button class="bottom-btn danger" onclick="QuizApp.deleteSelectedWrong()" ${this._wrongSelected.length === 0 ? 'disabled' : ''}>删除选中 (${this._wrongSelected.length})</button><button class="bottom-btn" onclick="QuizApp.exitWrongEditMode()">完成</button></div>`; }
         app.innerHTML = `<div class="page-card"><div class="bank-head"><div><div class="bank-title">我的错题</div><div class="bank-count">${total} 道 · ${mastered} 道已掌握</div></div><div style="display:flex;gap:8px;">${selectBtn}${exportBtn}</div></div><div class="status-tabs"><button class="status-tab ${filter === 'all' ? 'active' : ''}" onclick="QuizApp.setWrongFilter('all')">全部</button><button class="status-tab ${filter === 'unmastered' ? 'active' : ''}" onclick="QuizApp.setWrongFilter('unmastered')">未掌握</button><button class="status-tab ${filter === 'mastered' ? 'active' : ''}" onclick="QuizApp.setWrongFilter('mastered')">已掌握</button></div>${subjectBar}${searchBox}${total > 0 ? `<div class="practice-cards"><button class="practice-card" onclick="QuizApp.practiceWrong('all')"><div><div class="pc-title">练习全部错题</div><div class="pc-sub">${total} 道</div></div><span class="pc-arrow">→</span></button></div><div class="practice-cards row2"><button class="practice-card" onclick="QuizApp.practiceWrong('unmastered')"><div><div class="pc-title">未掌握练习</div><div class="pc-sub">${list.filter(w => !w.mastered).length} 道</div></div></button><button class="practice-card" onclick="QuizApp.practiceWrong('random')"><div><div class="pc-title">随机错题</div><div class="pc-sub">抽 10 道</div></div></button></div>` : ''}${listHtml}</div>${bottomBar}`;
     },
-
     setWrongSubject(sub) { this._wrongSubjectFilter = sub; this._renderWrongUI(); },
     setWrongFilter(f) { this._wrongFilter = f; this._renderWrongUI(); },
     relTime(t) { if (!t) return ''; const d = new Date(t); if (isNaN(d.getTime())) return ''; const diff = Date.now() - d.getTime(), day = 86400000; if (diff < day) return '今天'; if (diff < 2 * day) return '昨天'; if (diff < 7 * day) return Math.floor(diff / day) + ' 天前'; return `${d.getMonth() + 1}月${d.getDate()}日`; },
@@ -610,12 +566,10 @@ window.QuizApp = {
     async markMastered(wrongId) { const cur = this.activeBank[this.idx]; if (!cur) return; await this.saveMastered(cur.q, true); this.showToast('已掌握，本题移入已掌握'); if (this.idx < this.activeBank.length - 1) setTimeout(() => { this.idx++; this._tempMulti = []; this._multiSubmitted = false; this.renderCard(true, 'right'); }, 400); else setTimeout(() => this.finishBatch(), 400); },
     async uploadWrongQuestion(userId, q) { try { await fetch('/api/wrong-add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, q: q.q, opts: q.opts, a: q.a, chapter: q.chapter || '', subject: q.subject || '默认题库', user_choice: this.record[this.idx] }) }); this.invalidateCache('wrong'); } catch (e) { console.error(e); } },
 
-    showExportOptions() { const modalRoot = document.getElementById('modalRoot'); if (!modalRoot) return; const modal = document.createElement('div'); modal.className = 'modal-overlay'; modal.id = 'exportModal'; modal.innerHTML = `<div class="modal-card" style="max-width:400px;"><div class="modal-header"><span class="modal-title">导出错题</span><button class="modal-close" onclick="QuizApp.closeModal('exportModal')">✕</button></div><div class="modal-hint" style="text-align:left;">共 ${this._wrongList.length} 道错题，选择导出格式：</div><div class="export-options"><button class="export-option" onclick="QuizApp.exportWrong('json')"><div class="export-icon">JSON</div><div class="export-info"><div class="export-name">JSON 格式</div><div class="export-desc">结构化数据，可再次导入</div></div></button><button class="export-option" onclick="QuizApp.exportWrong('txt')"><div class="export-icon">TXT</div><div class="export-info"><div class="export-name">文本格式</div><div class="export-desc">方便阅读打印</div></div></button></div></div>`; modalRoot.appendChild(modal); },
-
+    showExportOptions() { const modalRoot = document.getElementById('modalRoot'); if (!modalRoot) return; const modal = document.createElement('div'); modal.className = 'modal-overlay'; modal.id = 'exportModal'; modal.innerHTML = `<div class="modal-card" style="max-width:400px;"><div class="modal-header"><span class="modal-title">导出错题</span><button class="modal-close" onclick="QuizApp.closeModal('exportModal')">✕</button></div><div class="modal-hint" style="text-align:left;">共 ${this._wrongList.length} 道错题，选择导出格式：</div><div class="export-options"><button class="export-option" onclick="QuizApp.exportWrong('json')"><div class="export-icon">JSON</div><div class="export-info"><div class="export-name">JSON 格式</div><div class="export-desc">结构化数据，可再次导入</div></div></button><button class="export-option" onclick="QuizApp.exportWrong('txt')"><div class="export-icon">TXT</div><div class="export-info"><div class="export-name">文本格式</div><div class="export-desc">方便阅读打印</div></div></button></div></div>`; modalRoot.appendChild(modal); modal.addEventListener('click', (e) => { if (e.target === modal) this.closeModal('exportModal'); }); },
     exportWrong(format) { const list = this._wrongList || []; if (list.length === 0) return this.showToast('暂无错题'); this.closeModal('exportModal'); const getAnswerText = (w) => { if (w.answer !== undefined && w.answer !== null && w.answer !== '') return w.answer; if (Array.isArray(w.a)) return w.a.map(i => w.opts[i]).filter(Boolean).join('、'); if (typeof w.a === 'number' && w.opts && w.opts[w.a] !== undefined) return w.opts[w.a]; return '未记录'; }; let content, mime, ext; if (format === 'json') { content = JSON.stringify(list.map(w => ({ q: w.q, opts: w.opts, answer: getAnswerText(w), subject: w.subject, chapter: w.chapter || '', wrongCount: w.wrongCount || 1 })), null, 2); mime = 'application/json;charset=utf-8'; ext = 'json'; } else { content = list.map((w, i) => { const ans = getAnswerText(w); const optsLines = (w.opts || []).map((o, idx) => `   ${String.fromCharCode(65 + idx)}. ${o}`).join('\n'); return `第 ${i + 1} 题（${w.subject} - ${w.chapter}）\n${w.q}\n${optsLines}\n答案：${ans}\n错误次数：${w.wrongCount || 1}\n`; }).join('\n' + '─'.repeat(40) + '\n'); mime = 'text/plain;charset=utf-8'; ext = 'txt'; } const blob = new Blob([content], { type: mime }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `错题_${new Date().toISOString().slice(0, 10)}.${ext}`; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 1000); this.showToast(`已导出 ${list.length} 道错题`); },
 
     async renderFav() { const app = document.getElementById('app'); if (!this.getCurrentUser()) return app.innerHTML = `<div class="page-card empty-state">请先在「我的」页面登录</div>`; if (this._cache.fav) { this._renderFavUI(this._cache.fav); this.fetchFav(true).then(list => { if (this.currentTab === 'fav') this._renderFavUI(list); }); return; } app.innerHTML = this.skeletonHTML('fav'); const list = await this.fetchFav(); this._renderFavUI(list); },
-
     _renderFavUI(list) {
         const app = document.getElementById('app'), keyword = (this._favSearch || '').trim().toLowerCase();
         let filtered = list; if (keyword) filtered = filtered.filter(q => (q.q || '').toLowerCase().includes(keyword) || (q.opts || []).some(o => o.toLowerCase().includes(keyword)));
@@ -634,7 +588,6 @@ window.QuizApp = {
         let bottomBar = ''; if (this._favEditMode) { const allSelected = filtered.length > 0 && filtered.every(q => this._favSelected.includes(q.id)); bottomBar = `<div class="bank-bottom-bar"><button class="bottom-btn" onclick="QuizApp.selectAllFav()">${allSelected ? '取消全选' : '全选'}</button><button class="bottom-btn danger" onclick="QuizApp.deleteSelectedFav()" ${this._favSelected.length === 0 ? 'disabled' : ''}>取消收藏 (${this._favSelected.length})</button><button class="bottom-btn" onclick="QuizApp.exitFavEditMode()">完成</button></div>`; }
         app.innerHTML = `<div class="page-card"><div class="bank-head"><div><div class="bank-title">收藏</div><div class="bank-count">共 ${list.length} 道</div></div><div style="display:flex;gap:8px;">${selectBtn}${practiceBtn}</div></div>${subjectBar}${searchBox}${listHtml}</div>${bottomBar}`;
     },
-
     setFavSubject(sub) { this._favSubjectFilter = sub; this._renderFavUI(this._cache.fav || []); },
     enterFavEditMode() { this._favEditMode = true; this._favSelected = []; this._renderFavUI(this._cache.fav || []); },
     exitFavEditMode() { this._favEditMode = false; this._favSelected = []; this._renderFavUI(this._cache.fav || []); },
@@ -645,7 +598,6 @@ window.QuizApp = {
     async removeFav(qid) { const ok = await this.showConfirm({ title: '取消收藏', message: '确定要取消收藏这道题吗？', confirmText: '取消收藏', cancelText: '再想想' }); if (!ok) return; try { await fetch('/api/favorites-remove', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: this.getCurrentUser(), question_id: qid }) }); this.showToast('已取消收藏'); this.invalidateCache('fav'); this._cache.fav = (this._cache.fav || []).filter(q => q.id !== qid); this._renderFavUI(this._cache.fav); } catch (e) { this.showToast('操作失败'); } },
 
     async renderBank() { const app = document.getElementById('app'); if (!this.getCurrentUser()) return app.innerHTML = `<div class="page-card empty-state">请先在「我的」页面登录</div>`; if (this._cache.bank) { this._bankCache = this._cache.bank; this._renderBankUI(this._bankCache, ''); this.fetchBank(true).then(list => { if (this.currentTab === 'bank') { this._bankCache = list; this._renderBankUI(list, ''); } }); return; } app.innerHTML = this.skeletonHTML('bank'); const list = await this.fetchBank(); this._bankCache = list; this._renderBankUI(list, ''); },
-
     _renderBankUI(questions, keyword = '') {
         const app = document.getElementById('app'); let filtered = questions; if (this._bankSubjectFilter !== 'all') filtered = filtered.filter(q => (q.subject || '默认题库') === this._bankSubjectFilter); if (this._bankChapterFilter !== 'all') filtered = filtered.filter(q => q.chapter === this._bankChapterFilter); if (keyword) { const k = keyword.toLowerCase(); filtered = filtered.filter(q => q.q.toLowerCase().includes(k) || (q.opts || []).some(o => o.toLowerCase().includes(k))); }
         const total = questions.length, filteredTotal = filtered.length;
@@ -664,7 +616,6 @@ window.QuizApp = {
         let bottomBar = ''; if (this._bankEditMode) { const allSelected = filtered.length > 0 && filtered.every(q => this._bankSelected.includes(q.id)); bottomBar = `<div class="bank-bottom-bar" style="display:flex; gap:6px; flex-wrap:wrap;"><button class="bottom-btn" style="flex:1;" onclick="QuizApp.selectAllQuestions()">${allSelected ? '取消全选' : '全选'}</button><button class="bottom-btn" style="flex:1.2; background:rgba(0,113,227,0.12); color:#0071e3;" onclick="QuizApp.exportBank(true)">导出选中 (${this._bankSelected.length})</button><button class="bottom-btn danger" style="flex:1.2;" onclick="QuizApp.deleteSelectedQuestions()" ${this._bankSelected.length === 0 ? 'disabled' : ''}>删除 (${this._bankSelected.length})</button><button class="bottom-btn" style="flex:0.8;" onclick="QuizApp.exitBankEditMode()">完成</button></div>`; }
         app.innerHTML = `<div class="page-card"><div class="bank-head"><div><div class="bank-title">题库</div><div class="bank-count">共 ${total} 道${this._bankChapterFilter !== 'all' ? ` · 当前章节 ${filteredTotal} 道` : ''}</div></div><div style="display:flex;gap:8px;">${total > 0 ? `<button class="add-btn" style="background:rgba(0,0,0,0.06);color:#1d1d1f;box-shadow:none;" onclick="QuizApp.exportBank(false)">导出</button>` : ''}${total > 0 ? `<button class="add-btn" style="background:rgba(0,0,0,0.06);color:#1d1d1f;box-shadow:none;" onclick="QuizApp.${this._bankEditMode ? 'exitBankEditMode' : 'enterBankEditMode'}()">${this._bankEditMode ? '完成' : '选择'}</button>` : ''}<button class="add-btn" onclick="QuizApp.showAddQuestionModal()">添加题目</button></div></div>${subjectBar}${chapterBar}${total > 0 ? `<input class="search-box" type="text" placeholder="搜索题目..." value="${keyword}" oninput="QuizApp.onBankSearch(this.value)">` : ''}${listHtml}</div>${bottomBar}`;
     },
-
     setBankSubject(sub) { this._bankSubjectFilter = sub; this._bankChapterFilter = 'all'; this._bankSelected = []; this._renderBankUI(this._bankCache || [], ''); },
     setBankChapter(ch) { this._bankChapterFilter = ch; this._bankSelected = []; this._renderBankUI(this._bankCache || [], ''); },
     enterBankEditMode() { this._bankEditMode = true; this._bankSelected = []; this._renderBankUI(this._bankCache || [], ''); },
@@ -672,7 +623,6 @@ window.QuizApp = {
     toggleSelectQ(id) { if (!this._bankEditMode) return; const i = this._bankSelected.indexOf(id); i > -1 ? this._bankSelected.splice(i, 1) : this._bankSelected.push(id); this._renderBankUI(this._bankCache || [], ''); },
     selectAllQuestions() { let filtered = this._bankCache || []; if (this._bankSubjectFilter !== 'all') filtered = filtered.filter(q => (q.subject || '默认题库') === this._bankSubjectFilter); if (this._bankChapterFilter !== 'all') filtered = filtered.filter(q => q.chapter === this._bankChapterFilter); const keyword = document.querySelector('#app .search-box') ? document.querySelector('#app .search-box').value.trim().toLowerCase() : ''; if (keyword) filtered = filtered.filter(q => q.q.toLowerCase().includes(keyword) || (q.opts || []).some(o => o.toLowerCase().includes(keyword))); const all = filtered.every(q => this._bankSelected.includes(q.id)); this._bankSelected = all ? [] : filtered.map(q => q.id); this._renderBankUI(this._bankCache || [], keyword); },
     async deleteSelectedQuestions() { if (this._bankSelected.length === 0) return; const ok = await this.showConfirm({ title: '批量删除', message: `确定删除选中的 ${this._bankSelected.length} 道题吗？`, confirmText: '删除', cancelText: '取消', danger: true }); if (!ok) return; const ids = [...this._bankSelected]; this.showToast(`正在删除 ${ids.length} 道...`); try { const res = await fetch('/api/questions-delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: this.getCurrentUser(), ids: ids }) }); const d = await res.json(); if (d.ok) this.showToast(`已删除 ${d.count} 道`); else this.showToast('删除失败'); } catch (e) { this.showToast('删除请求失败'); } this._bankSelected = []; this.invalidateCache('bank'); await this.fetchBank(true); this._bankCache = this._cache.bank; this._renderBankUI(this._bankCache, ''); },
-
     exportBank(isSelected = false) {
         let list = [];
         if (isSelected) { if (!this._bankSelected || this._bankSelected.length === 0) return this.showToast('请先勾选要导出的题目'); list = (this._bankCache || []).filter(q => this._bankSelected.includes(q.id)); } else { list = this._bankCache || []; if (this._bankSubjectFilter !== 'all') list = list.filter(q => (q.subject || '默认题库') === this._bankSubjectFilter); if (this._bankChapterFilter !== 'all') list = list.filter(q => q.chapter === this._bankChapterFilter); const searchBox = document.querySelector('#app .search-box'); if (searchBox && searchBox.value.trim()) { const k = searchBox.value.trim().toLowerCase(); list = list.filter(q => q.q.toLowerCase().includes(k) || (q.opts || []).some(o => o.toLowerCase().includes(k))); } }
@@ -681,15 +631,11 @@ window.QuizApp = {
         const content = JSON.stringify(exportData, null, 2); const blob = new Blob([content], { type: 'application/json;charset=utf-8' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; const date = new Date().toISOString().slice(0, 10); let fileName = '题库'; if (isSelected) fileName = '自定义选中题目'; else if (this._bankSubjectFilter !== 'all') fileName = this._bankSubjectFilter;
         a.download = `${fileName}_${date}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 1000); this.showToast(`✅ 成功导出 ${list.length} 道题`);
     },
-
     onBankSearch(v) { if (this._bankSearchTimer) clearTimeout(this._bankSearchTimer); this._bankSearchTimer = setTimeout(() => { this._renderBankUI(this._bankCache || [], v); const inp = document.querySelector('#app .search-box'); if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); } }, 200); },
-
-    showAddQuestionModal() { const modalRoot = document.getElementById('modalRoot'); if (!modalRoot) return; const modal = document.createElement('div'); modal.className = 'modal-overlay'; modal.id = 'addQuestionModal'; modal.innerHTML = `<div class="modal-card" style="max-width:520px;"><div class="modal-header"><span class="modal-title">添加题目</span><button class="modal-close" onclick="QuizApp.closeModal('addQuestionModal')">✕</button></div><div style="margin-bottom: 12px; display: flex; gap: 10px;"><input type="text" id="importSubject" class="search-box" style="flex:1; margin:0;" placeholder="输入学科/题库（如：建设工程项目管理）" value="默认题库"></div><div class="modal-hint" style="line-height: 1.7; margin-bottom: 12px;"><strong>格式说明：</strong><br>· 选择题：<code>[{"q":"题目","opts":["A","B"],"a":0,"subject":"学科名","chapter":"章节"}]</code><br>· 简答题：<code>[{"q":"题目","opts":[],"a":"答案","subject":"学科名"}]</code></div><textarea class="modal-textarea" id="importCode" placeholder='可直接粘贴文本，或点击下方左侧按钮选择 .json、.txt 文件或图片。'></textarea><div class="modal-btns" style="display:flex; gap:8px;"><input type="file" id="universalFileInput" accept=".json,.txt,image/*" style="display: none;" onchange="QuizApp.handleFileSelect(event)"><button class="btn-cancel" style="flex:1; background: rgba(0,0,0,0.06); color: #1d1d1f; padding:10px; font-size:13px; border-radius:12px; border:none; cursor:pointer;" onclick="document.getElementById('universalFileInput').click()">📂 导入文件/图片</button><button class="btn-cancel" style="flex:1; background: rgba(0,113,227,0.1); color: #0071e3; padding:10px; font-size:13px; border-radius:12px; border:none; cursor:pointer;" onclick="QuizApp.aiExtractText()">🤖 AI 整理</button><button class="btn-primary" style="flex:1; background: #34c759; color:#fff; padding:10px; font-size:13px; border:none; border-radius:12px; cursor:pointer;" onclick="QuizApp.doImport()">直接导入</button></div></div>`; modalRoot.appendChild(modal); setTimeout(() => { const ta = document.getElementById('importCode'); if (ta) ta.focus(); }, 100); },
-
+    showAddQuestionModal() { const modalRoot = document.getElementById('modalRoot'); if (!modalRoot) return; const modal = document.createElement('div'); modal.className = 'modal-overlay'; modal.id = 'addQuestionModal'; modal.innerHTML = `<div class="modal-card" style="max-width:520px;"><div class="modal-header"><span class="modal-title">添加题目</span><button class="modal-close" onclick="QuizApp.closeModal('addQuestionModal')">✕</button></div><div style="margin-bottom: 12px; display: flex; gap: 10px;"><input type="text" id="importSubject" class="search-box" style="flex:1; margin:0;" placeholder="输入学科/题库（如：建设工程项目管理）" value="默认题库"></div><div class="modal-hint" style="line-height: 1.7; margin-bottom: 12px;"><strong>格式说明：</strong><br>· 选择题：<code>[{"q":"题目","opts":["A","B"],"a":0,"subject":"学科名","chapter":"章节"}]</code><br>· 简答题：<code>[{"q":"题目","opts":[],"a":"答案","subject":"学科名"}]</code></div><textarea class="modal-textarea" id="importCode" placeholder='可直接粘贴文本，或点击下方左侧按钮选择 .json、.txt 文件或图片。'></textarea><div class="modal-btns" style="display:flex; gap:8px;"><input type="file" id="universalFileInput" accept=".json,.txt,image/*" style="display: none;" onchange="QuizApp.handleFileSelect(event)"><button class="btn-cancel" style="flex:1; background: rgba(0,0,0,0.06); color: #1d1d1f; padding:10px; font-size:13px; border-radius:12px; border:none; cursor:pointer;" onclick="document.getElementById('universalFileInput').click()">📂 导入文件/图片</button><button class="btn-cancel" style="flex:1; background: rgba(0,113,227,0.1); color: #0071e3; padding:10px; font-size:13px; border-radius:12px; border:none; cursor:pointer;" onclick="QuizApp.aiExtractText()">🤖 AI 整理</button><button class="btn-primary" style="flex:1; background: #34c759; color:#fff; padding:10px; font-size:13px; border:none; border-radius:12px; cursor:pointer;" onclick="QuizApp.doImport()">直接导入</button></div></div>`; modalRoot.appendChild(modal); modal.addEventListener('click', (e) => { if (e.target === modal) this.closeModal('addQuestionModal'); }); setTimeout(() => { const ta = document.getElementById('importCode'); if (ta) ta.focus(); }, 100); },
     handleFileSelect(event) { const file = event.target.files[0]; if (!file) return; if (file.size > 5 * 1024 * 1024) return this.showToast('文件不能超过 5MB'); const ta = document.getElementById('importCode'); if (file.type.startsWith('image/')) { const reader = new FileReader(); reader.onload = async (e) => { ta.value = '⏳ 图片已上传，AI 正在努力识别并提取题目（约5-10秒）...'; await this.aiExtract(null, e.target.result); }; reader.readAsDataURL(file); } else { const reader = new FileReader(); reader.onload = (e) => { let content = e.target.result; if (content.charCodeAt(0) === 0xFEFF) content = content.slice(1); ta.value = content; this.showToast('✅ 文件已读取，请点击「直接导入」或「AI整理」'); }; reader.readAsText(file); } event.target.value = ''; },
     async aiExtractText() { const text = document.getElementById('importCode').value.trim(); if (!text) return this.showToast('请先在下方输入或粘贴包含题目的文本'); if (text.startsWith('[') && text.endsWith(']')) { return this.showToast('已经是 JSON 格式了，请点击「直接导入」'); } await this.aiExtract(text, null); },
     async aiExtract(text, imageBase64) { const ta = document.getElementById('importCode'); if (!imageBase64) ta.value = '⏳ AI 正在努力整理格式，请稍候（约5-10秒）...'; try { const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: text, imageBase64, action: 'extract' }) }); const data = await res.json(); if (data.ok) { ta.value = data.result; this.showToast('✅ 识别完成，请检查后点击「直接导入」'); } else { ta.value = ''; alert('❌ AI 识别失败：\n' + data.error); } } catch (e) { ta.value = ''; alert('❌ 网络请求失败'); } },
-
     async doImport() {
         const user = this.getCurrentUser(); if (!user) return this.showToast('请先登录'); const ta = document.getElementById('importCode'), subjectInput = document.getElementById('importSubject'); if (!ta) return; let code = ta.value.trim(), defaultSubject = subjectInput ? subjectInput.value.trim() : '默认题库'; if (!code) return alert('请输入内容');
         code = code.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim(); if (code.includes('[') && code.includes(']')) { code = code.substring(code.indexOf('['), code.lastIndexOf(']') + 1); }
@@ -707,7 +653,6 @@ window.QuizApp = {
         try { const res = await fetch('/api/questions-add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user, questions: formattedQuestions }) }); const d = await res.json(); if (d.ok) this.showToast(`✅ 成功导入 ${d.count} 道题`); else alert('导入失败：' + (d.error || '未知错误')); } catch (e) { alert('网络请求失败'); }
         if (toastMsg.parentNode) toastMsg.remove(); this.invalidateCache('bank'); await this.fetchBank(true); this._bankCache = this._cache.bank; this._renderBankUI(this._bankCache, '');
     },
-
     closeModal(id) { const el = document.getElementById(id); if (el) el.remove(); },
     async deleteQuestion(id) { const ok = await this.showConfirm({ title: '删除题目', message: '确定删除这道题吗？', confirmText: '删除', cancelText: '取消', danger: true }); if (!ok) return; try { await fetch('/api/questions-delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: this.getCurrentUser(), ids: [id] }) }); this.showToast('已删除'); this.invalidateCache('bank'); await this.fetchBank(true); this._bankCache = this._cache.bank; this._renderBankUI(this._bankCache, ''); } catch (e) { this.showToast('删除失败'); } },
     async editQuestion(id) {
@@ -716,14 +661,12 @@ window.QuizApp = {
         const newSubject = prompt('所属学科（留空则不修改）：', q.subject || '默认题库'); const newChapter = prompt('章节名称（留空则不修改）：', q.chapter || '');
         try { const res = await fetch('/api/questions-update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user, id, q: newQ, opts: newOpts, a: newA, subject: newSubject === null ? (q.subject || '默认题库') : newSubject, chapter: newChapter === null ? (q.chapter || '') : newChapter }) }); const r = await res.json(); if (r.ok === false) return this.showToast('更新失败'); this.showToast('已更新'); this.invalidateCache('bank'); await this.fetchBank(true); this._bankCache = this._cache.bank; this._renderBankUI(this._bankCache, ''); } catch (e) { this.showToast('更新失败'); }
     },
-
     async renderMe() {
         const app = document.getElementById('app'), user = this.getCurrentUser(); let totalQ = 0, wrongN = 0, favN = 0, masteredN = 0;
         if (user) { try { const [bankList, wrongList, favList] = await Promise.all([this.fetchBank(), this.fetchWrong(), this.fetchFav()]); totalQ = bankList.length; wrongN = wrongList.length; favN = favList.length; const mKey = `quiz_mastered_${user}`; let mastered = {}; try { mastered = JSON.parse(localStorage.getItem(mKey) || '{}'); } catch (e) {} masteredN = wrongList.filter(w => mastered[w.q]).length; } catch (e) {} }
         const theme = localStorage.getItem('quiz_theme') || 'light', s = this._settingsCache || (this._settingsCache = this.loadSettings()); const initial = user ? user.charAt(0).toUpperCase() : '?', vibSupported = this.isVibrationSupported(); const customColor = localStorage.getItem('quiz_custom_bg_color') || '#e8eef7', hasCustomImg = !!localStorage.getItem('quiz_custom_bg_image'); const hasCustomBg = !!(localStorage.getItem('quiz_custom_bg_color') || localStorage.getItem('quiz_custom_bg_image'));
         app.innerHTML = `<div class="page-card"><div class="profile-header"><div class="avatar">${user ? initial : ''}</div><div class="user-name">${user || '未登录'}</div><div class="user-sub">${user ? '已登录' : '登录后可同步数据'}</div>${user ? `<div class="stats-grid"><div class="stat-box"><div class="sv">${totalQ}</div><div class="sl">题库</div></div><div class="stat-box"><div class="sv">${wrongN}</div><div class="sl">错题</div></div><div class="stat-box"><div class="sv">${masteredN}</div><div class="sl">已掌握</div></div><div class="stat-box"><div class="sv">${favN}</div><div class="sl">收藏</div></div></div>` : `<button class="glass-btn primary" style="margin-top:20px;" onclick="QuizApp.loginNow()">登录账号</button>`}</div>${user ? `<div><div class="setting-row"><span class="setting-label">主题</span><div class="theme-btns"><button class="theme-btn ${theme === 'light' ? 'active' : ''}" onclick="QuizApp.setTheme('light')">明亮</button><button class="theme-btn ${theme === 'dark' ? 'active' : ''}" onclick="QuizApp.setTheme('dark')">夜间</button><button class="theme-btn ${theme === 'eye' ? 'active' : ''}" onclick="QuizApp.setTheme('eye')">护眼</button></div></div><div class="setting-row"><span class="setting-label">🔐 密码管理</span><button class="mini-btn" onclick="QuizApp.showChangePasswordModal()">修改密码</button></div><div class="setting-row"><span class="setting-label">震动反馈 ${!vibSupported ? '<span class="setting-note">设备不支持</span>' : ''}</span><label class="toggle-switch ${!vibSupported ? 'disabled' : ''}"><input type="checkbox" ${s.vibration ? 'checked' : ''} ${!vibSupported ? 'disabled' : ''} onchange="QuizApp.setVibration(this.checked)"><span class="toggle-slider"></span></label></div><div class="setting-row"><span class="setting-label">自动跳转延迟</span><select onchange="QuizApp.setAutoDelay(parseInt(this.value))">${[200,400,600,800,1000].map(v => `<option value="${v}" ${s.autoDelay === v ? 'selected' : ''}>${v}ms</option>`).join('')}</select></div><div class="setting-row"><span class="setting-label">连续答对提示</span><label class="toggle-switch"><input type="checkbox" ${s.streakAlert ? 'checked' : ''} onchange="QuizApp.setStreakAlert(this.checked)"><span class="toggle-slider"></span></label></div><div class="setting-row"><span class="setting-label">背景颜色</span><div class="color-picker-wrap"><input type="color" class="color-picker" value="${customColor}" onchange="QuizApp.applyCustomBgColor(this.value)"><span class="color-value">${customColor}</span></div></div><div class="setting-row"><span class="setting-label">背景图片</span><button class="mini-btn" onclick="QuizApp.uploadBgImage()">${hasCustomImg ? '更换图片' : '选择图片'}</button></div><div class="setting-row"><span class="setting-label">重置背景</span><button class="mini-btn danger" onclick="QuizApp.resetCustomBg()" ${!hasCustomBg ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>恢复默认</button></div></div><button class="logout-btn" onclick="QuizApp.logout()">退出账号</button>` : ''}</div>`;
     },
-
     loadSettings() { const s = { theme: 'light', vibration: true, autoDelay: 600, streakAlert: true }; try { Object.assign(s, JSON.parse(localStorage.getItem('quiz_settings') || '{}')); } catch (e) {} this._vibrationEnabled = s.vibration; this._autoDelay = s.autoDelay; this._streakAlertEnabled = s.streakAlert; return s; },
     saveSettings() { localStorage.setItem('quiz_settings', JSON.stringify(this._settingsCache || {})); },
     loadTheme() { const t = localStorage.getItem('quiz_theme') || 'light'; document.body.classList.remove('theme-dark', 'theme-eye'); if (t === 'dark') document.body.classList.add('theme-dark'); else if (t === 'eye') document.body.classList.add('theme-eye'); },
@@ -731,14 +674,12 @@ window.QuizApp = {
     setVibration(v) { if (!this.isVibrationSupported()) return this.showToast('设备不支持震动'); this._settingsCache = this._settingsCache || {}; this._settingsCache.vibration = v; this._vibrationEnabled = v; this.saveSettings(); this.showToast(v ? '震动已开启' : '震动已关闭'); if (v) this.vibrate(10); },
     setAutoDelay(v) { this._settingsCache = this._settingsCache || {}; this._settingsCache.autoDelay = v; this._autoDelay = v; this.saveSettings(); this.showToast(`延迟已设为 ${v}ms`); },
     setStreakAlert(v) { this._settingsCache = this._settingsCache || {}; this._settingsCache.streakAlert = v; this._streakAlertEnabled = v; this.saveSettings(); this.showToast(v ? '连续提示已开启' : '连续提示已关闭'); },
-    
     getProgress(user) { try { return JSON.parse(localStorage.getItem(`quiz_progress_${user}`) || '{"sequential_index":0}'); } catch (e) { return { sequential_index: 0 }; } },
     saveProgress(user, data) { localStorage.setItem(`quiz_progress_${user}`, JSON.stringify({ ...this.getProgress(user), ...data })); },
     getRecentQuestions(user) { try { return JSON.parse(localStorage.getItem(`quiz_recent_${user}`) || '[]'); } catch (e) { return []; } },
     saveRecentQuestions(user, ids) { let recent = this.getRecentQuestions(user); recent = [...new Set([...ids, ...recent])].slice(0, 100); localStorage.setItem(`quiz_recent_${user}`, JSON.stringify(recent)); },
     saveSessionContext() { if (this._isRestoring || !this.activeBank.length || !this.getCurrentUser()) return; localStorage.setItem(`quiz_session_${this.getCurrentUser()}`, JSON.stringify({ ids: this.activeBank.map(q => q.id), records: this.record.slice(), idx: this.idx, isRandom: this._isRandom, limit: this._currentLimit, source: this._source, chapters: this._selectedChapters, isWrong: this._source === 'wrong', isFavorites: this._isFavoritesMode, timestamp: Date.now() })); },
     clearSessionContext() { const user = this.getCurrentUser(); if (user) localStorage.removeItem(`quiz_session_${user}`); },
-
     async restoreSession() {
         const user = this.getCurrentUser(); if (!user) return; const raw = localStorage.getItem(`quiz_session_${user}`); if (!raw) return; let ctx; try { ctx = JSON.parse(raw); } catch (e) { return; } if (Date.now() - ctx.timestamp > 86400000) return localStorage.removeItem(`quiz_session_${user}`);
         try {
@@ -751,10 +692,8 @@ window.QuizApp = {
             document.getElementById('home').style.display = 'none'; document.getElementById('app').style.display = 'block'; document.getElementById('app').className = 'page'; this.renderCard(false); this._isRestoring = false; this.showToast(`已恢复（第 ${this.idx + 1}/${active.length} 题）`);
         } catch (e) { console.error(e); this.showToast('恢复失败'); }
     },
-
     async checkSmartPrompts() { if (!this.getCurrentUser()) return; if (!localStorage.getItem('quiz_has_used')) { setTimeout(() => { this.showToast('点击屏幕中央开始刷题', 4000); localStorage.setItem('quiz_has_used', '1'); }, 1000); } },
     showToast(message, duration = 2000) { const container = document.getElementById('toastContainer'); if (!container) return; const item = document.createElement('div'); item.className = 'toast-item'; item.textContent = message; container.appendChild(item); setTimeout(() => { item.style.opacity = '0'; item.style.transition = 'opacity 0.3s'; setTimeout(() => item.remove(), 300); }, duration); while (container.children.length > 3) container.firstChild.remove(); },
-
     bindKeyboard() {
         document.addEventListener('keydown', (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return; const k = e.key.toLowerCase(), app = document.getElementById('app');
@@ -768,5 +707,4 @@ window.QuizApp = {
     openShortcutHelp() { const el = document.getElementById('shortcutHelp'); if (el) el.style.display = 'flex'; },
     closeShortcutHelp() { const el = document.getElementById('shortcutHelp'); if (el) el.style.display = 'none'; }
 };
-
 window.addEventListener('DOMContentLoaded', () => { QuizApp.init(); });
