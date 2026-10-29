@@ -414,38 +414,59 @@ window.QuizApp = {
         let multiHint = (isMulti && !isMultiSubmitted && !hasSelected && tempSelected.length > 0) ? `<div class="multi-hint">已选 ${tempSelected.length} 个选项，点击提交确认</div>` : '';
         let statusHtml = (!isEssay && (hasSelected || isMultiSubmitted)) ? (isCorrect ? `<span class="ok">回答正确</span>` : `<span class="no">再试一次</span>`) : '';
         const noteExists = this.hasNote(q.q); const noteText = noteExists ? '笔记 ·' : '笔记';
-        
-        // 💡 极致优化：固定高度、独立滚动、紧凑排版
+
+        // 💡 终极高级UI：彻底锁死外层、卡片贴紧底部导航、内嵌独立滚动
         const htmlContent = `
             <style>
+                body { overflow: hidden !important; height: 100vh !important; }
+                #app { padding: 0 !important; height: 100vh !important; display: flex; flex-direction: column; background: transparent; }
                 .quiz-scroll-area::-webkit-scrollbar { display: none; }
-                .quiz-scroll-area { -ms-overflow-style: none; scrollbar-width: none; }
-                .q-title { margin-bottom: 12px !important; line-height: 1.5 !important; }
-                .opt { margin: 6px 0 !important; padding: 12px 14px !important; }
+                .quiz-scroll-area { -ms-overflow-style: none; scrollbar-width: none; overscroll-behavior: contain; }
+                .q-title { margin-bottom: 14px !important; line-height: 1.6 !important; font-weight: 600; color: #1d1d1f; }
+                .opt { margin: 8px 0 !important; padding: 14px 16px !important; border-radius: 14px; background: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.04); box-shadow: 0 2px 8px rgba(0,0,0,0.02); transition: all 0.2s; }
+                .opt:hover { background: rgba(255,255,255,0.8); }
             </style>
-            <div class="page-card quiz-card" style="height: calc(100vh - 120px); display: flex; flex-direction: column; overflow: hidden; padding: 12px 16px;">
+            <div class="page-card quiz-card" style="height: calc(100vh - 80px); display: flex; flex-direction: column; overflow: hidden; padding: 16px 20px 10px 20px; margin: 0; border-radius: 24px 24px 0 0; border-bottom: none; background: rgba(255,255,255,0.85); backdrop-filter: blur(30px); box-shadow: 0 -10px 40px rgba(0,0,0,0.05);">
+                <!-- 中间可独立滚动区域 -->
                 <div class="quiz-scroll-area" style="flex: 1; overflow-y: auto; padding-bottom: 10px;">
-                    <div class="quiz-top">
-                        <div class="quiz-info"><span class="chapter-tag">${chapterLabel}</span> ${modeLabel ? `<span class="mode-tag">${modeLabel}</span>` : ''}<span>正确率 ${acc}%</span><span>进度 ${done}/${total}</span> ${remaining > 0 ? `<span>剩 ${remaining} 题</span>` : ''} ${statusHtml}</div>
-                        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-                            ${!this._isFavoritesMode ? `<button class="glass-btn ghost" style="width:auto;padding:4px 10px;font-size:12px;" onclick="QuizApp.openChapterPicker()">切换章节</button>` : ''}
-                            <button class="glass-btn ghost" style="width:auto;padding:4px 10px;font-size:12px;" onclick="QuizApp.toggleFavorite(${q.id})">${starText}</button>
-                            <button class="glass-btn ghost ${noteExists ? 'has-note' : ''}" style="width:auto;padding:4px 10px;font-size:12px;" onclick="QuizApp.openNoteModal('${this.escAttr(q.q)}')">${noteText}</button>
-                            <button class="glass-btn ghost" style="width:auto;padding:4px 10px;font-size:12px;" onclick="QuizApp.goHome()">首页</button>
+                    <div class="quiz-top" style="margin-bottom: 16px;">
+                        <div class="quiz-info" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; color: #86868b;">
+                            <span class="chapter-tag" style="background: rgba(0,113,227,0.1); color: #0071e3; padding: 4px 10px; border-radius: 8px; font-weight: 600;">${chapterLabel}</span> 
+                            ${modeLabel ? `<span class="mode-tag" style="background: rgba(255,149,0,0.1); color: #ff9500; padding: 4px 10px; border-radius: 8px; font-weight: 600;">${modeLabel}</span>` : ''}
+                            <span>正确率 ${acc}%</span>
+                            <span>进度 ${done}/${total}</span> 
+                            ${remaining > 0 ? `<span>剩 ${remaining} 题</span>` : ''} 
+                            ${statusHtml}
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px;">
+                            ${!this._isFavoritesMode ? `<button class="glass-btn ghost" style="width:auto;padding:6px 12px;font-size:12px;border-radius:10px;" onclick="QuizApp.openChapterPicker()">切换章节</button>` : ''}
+                            <button class="glass-btn ghost" style="width:auto;padding:6px 12px;font-size:12px;border-radius:10px;" onclick="QuizApp.toggleFavorite(${q.id})">${starText}</button>
+                            <button class="glass-btn ghost ${noteExists ? 'has-note' : ''}" style="width:auto;padding:6px 12px;font-size:12px;border-radius:10px;" onclick="QuizApp.openNoteModal('${this.escAttr(q.q)}')">${noteText}</button>
+                            <button class="glass-btn ghost" style="width:auto;padding:6px 12px;font-size:12px;border-radius:10px;" onclick="QuizApp.goHome()">首页</button>
                         </div>
                     </div>
-                    <div class="type-tag" style="margin-bottom:6px;">${typeLabel}</div>
+                    
+                    <div class="type-tag" style="font-size: 11px; font-weight: 700; color: #0071e3; margin-bottom: 8px; letter-spacing: 1px;">${typeLabel}</div>
                     <div class="q-title">第 ${this.idx + 1} 题 · ${q.q}</div>
-                    ${optionsHtml} ${correctAnswerHtml} ${submitBtnHtml} ${multiHint} ${masterBtnHtml}
-                    <button class="glass-btn ghost" style="width:100%;margin-top:14px;padding:8px;font-size:13px;color:#0071e3;border-color:rgba(0,113,227,0.2);" onclick="QuizApp.aiExplain('${qText}', '${qOpts}', '${qAns}')">🤖 AI 解析这道题</button>
+                    ${optionsHtml} 
+                    ${correctAnswerHtml} 
+                    ${submitBtnHtml} 
+                    ${multiHint} 
+                    ${masterBtnHtml}
+                    
+                    <button class="glass-btn ghost" style="width:100%;margin-top:20px;padding:12px;font-size:14px;color:#0071e3;border-color:rgba(0,113,227,0.2);border-radius:12px;font-weight:600;" onclick="QuizApp.aiExplain('${qText}', '${qOpts}', '${qAns}')">
+                        🤖 AI 解析这道题
+                    </button>
                 </div>
-                <div class="quiz-bottom-area" style="flex-shrink: 0; padding-top: 12px; border-top: 1px solid rgba(0,0,0,0.05);">
-                    <div style="display:flex;gap:12px;align-items:stretch;">
-                        <button class="glass-btn ghost" style="width:44px; flex:none; padding:0; display:flex; justify-content:center; align-items:center; font-size:20px; border-radius:12px; color:#0071e3;" onclick="QuizApp.openQuestionNav()" title="题目导航">⊞</button>
-                        ${!isFirst ? `<button class="glass-btn ghost" style="flex:1;padding:10px;font-size:14px;" onclick="QuizApp.prevQuestion()">上一题</button>` : `<div style="flex:1;"></div>`}
-                        ${!isLast ? `<button class="glass-btn primary" style="flex:1;padding:10px;font-size:14px;" onclick="QuizApp.nextQuestion()">下一题</button>` : `<div style="flex:1;"></div>`}
+
+                <!-- 底部固定操作区：牢牢贴紧底部导航栏 -->
+                <div class="quiz-bottom-area" style="flex-shrink: 0; padding-top: 12px; border-top: 1px solid rgba(0,0,0,0.04);">
+                    <div style="display:flex;gap:10px;align-items:stretch;">
+                        <button class="glass-btn ghost" style="width:48px; flex:none; padding:0; display:flex; justify-content:center; align-items:center; font-size:22px; border-radius:14px; color:#0071e3; box-shadow: 0 2px 10px rgba(0,113,227,0.1);" onclick="QuizApp.openQuestionNav()" title="题目导航">⊞</button>
+                        ${!isFirst ? `<button class="glass-btn ghost" style="flex:1;padding:14px;font-size:14px;border-radius:14px;font-weight:600;" onclick="QuizApp.prevQuestion()">上一题</button>` : `<div style="flex:1;"></div>`}
+                        ${!isLast ? `<button class="glass-btn primary" style="flex:1;padding:14px;font-size:14px;border-radius:14px;font-weight:600;box-shadow: 0 4px 14px rgba(0,113,227,0.3);" onclick="QuizApp.nextQuestion()">下一题</button>` : `<div style="flex:1;"></div>`}
                     </div>
-                    <button class="glass-btn ghost" style="width:100%;margin-top:10px;padding:10px;font-size:14px;" onclick="QuizApp.finishBatch()">结束本次练习</button>
+                    <button class="glass-btn ghost" style="width:100%;margin-top:10px;padding:12px;font-size:14px;border-radius:14px;font-weight:600;color:#86868b;" onclick="QuizApp.finishBatch()">结束本次练习</button>
                 </div>
             </div>
         `;
