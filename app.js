@@ -398,75 +398,73 @@ window.QuizApp = {
         const qText = this.escAttr(q.q || ''); const qOpts = this.escAttr((q.opts || []).join('、')); const qAns = this.escAttr(String(q.a || ''));
         if (isEssay) {
             const savedText = hasSelected ? this.record[this.idx].text : ''; const isMarked = hasSelected && this.record[this.idx].isCorrect !== null; const isMarkedCorrect = isMarked && this.record[this.idx].isCorrect;
-            optionsHtml = `<textarea id="essayInput" class="modal-textarea" style="min-height:120px; margin-bottom:12px; font-size:15px;" placeholder="请在此输入你的回答..." ${hasSelected ? 'disabled' : ''}>${savedText}</textarea>`;
-            if (!hasSelected) { submitBtnHtml = `<button class="submit-btn" onclick="QuizApp.submitEssay()">📤 提交回答</button>`; } else {
-                if (isMarked) { correctAnswerHtml = `<div class="correct-note" style="margin-top:16px;">参考答案：<br><strong>${q.a}</strong></div><div style="margin-top:14px;text-align:center;"><span class="${isMarkedCorrect ? 'ok' : 'no'}" style="font-size:14px;">${isMarkedCorrect ? '✅ 回答正确' : '❌ 回答错误'}</span></div>`; } else {
-                    correctAnswerHtml = `<div class="correct-note" style="margin-top:16px;">参考答案：<br><strong>${q.a}</strong></div>`;
-                    submitBtnHtml = `<div style="margin-top:16px; padding-top:16px; border-top:1px dashed rgba(0,0,0,0.1); text-align:center;"><div style="font-size:13px; color:#86868b; margin-bottom:12px;">请对比参考答案，或让 AI 帮你批改：</div><div style="display:flex; gap:12px;"><button class="glass-btn ghost" style="flex:1; background:rgba(255,59,48,0.1); color:#ff3b30;" onclick="QuizApp.markEssay(false)">❌ 答错了</button><button class="glass-btn primary" style="flex:1; background:rgba(52,199,89,0.9);" onclick="QuizApp.markEssay(true)">✅ 答对了</button></div><button class="glass-btn ghost" style="width:100%; margin-top:10px; color:#0071e3; border-color:rgba(0,113,227,0.3);" onclick="QuizApp.aiGrade('${qText}', '${this.escAttr(this.record[this.idx].text)}', '${qAns}')">🤖 让 AI 帮我批改</button></div>`;
+            optionsHtml = `<textarea id="essayInput" class="modal-textarea" style="min-height:80px; margin-bottom:10px; font-size:14px; border-radius:12px;" placeholder="请在此输入你的回答..." ${hasSelected ? 'disabled' : ''}>${savedText}</textarea>`;
+            if (!hasSelected) { submitBtnHtml = `<button class="submit-btn" style="padding:10px; font-size:14px;" onclick="QuizApp.submitEssay()">📤 提交回答</button>`; } else {
+                if (isMarked) { correctAnswerHtml = `<div class="correct-note" style="margin-top:10px; padding:10px;">参考答案：<br><strong>${q.a}</strong></div><div style="margin-top:10px;text-align:center;"><span class="${isMarkedCorrect ? 'ok' : 'no'}" style="font-size:14px;">${isMarkedCorrect ? '✅ 回答正确' : '❌ 回答错误'}</span></div>`; } else {
+                    correctAnswerHtml = `<div class="correct-note" style="margin-top:10px; padding:10px;">参考答案：<br><strong>${q.a}</strong></div>`;
+                    submitBtnHtml = `<div style="margin-top:12px; padding-top:12px; border-top:1px dashed rgba(0,0,0,0.1); text-align:center;"><div style="font-size:12px; color:#86868b; margin-bottom:10px;">对比答案：</div><div style="display:flex; gap:10px;"><button class="glass-btn ghost" style="flex:1; padding:8px; font-size:13px; background:rgba(255,59,48,0.1); color:#ff3b30;" onclick="QuizApp.markEssay(false)">❌ 答错了</button><button class="glass-btn primary" style="flex:1; padding:8px; font-size:13px; background:rgba(52,199,89,0.9);" onclick="QuizApp.markEssay(true)">✅ 答对了</button></div><button class="glass-btn ghost" style="width:100%; margin-top:8px; padding:8px; font-size:13px; color:#0071e3;" onclick="QuizApp.aiGrade('${qText}', '${this.escAttr(this.record[this.idx].text)}', '${qAns}')">🤖 AI 批改</button></div>`;
                 }
             }
         } else {
             optionsHtml = q.opts.map((o, oIdx) => { let cls = 'opt'; if (isMulti) { if (tempSelected.includes(oIdx)) cls += ' selected'; if (isMultiSubmitted || hasSelected) { if (q.a.includes(oIdx)) cls += ' correct'; else if (tempSelected.includes(oIdx) && !q.a.includes(oIdx)) cls += ' wrong'; } return `<div class="${cls}" ${(!isMultiSubmitted && !hasSelected) ? `onclick="QuizApp.toggleMultiOption(${oIdx})"` : ''}>${o}</div>`; } else { if (hasSelected) { if (oIdx === q.a) cls += ' correct'; else if (oIdx === this.record[this.idx]) cls += ' wrong'; } return `<div class="${cls}" ${!hasSelected ? `onclick="QuizApp.select(${oIdx})"` : ''}>${o}</div>`; } }).join('');
-            if (isMulti && (isMultiSubmitted || hasSelected)) correctAnswerHtml = `<div class="correct-note">正确答案：<strong>${q.a.map(idx => q.opts[idx]).join('、')}</strong></div>`;
-            if (showSubmit) submitBtnHtml = `<button class="submit-btn" onclick="QuizApp.submitMultiChoice()">提交答案</button>`;
+            if (isMulti && (isMultiSubmitted || hasSelected)) correctAnswerHtml = `<div class="correct-note" style="margin-top:10px; padding:10px;">正确答案：<strong>${q.a.map(idx => q.opts[idx]).join('、')}</strong></div>`;
+            if (showSubmit) submitBtnHtml = `<button class="submit-btn" style="padding:10px; font-size:14px;" onclick="QuizApp.submitMultiChoice()">提交答案</button>`;
         }
-        let masterBtnHtml = ''; if (this._source === 'wrong' && q._isWrong && hasSelected && isCorrect) masterBtnHtml = `<div style="margin-top:14px;text-align:center;"><button class="master-action-btn" onclick="QuizApp.markMastered(${q._wrongId})">标记为已掌握</button></div>`;
-        let multiHint = (isMulti && !isMultiSubmitted && !hasSelected && tempSelected.length > 0) ? `<div class="multi-hint">已选 ${tempSelected.length} 个选项，点击提交确认</div>` : '';
+        let masterBtnHtml = ''; if (this._source === 'wrong' && q._isWrong && hasSelected && isCorrect) masterBtnHtml = `<div style="margin-top:10px;text-align:center;"><button class="master-action-btn" style="padding:8px; font-size:13px;" onclick="QuizApp.markMastered(${q._wrongId})">标记为已掌握</button></div>`;
+        let multiHint = (isMulti && !isMultiSubmitted && !hasSelected && tempSelected.length > 0) ? `<div class="multi-hint" style="font-size:12px;">已选 ${tempSelected.length} 个选项，点击提交确认</div>` : '';
         let statusHtml = (!isEssay && (hasSelected || isMultiSubmitted)) ? (isCorrect ? `<span class="ok">回答正确</span>` : `<span class="no">再试一次</span>`) : '';
-        const noteExists = this.hasNote(q.q); const noteText = noteExists ? '笔记 ·' : '笔记';
 
-        // 💡 终极高级UI：彻底锁死外层、卡片贴紧底部导航、内嵌独立滚动
+        // 💡 极致高级沉浸式UI：彻底锁死外层、卡片无缝贴紧底部、极小化顶部图标
         const htmlContent = `
             <style>
-                body { overflow: hidden !important; height: 100vh !important; }
+                body { overflow: hidden !important; height: 100vh !important; margin: 0; }
                 #app { padding: 0 !important; height: 100vh !important; display: flex; flex-direction: column; background: transparent; }
                 .quiz-scroll-area::-webkit-scrollbar { display: none; }
                 .quiz-scroll-area { -ms-overflow-style: none; scrollbar-width: none; overscroll-behavior: contain; }
-                .q-title { margin-bottom: 14px !important; line-height: 1.6 !important; font-weight: 600; color: #1d1d1f; }
-                .opt { margin: 8px 0 !important; padding: 14px 16px !important; border-radius: 14px; background: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.04); box-shadow: 0 2px 8px rgba(0,0,0,0.02); transition: all 0.2s; }
-                .opt:hover { background: rgba(255,255,255,0.8); }
+                .q-title { margin-bottom: 10px !important; line-height: 1.5 !important; font-size: 15px !important; font-weight: 600; color: #1d1d1f; }
+                .opt { margin: 6px 0 !important; padding: 10px 14px !important; border-radius: 12px; background: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.04); font-size: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); transition: all 0.2s; }
+                .opt:hover { background: rgba(255,255,255,0.85); }
             </style>
-            <div class="page-card quiz-card" style="height: calc(100vh - 80px); display: flex; flex-direction: column; overflow: hidden; padding: 16px 20px 10px 20px; margin: 0; border-radius: 24px 24px 0 0; border-bottom: none; background: rgba(255,255,255,0.85); backdrop-filter: blur(30px); box-shadow: 0 -10px 40px rgba(0,0,0,0.05);">
-                <!-- 中间可独立滚动区域 -->
-                <div class="quiz-scroll-area" style="flex: 1; overflow-y: auto; padding-bottom: 10px;">
-                    <div class="quiz-top" style="margin-bottom: 16px;">
-                        <div class="quiz-info" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; color: #86868b;">
-                            <span class="chapter-tag" style="background: rgba(0,113,227,0.1); color: #0071e3; padding: 4px 10px; border-radius: 8px; font-weight: 600;">${chapterLabel}</span> 
-                            ${modeLabel ? `<span class="mode-tag" style="background: rgba(255,149,0,0.1); color: #ff9500; padding: 4px 10px; border-radius: 8px; font-weight: 600;">${modeLabel}</span>` : ''}
-                            <span>正确率 ${acc}%</span>
-                            <span>进度 ${done}/${total}</span> 
-                            ${remaining > 0 ? `<span>剩 ${remaining} 题</span>` : ''} 
-                            ${statusHtml}
-                        </div>
-                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px;">
-                            ${!this._isFavoritesMode ? `<button class="glass-btn ghost" style="width:auto;padding:6px 12px;font-size:12px;border-radius:10px;" onclick="QuizApp.openChapterPicker()">切换章节</button>` : ''}
-                            <button class="glass-btn ghost" style="width:auto;padding:6px 12px;font-size:12px;border-radius:10px;" onclick="QuizApp.toggleFavorite(${q.id})">${starText}</button>
-                            <button class="glass-btn ghost ${noteExists ? 'has-note' : ''}" style="width:auto;padding:6px 12px;font-size:12px;border-radius:10px;" onclick="QuizApp.openNoteModal('${this.escAttr(q.q)}')">${noteText}</button>
-                            <button class="glass-btn ghost" style="width:auto;padding:6px 12px;font-size:12px;border-radius:10px;" onclick="QuizApp.goHome()">首页</button>
-                        </div>
+            <div class="page-card quiz-card" style="height: calc(100vh - 70px); display: flex; flex-direction: column; overflow: hidden; padding: 12px 16px; margin: 0; border-radius: 20px 20px 0 0; border-bottom: none; background: rgba(255,255,255,0.85); backdrop-filter: blur(20px); box-shadow: 0 -5px 30px rgba(0,0,0,0.05);">
+                <!-- 极简顶部：状态与微缩图标 -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-shrink: 0;">
+                    <div style="display: flex; gap: 8px; align-items: center; font-size: 11px; color: #86868b;">
+                        <span style="background: rgba(0,113,227,0.1); color: #0071e3; padding: 2px 6px; border-radius: 6px; font-weight: 600;">${chapterLabel}</span>
+                        <span>进度 ${done}/${total}</span>
+                        <span>正确率 ${acc}%</span>
+                        ${statusHtml}
                     </div>
-                    
-                    <div class="type-tag" style="font-size: 11px; font-weight: 700; color: #0071e3; margin-bottom: 8px; letter-spacing: 1px;">${typeLabel}</div>
+                    <div style="display: flex; gap: 6px;">
+                        ${!this._isFavoritesMode ? `<button style="background: none; border: none; font-size: 16px; opacity: 0.7;" onclick="QuizApp.openChapterPicker()" title="章节">📑</button>` : ''}
+                        <button style="background: none; border: none; font-size: 16px; opacity: 0.7;" onclick="QuizApp.toggleFavorite(${q.id})" title="收藏">${isFav ? '❤️' : '🤍'}</button>
+                        <button style="background: none; border: none; font-size: 16px; opacity: 0.7;" onclick="QuizApp.openNoteModal('${this.escAttr(q.q)}')" title="笔记">📝</button>
+                        <button style="background: none; border: none; font-size: 16px; opacity: 0.7;" onclick="QuizApp.goHome()" title="首页">🏠</button>
+                    </div>
+                </div>
+
+                <!-- 核心滑动区：题目与选项 -->
+                <div class="quiz-scroll-area" style="flex: 1; overflow-y: auto;">
+                    <div style="font-size: 11px; font-weight: 700; color: #0071e3; margin-bottom: 4px;">${typeLabel}</div>
                     <div class="q-title">第 ${this.idx + 1} 题 · ${q.q}</div>
                     ${optionsHtml} 
                     ${correctAnswerHtml} 
                     ${submitBtnHtml} 
                     ${multiHint} 
                     ${masterBtnHtml}
-                    
-                    <button class="glass-btn ghost" style="width:100%;margin-top:20px;padding:12px;font-size:14px;color:#0071e3;border-color:rgba(0,113,227,0.2);border-radius:12px;font-weight:600;" onclick="QuizApp.aiExplain('${qText}', '${qOpts}', '${qAns}')">
-                        🤖 AI 解析这道题
-                    </button>
                 </div>
 
-                <!-- 底部固定操作区：牢牢贴紧底部导航栏 -->
-                <div class="quiz-bottom-area" style="flex-shrink: 0; padding-top: 12px; border-top: 1px solid rgba(0,0,0,0.04);">
-                    <div style="display:flex;gap:10px;align-items:stretch;">
-                        <button class="glass-btn ghost" style="width:48px; flex:none; padding:0; display:flex; justify-content:center; align-items:center; font-size:22px; border-radius:14px; color:#0071e3; box-shadow: 0 2px 10px rgba(0,113,227,0.1);" onclick="QuizApp.openQuestionNav()" title="题目导航">⊞</button>
-                        ${!isFirst ? `<button class="glass-btn ghost" style="flex:1;padding:14px;font-size:14px;border-radius:14px;font-weight:600;" onclick="QuizApp.prevQuestion()">上一题</button>` : `<div style="flex:1;"></div>`}
-                        ${!isLast ? `<button class="glass-btn primary" style="flex:1;padding:14px;font-size:14px;border-radius:14px;font-weight:600;box-shadow: 0 4px 14px rgba(0,113,227,0.3);" onclick="QuizApp.nextQuestion()">下一题</button>` : `<div style="flex:1;"></div>`}
+                <!-- 底部固定操作区：极致贴底 -->
+                <div class="quiz-bottom-area" style="flex-shrink: 0; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.04);">
+                    <!-- 极细的进度条（点击打开导航） -->
+                    <div style="height: 4px; background: rgba(0,0,0,0.05); border-radius: 2px; margin-bottom: 10px; cursor: pointer; overflow: hidden;" onclick="QuizApp.openQuestionNav()">
+                        <div style="width: ${(done/total)*100}%; height: 100%; background: linear-gradient(90deg, #0071e3, #5ac8fa); transition: width 0.3s;"></div>
                     </div>
-                    <button class="glass-btn ghost" style="width:100%;margin-top:10px;padding:12px;font-size:14px;border-radius:14px;font-weight:600;color:#86868b;" onclick="QuizApp.finishBatch()">结束本次练习</button>
+                    <div style="display:flex;gap:8px;align-items:stretch; margin-bottom: 8px;">
+                        ${!isFirst ? `<button class="glass-btn ghost" style="flex:1;padding:10px;font-size:13px;border-radius:12px;font-weight:600;" onclick="QuizApp.prevQuestion()">上一题</button>` : `<div style="flex:1;"></div>`}
+                        <button class="glass-btn ghost" style="flex:1.2; padding:10px; font-size:13px; border-radius:12px; font-weight:600; color:#0071e3;" onclick="QuizApp.aiExplain('${qText}', '${qOpts}', '${qAns}')">🤖 AI 解析</button>
+                        ${!isLast ? `<button class="glass-btn primary" style="flex:1;padding:10px;font-size:13px;border-radius:12px;font-weight:600;box-shadow: 0 2px 10px rgba(0,113,227,0.3);" onclick="QuizApp.nextQuestion()">下一题</button>` : `<div style="flex:1;"></div>`}
+                    </div>
+                    <button class="glass-btn ghost" style="width:100%;padding:10px;font-size:13px;border-radius:12px;font-weight:600;color:#86868b;" onclick="QuizApp.finishBatch()">结束本次练习</button>
                 </div>
             </div>
         `;
@@ -481,8 +479,8 @@ window.QuizApp = {
     markEssay(isCorrect) { const record = this.record[this.idx]; if (!record || record.isCorrect !== null) return; record.isCorrect = isCorrect; if (isCorrect) { this._consecutiveCorrect++; this._consecutiveWrong = 0; this.vibrate(10); } else { this._consecutiveWrong++; this._consecutiveCorrect = 0; this.vibrate([10, 50, 10]); if (this._source !== 'wrong') this.uploadWrongQuestion(this.getCurrentUser(), this.activeBank[this.idx]); } this.updateTopBar(isCorrect); this.renderCard(false); const isDone = (v) => v !== null && (typeof v !== 'object' || v.isCorrect !== null); if (this.record.every(isDone)) { this._isFinishing = true; setTimeout(() => this.finishBatch(), 400); } else { clearTimeout(this._selectTimer); this._selectTimer = setTimeout(() => { if (this.idx < this.activeBank.length - 1) { this.idx++; this.renderCard(true, 'right'); } }, 800); } },
     openQuestionNav() { const modalRoot = document.getElementById('modalRoot'); if (!modalRoot) return; let html = ''; for (let i = 0; i < this.activeBank.length; i++) { const status = this.record[i]; let cls = 'nav-qbtn'; if (status !== null && (typeof status !== 'object' || status.isCorrect !== null)) cls += this.checkAnswer(this.activeBank[i], status) ? ' correct' : ' wrong'; if (i === this.idx) cls += ' active'; html += `<button class="${cls}" onclick="QuizApp.jumpToQuestion(${i})">${i + 1}</button>`; } const modal = document.createElement('div'); modal.className = 'modal-overlay'; modal.id = 'questionNavModal'; modal.innerHTML = `<div class="modal-card" style="max-width:520px;"><div class="modal-header"><span class="modal-title">题目导航</span><button class="modal-close" onclick="QuizApp.closeModal('questionNavModal')">✕</button></div><div class="nav-legend"><span class="nav-legend-item"><span class="nav-dot correct"></span>正确</span><span class="nav-legend-item"><span class="nav-dot wrong"></span>错误</span><span class="nav-legend-item"><span class="nav-dot"></span>未做</span></div><div class="nav-grid">${html}</div></div>`; modalRoot.appendChild(modal); modal.addEventListener('click', (e) => { if (e.target === modal) this.closeModal('questionNavModal'); }); },
     jumpToQuestion(index) { if (index >= 0 && index < this.activeBank.length) { this.idx = index; this._tempMulti = []; this._multiSubmitted = false; this.closeModal('questionNavModal'); this.renderCard(true); } },
-    toggleMultiOption(oIdx) { const q = this.activeBank[this.idx]; if (!Array.isArray(q.a) || this._multiSubmitted || this.record[this.idx] !== null) return; const i = this._tempMulti.indexOf(oIdx); if (i > -1) { this._tempMulti.splice(i, 1); } else { this._tempMulti.push(oIdx); } const optDoms = document.querySelectorAll('.opt'); if (optDoms[oIdx]) { if (this._tempMulti.includes(oIdx)) { optDoms[oIdx].classList.add('selected'); } else { optDoms[oIdx].classList.remove('selected'); } } const hintDom = document.querySelector('.multi-hint'); if (this._tempMulti.length > 0) { if (hintDom) { hintDom.textContent = `已选 ${this._tempMulti.length} 个选项，点击提交确认`; } else { const submitBtn = document.querySelector('.submit-btn'); if (submitBtn) { submitBtn.insertAdjacentHTML('beforebegin', `<div class="multi-hint">已选 ${this._tempMulti.length} 个选项，点击提交确认</div>`); } } } else if (hintDom) { hintDom.remove(); } },
-    submitMultiChoice() { const q = this.activeBank[this.idx]; if (!Array.isArray(q.a) || this._multiSubmitted || this.record[this.idx] !== null) return; if (this._tempMulti.length === 0) return this.showToast('请至少选择一个选项', 1500); const isCorrect = this._tempMulti.every(idx => q.a.includes(idx)) && q.a.every(idx => this._tempMulti.includes(idx)); this.record[this.idx] = this._tempMulti.slice(); this._multiSubmitted = true; if (isCorrect) { this.vibrate(10); this._consecutiveCorrect++; this._consecutiveWrong = 0; if (this._streakAlertEnabled && this._consecutiveCorrect === 5) this.showToast('连续答对 5 题！'); } else { this.vibrate([10, 50, 10]); this._consecutiveWrong++; this._consecutiveCorrect = 0; if (this._streakAlertEnabled && this._consecutiveWrong === 3) this.showToast('别灰心，再想想'); if (this._source !== 'wrong') this.uploadWrongQuestion(this.getCurrentUser(), q); } const optDoms = document.querySelectorAll('.opt'); optDoms.forEach((el, index) => { el.classList.remove('selected'); if (q.a.includes(index)) { el.classList.add('correct'); } else if (this._tempMulti.includes(index)) { el.classList.add('wrong'); } }); const submitBtn = document.querySelector('.submit-btn'); if (submitBtn) submitBtn.style.display = 'none'; const hintDom = document.querySelector('.multi-hint'); if (hintDom) hintDom.style.display = 'none'; const correctAnsText = q.a.map(idx => q.opts[idx]).join('、'); if (!document.querySelector('.correct-note')) { const correctDiv = document.createElement('div'); correctDiv.className = 'correct-note'; correctDiv.innerHTML = `正确答案：<strong>${correctAnsText}</strong>`; optDoms[optDoms.length - 1].insertAdjacentElement('afterend', correctDiv); } this.updateTopBar(isCorrect); if (this.record.every(v => v !== null)) { this._isFinishing = true; setTimeout(() => this.finishBatch(), 800); } },
+    toggleMultiOption(oIdx) { const q = this.activeBank[this.idx]; if (!Array.isArray(q.a) || this._multiSubmitted || this.record[this.idx] !== null) return; const i = this._tempMulti.indexOf(oIdx); if (i > -1) { this._tempMulti.splice(i, 1); } else { this._tempMulti.push(oIdx); } const optDoms = document.querySelectorAll('.opt'); if (optDoms[oIdx]) { if (this._tempMulti.includes(oIdx)) { optDoms[oIdx].classList.add('selected'); } else { optDoms[oIdx].classList.remove('selected'); } } const hintDom = document.querySelector('.multi-hint'); if (this._tempMulti.length > 0) { if (hintDom) { hintDom.textContent = `已选 ${this._tempMulti.length} 个选项，点击提交确认`; } else { const submitBtn = document.querySelector('.submit-btn'); if (submitBtn) { submitBtn.insertAdjacentHTML('beforebegin', `<div class="multi-hint" style="font-size:12px;">已选 ${this._tempMulti.length} 个选项，点击提交确认</div>`); } } } else if (hintDom) { hintDom.remove(); } },
+    submitMultiChoice() { const q = this.activeBank[this.idx]; if (!Array.isArray(q.a) || this._multiSubmitted || this.record[this.idx] !== null) return; if (this._tempMulti.length === 0) return this.showToast('请至少选择一个选项', 1500); const isCorrect = this._tempMulti.every(idx => q.a.includes(idx)) && q.a.every(idx => this._tempMulti.includes(idx)); this.record[this.idx] = this._tempMulti.slice(); this._multiSubmitted = true; if (isCorrect) { this.vibrate(10); this._consecutiveCorrect++; this._consecutiveWrong = 0; if (this._streakAlertEnabled && this._consecutiveCorrect === 5) this.showToast('连续答对 5 题！'); } else { this.vibrate([10, 50, 10]); this._consecutiveWrong++; this._consecutiveCorrect = 0; if (this._streakAlertEnabled && this._consecutiveWrong === 3) this.showToast('别灰心，再想想'); if (this._source !== 'wrong') this.uploadWrongQuestion(this.getCurrentUser(), q); } const optDoms = document.querySelectorAll('.opt'); optDoms.forEach((el, index) => { el.classList.remove('selected'); if (q.a.includes(index)) { el.classList.add('correct'); } else if (this._tempMulti.includes(index)) { el.classList.add('wrong'); } }); const submitBtn = document.querySelector('.submit-btn'); if (submitBtn) submitBtn.style.display = 'none'; const hintDom = document.querySelector('.multi-hint'); if (hintDom) hintDom.style.display = 'none'; const correctAnsText = q.a.map(idx => q.opts[idx]).join('、'); if (!document.querySelector('.correct-note')) { const correctDiv = document.createElement('div'); correctDiv.className = 'correct-note'; correctDiv.style.marginTop = '10px'; correctDiv.style.padding = '10px'; correctDiv.innerHTML = `正确答案：<strong>${correctAnsText}</strong>`; optDoms[optDoms.length - 1].insertAdjacentElement('afterend', correctDiv); } this.updateTopBar(isCorrect); if (this.record.every(v => v !== null)) { this._isFinishing = true; setTimeout(() => this.finishBatch(), 800); } },
     select(oIdx) { const q = this.activeBank[this.idx]; if (Array.isArray(q.a) || this.record[this.idx] !== null || this._isFinishing) return; this.record[this.idx] = oIdx; const isCorrect = (oIdx === q.a); if (isCorrect) { this.vibrate(10); this._consecutiveCorrect++; this._consecutiveWrong = 0; if (this._streakAlertEnabled && this._consecutiveCorrect === 5) this.showToast('连续答对 5 题！'); } else { this.vibrate([10, 50, 10]); this._consecutiveWrong++; this._consecutiveCorrect = 0; if (this._streakAlertEnabled && this._consecutiveWrong === 3) this.showToast('别灰心，再想想'); if (this._source !== 'wrong') this.uploadWrongQuestion(this.getCurrentUser(), q); } const optDoms = document.querySelectorAll('.opt'); optDoms.forEach((el, index) => { if (index === q.a) el.classList.add('correct'); if (index === oIdx && oIdx !== q.a) el.classList.add('wrong'); }); this.updateTopBar(isCorrect); if (this.record.every(v => v !== null)) { this._isFinishing = true; return setTimeout(() => this.finishBatch(), 800); } clearTimeout(this._selectTimer); this._selectTimer = setTimeout(() => { if (this._isFinishing) return; if (this.record.every(v => v !== null)) { this._isFinishing = true; return this.finishBatch(); } if (this.idx + 1 < this.activeBank.length) { this.idx++; this._tempMulti = []; this._multiSubmitted = false; this.renderCard(true, 'right'); } else { this._isFinishing = true; this.finishBatch(); } }, this._autoDelay || 600); },
     prevQuestion() { if (this.idx > 0) { this.idx--; this._tempMulti = []; this._multiSubmitted = false; this.renderCard(true, 'left'); } },
     nextQuestion() { if (this.idx < this.activeBank.length - 1) { this.idx++; this._tempMulti = []; this._multiSubmitted = false; this.renderCard(true, 'right'); } },
