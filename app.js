@@ -415,29 +415,37 @@ window.QuizApp = {
         let statusHtml = (!isEssay && (hasSelected || isMultiSubmitted)) ? (isCorrect ? `<span class="ok">回答正确</span>` : `<span class="no">再试一次</span>`) : '';
         const noteExists = this.hasNote(q.q); const noteText = noteExists ? '笔记 ·' : '笔记';
         
+        // 💡 极致优化：固定高度、独立滚动、紧凑排版
         const htmlContent = `
-            <div class="page-card quiz-card" style="height: calc(100vh - 110px); display: flex; flex-direction: column; overflow: hidden;">
+            <style>
+                .quiz-scroll-area::-webkit-scrollbar { display: none; }
+                .quiz-scroll-area { -ms-overflow-style: none; scrollbar-width: none; }
+                .q-title { margin-bottom: 12px !important; line-height: 1.5 !important; }
+                .opt { margin: 6px 0 !important; padding: 12px 14px !important; }
+            </style>
+            <div class="page-card quiz-card" style="height: calc(100vh - 120px); display: flex; flex-direction: column; overflow: hidden; padding: 12px 16px;">
                 <div class="quiz-scroll-area" style="flex: 1; overflow-y: auto; padding-bottom: 10px;">
                     <div class="quiz-top">
                         <div class="quiz-info"><span class="chapter-tag">${chapterLabel}</span> ${modeLabel ? `<span class="mode-tag">${modeLabel}</span>` : ''}<span>正确率 ${acc}%</span><span>进度 ${done}/${total}</span> ${remaining > 0 ? `<span>剩 ${remaining} 题</span>` : ''} ${statusHtml}</div>
-                        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                            ${!this._isFavoritesMode ? `<button class="glass-btn ghost" style="width:auto;padding:6px 12px;font-size:12px;" onclick="QuizApp.openChapterPicker()">切换章节</button>` : ''}
-                            <button class="glass-btn ghost" style="width:auto;padding:6px 12px;font-size:12px;" onclick="QuizApp.toggleFavorite(${q.id})">${starText}</button>
-                            <button class="glass-btn ghost ${noteExists ? 'has-note' : ''}" style="width:auto;padding:6px 12px;font-size:12px;" onclick="QuizApp.openNoteModal('${this.escAttr(q.q)}')">${noteText}</button>
-                            <button class="glass-btn ghost" style="width:auto;padding:6px 12px;font-size:12px;" onclick="QuizApp.goHome()">首页</button>
+                        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+                            ${!this._isFavoritesMode ? `<button class="glass-btn ghost" style="width:auto;padding:4px 10px;font-size:12px;" onclick="QuizApp.openChapterPicker()">切换章节</button>` : ''}
+                            <button class="glass-btn ghost" style="width:auto;padding:4px 10px;font-size:12px;" onclick="QuizApp.toggleFavorite(${q.id})">${starText}</button>
+                            <button class="glass-btn ghost ${noteExists ? 'has-note' : ''}" style="width:auto;padding:4px 10px;font-size:12px;" onclick="QuizApp.openNoteModal('${this.escAttr(q.q)}')">${noteText}</button>
+                            <button class="glass-btn ghost" style="width:auto;padding:4px 10px;font-size:12px;" onclick="QuizApp.goHome()">首页</button>
                         </div>
                     </div>
-                    <div class="type-tag">${typeLabel}</div><div class="q-title">第 ${this.idx + 1} 题 · ${q.q}</div>
+                    <div class="type-tag" style="margin-bottom:6px;">${typeLabel}</div>
+                    <div class="q-title">第 ${this.idx + 1} 题 · ${q.q}</div>
                     ${optionsHtml} ${correctAnswerHtml} ${submitBtnHtml} ${multiHint} ${masterBtnHtml}
-                    <button class="glass-btn ghost" style="width:100%;margin-top:14px;padding:10px;font-size:14px;color:#0071e3;border-color:rgba(0,113,227,0.2);" onclick="QuizApp.aiExplain('${qText}', '${qOpts}', '${qAns}')">🤖 AI 解析这道题</button>
+                    <button class="glass-btn ghost" style="width:100%;margin-top:14px;padding:8px;font-size:13px;color:#0071e3;border-color:rgba(0,113,227,0.2);" onclick="QuizApp.aiExplain('${qText}', '${qOpts}', '${qAns}')">🤖 AI 解析这道题</button>
                 </div>
-                <div class="quiz-bottom-area" style="flex-shrink: 0; padding-top: 15px; border-top: 1px solid rgba(0,0,0,0.05); background: transparent;">
+                <div class="quiz-bottom-area" style="flex-shrink: 0; padding-top: 12px; border-top: 1px solid rgba(0,0,0,0.05);">
                     <div style="display:flex;gap:12px;align-items:stretch;">
-                        <button class="glass-btn ghost" style="width:48px; flex:none; padding:0; display:flex; justify-content:center; align-items:center; font-size:24px; border-radius:16px; color:#0071e3;" onclick="QuizApp.openQuestionNav()" title="题目导航">⊞</button>
-                        ${!isFirst ? `<button class="glass-btn ghost" style="flex:1;padding:12px;font-size:14px;" onclick="QuizApp.prevQuestion()">上一题</button>` : `<div style="flex:1;"></div>`}
-                        ${!isLast ? `<button class="glass-btn primary" style="flex:1;padding:12px;font-size:14px;" onclick="QuizApp.nextQuestion()">下一题</button>` : `<div style="flex:1;"></div>`}
+                        <button class="glass-btn ghost" style="width:44px; flex:none; padding:0; display:flex; justify-content:center; align-items:center; font-size:20px; border-radius:12px; color:#0071e3;" onclick="QuizApp.openQuestionNav()" title="题目导航">⊞</button>
+                        ${!isFirst ? `<button class="glass-btn ghost" style="flex:1;padding:10px;font-size:14px;" onclick="QuizApp.prevQuestion()">上一题</button>` : `<div style="flex:1;"></div>`}
+                        ${!isLast ? `<button class="glass-btn primary" style="flex:1;padding:10px;font-size:14px;" onclick="QuizApp.nextQuestion()">下一题</button>` : `<div style="flex:1;"></div>`}
                     </div>
-                    <button class="glass-btn ghost" style="width:100%;margin-top:12px;padding:12px;font-size:14px;" onclick="QuizApp.finishBatch()">结束本次练习</button>
+                    <button class="glass-btn ghost" style="width:100%;margin-top:10px;padding:10px;font-size:14px;" onclick="QuizApp.finishBatch()">结束本次练习</button>
                 </div>
             </div>
         `;
