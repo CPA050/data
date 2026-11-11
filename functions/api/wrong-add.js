@@ -1,27 +1,22 @@
-export async function onRequestPost({ request, env }) {
-  try {
-    const body = await request.json();
-    const { user_id, q, opts, a, chapter, subject, user_choice } = body;
+// functions/api/wrong-add.js —— 记录一道错题
+import { route, json, readJson, HttpError } from '../_lib/http.js';
+import { currentUser, assertSameUser } from '../_lib/session.js';
+import { toDbOpts, toDbAnswer, toDbChoice } from '../_lib/db.js';
 
-    if (!user_id || !q) {
-      return Response.json({ ok: false, error: '缺少必要参数' }, { status: 400 });
-    }
+export const onRequestPost = route(async ({ request, env }) => {
+  const user = await currentUser(request, env);
+  const body = await readJson(request);
+  assertSameUser(body.user_id, user);
 
-    // ★ 注意表名是 wrong_questions，并且加上了 subject 字段
-    await env.exam_db.prepare(
-      "INSERT INTO wrong_questions (user_id, q, opts, a, chapter, subject, user_choice) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    ).bind(
-      user_id, 
-      q, 
-      JSON.stringify(opts), 
-      JSON.stringify(a), 
-      chapter || '', 
-      subject || '默认题库', 
-      JSON.stringify(user_choice)
-    ).run();
+  const q = String(body.q || '').trim();
+  if (!q) throw new HttpError(400, '缺少题干 q');
 
-    return Response.json({ ok: true });
-  } catch (err) {
-    return Response.json({ ok: false, error: err.message }, { status: 500 });
-  }
-}
+  await env.exam_db.prepare(
+    'INSERT INTO wrong_questions (user_id, q, opts, a, chapter, subject, user_choice) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).bind(
+    user, q, toDbOpts(body.opts), toDbAnswer(body.a),
+    String(body.chapter || ''), String(body.subject || '默认题库'), toDbChoice(body.user_choice)
+  ).run();
+
+  return json({ ok: true, success: true });
+});

@@ -143,6 +143,21 @@
         return localStorage.getItem('quiz_user_id') || sessionStorage.getItem('quiz_user_id');
     }
 
+    // 所有接口都需要登录令牌
+    function authHeaders(extra) {
+        const token = localStorage.getItem('quiz_token');
+        const h = Object.assign({}, extra || {});
+        if (token) h['Authorization'] = 'Bearer ' + token;
+        return h;
+    }
+
+    // 题目/答案都是用户或 AI 生成的文本，插入 innerHTML 前必须转义
+    function esc(str) {
+        return String(str == null ? '' : str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
     function showToast(msg, duration = 2000) {
         const t = document.getElementById('toast');
         t.textContent = msg;
@@ -162,7 +177,11 @@
         document.getElementById('userDisplay').textContent = `👤 ${user}`;
 
         try {
-            const res = await fetch(`/api/wrong?user_id=${encodeURIComponent(user)}`);
+            const res = await fetch(`/api/wrong?user_id=${encodeURIComponent(user)}`, { headers: authHeaders() });
+            if (res.status === 401) {
+                document.getElementById('wrongList').innerHTML = `<div class="empty-msg">登录已过期，请 <a href="/" style="color:#0071e3;">返回首页</a> 重新登录</div>`;
+                return;
+            }
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
 
@@ -178,17 +197,17 @@
             container.innerHTML = data.map(item => `
                 <div class="wrong-item" data-id="${item.id}">
                     <div class="wrong-content">
-                        <div class="q">${item.q}</div>
+                        <div class="q">${esc(item.q)}</div>
                         <div class="detail">
-                            <span class="correct">✅ 正确答案：${item.answer || '未知'}</span>
-                            <span class="wrong">❌ 你的选择：${item.user_choice || '未记录'}</span>
+                            <span class="correct">✅ 正确答案：${esc(item.answer || '未知')}</span>
+                            <span class="wrong">❌ 你的选择：${esc(item.user_choice_text || item.user_choice || '未记录')}</span>
                         </div>
                     </div>
-                    <button class="delete-btn" onclick="deleteWrong(${item.id})">删除</button>
+                    <button class="delete-btn" onclick="deleteWrong(${Number(item.id)})">删除</button>
                 </div>
             `).join('');
         } catch (err) {
-            document.getElementById('wrongList').innerHTML = `<div class="empty-msg">❌ 加载失败：${err.message}</div>`;
+            document.getElementById('wrongList').innerHTML = `<div class="empty-msg">❌ 加载失败：${esc(err.message)}</div>`;
             console.error(err);
         }
     }
@@ -203,7 +222,7 @@
         try {
             const res = await fetch('/api/wrong-delete', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify({ user_id: user, id })
             });
             const result = await res.json();

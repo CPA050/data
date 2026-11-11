@@ -1,17 +1,17 @@
-export async function onRequestPost({ request, env }) {
-    const { user_id, question_id } = await request.json();
+// functions/api/favorites-remove.js —— 取消收藏
+import { route, json, readJson, HttpError } from '../_lib/http.js';
+import { currentUser, assertSameUser } from '../_lib/session.js';
 
-    if (!user_id || !question_id) {
-        return Response.json({ error: "缺少 user_id 或 question_id" }, { status: 400 });
-    }
+export const onRequestPost = route(async ({ request, env }) => {
+  const user = await currentUser(request, env);
+  const body = await readJson(request);
+  assertSameUser(body.user_id, user);
 
-    try {
-        await env.exam_db.prepare(
-            "DELETE FROM favorites WHERE user_id = ? AND question_id = ?"
-        ).bind(user_id, question_id).run();
+  const questionId = body.question_id;
+  if (!questionId) throw new HttpError(400, '缺少 question_id');
 
-        return Response.json({ ok: true, message: "已取消收藏" });
-    } catch (err) {
-        return Response.json({ error: err.message }, { status: 500 });
-    }
-}
+  await env.exam_db.prepare('DELETE FROM favorites WHERE user_id = ? AND question_id = ?')
+    .bind(user, questionId).run();
+
+  return json({ ok: true, success: true });
+});

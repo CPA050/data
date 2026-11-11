@@ -3408,3 +3408,13 @@ body.theme-dark .skeleton-item {
     text-align: center;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- 错题卡：你的选择 / 正确答案 ---------- */
+.wi-answer { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 2px; font-size: 12px; }
+.wi-choice, .wi-correct { padding: 3px 8px; border-radius: 6px; line-height: 1.5; word-break: break-word; }
+.wi-choice { background: rgba(255, 59, 48, 0.10); color: #c0392b; }
+.wi-correct { background: rgba(52, 199, 89, 0.14); color: #1e8e3e; }
+
+/* 题库/错题长文本兜底，避免超长英文和图片把卡片撑破 */
+.wi-q, .q-text { overflow-wrap: anywhere; }
+.wi-q img, .q-text img { max-width: 100%; height: auto; }

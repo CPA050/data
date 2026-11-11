@@ -1,0 +1,13 @@
+# Cloudflare Pages 部署配置
+name = "origin-quiz"
+compatibility_date = "2024-11-01"
+pages_build_output_dir = "."
+
+# D1 数据库：先在控制台建库，再把 database_id 填进来
+[[d1_databases]]
+binding = "exam_db"
+database_name = "exam_db"
+database_id = "在这里填你的 database_id"
+
+[vars]
+# 不要在这里写密钥，密钥用 `wrangler pages secret put` 或 .dev.vars 配置

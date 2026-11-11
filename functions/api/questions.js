@@ -1,32 +1,19 @@
-export async function onRequestGet({ request, env }) {
-  try {
-    const url = new URL(request.url);
-    const user_id = url.searchParams.get('user_id');
-    const subject = url.searchParams.get('subject'); 
+// functions/api/questions.js —— 读取题库（需登录，且只能读自己）
+import { route, json } from '../_lib/http.js';
+import { currentUser, assertSameUser } from '../_lib/session.js';
+import { normalizeRow } from '../_lib/db.js';
 
-    if (!user_id) {
-      return Response.json({ error: '缺少 user_id' }, { status: 400 });
-    }
+export const onRequestGet = route(async ({ request, env }) => {
+  const user = await currentUser(request, env);
+  const url = new URL(request.url);
+  assertSameUser(url.searchParams.get('user_id'), user);
 
-    let sql = "SELECT * FROM questions WHERE user_id = ?";
-    let params = [user_id];
+  const subject = url.searchParams.get('subject');
+  let sql = 'SELECT * FROM questions WHERE user_id = ?';
+  const params = [user];
+  if (subject) { sql += ' AND subject = ?'; params.push(subject); }
+  sql += ' ORDER BY id ASC';
 
-    if (subject) {
-      sql += " AND subject = ?";
-      params.push(subject);
-    }
-
-    // ★ 必须用 env.exam_db
-    const { results } = await env.exam_db.prepare(sql).bind(...params).all();
-
-    const questions = results.map(row => ({
-      ...row,
-      opts: JSON.parse(row.opts),
-      a: JSON.parse(row.a)
-    }));
-
-    return Response.json(questions);
-  } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
-  }
-}
+  const { results } = await env.exam_db.prepare(sql).bind(...params).all();
+  return json(results.map(normalizeRow));
+});

@@ -1,0 +1,15 @@
+{
+  "name": "origin-quiz",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "description": "原点 · Origin —— 刷题 / 错题 / 收藏，Cloudflare Pages + D1",
+  "scripts": {
+    "dev": "node dev/server.mjs",
+    "check": "node dev/verify.mjs",
+    "db:init": "wrangler d1 execute exam_db --local --file=./schema.sql",
+    "cf:dev": "wrangler pages dev .",
+    "deploy": "wrangler pages deploy ."
+  },
+  "engines": { "node": ">=22.5" }
+}
