@@ -8,7 +8,7 @@
     "dev": "node dev/server.mjs",
     "dev:web": "vite",
     "dev:cf": "wrangler pages dev dist --d1 exam_db --persist-to .wrangler/state --port 8788",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node dev/sync-root.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "check": "node dev/verify.mjs",
