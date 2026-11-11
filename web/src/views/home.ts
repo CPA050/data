@@ -5,25 +5,23 @@ import { practiceBank, practiceWrong, resumeSession } from '../features/session'
 
 let welcome = '';
 
-// 与底栏同一套线条语言：1.3px 描边、14px 尺寸
-const ico = (d: string) =>
-  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
-
-const ICONS = {
-  random: ico('<path d="M13 3 5.5 13.4h5L10 21l8-10.6h-5.2z"/>'),
-  sequential: ico('<path d="M4 7h11M4 12h16M4 17h8"/><circle cx="19" cy="7" r="1.6"/>'),
-  chapter: ico('<path d="M12 3.6 20.4 12 12 20.4 3.6 12z"/><path d="M12 8.4 15.6 12 12 15.6 8.4 12z"/>'),
-  wrong: ico('<path d="M6.4 20.4V3.6"/><path d="M6.4 4.6h11l-2.1 3.9 2.1 3.9h-11"/>'),
-  resume: ico('<path d="M4.4 12a7.6 7.6 0 1 0 2.5-5.6"/><path d="M4 4.4V9h4.6"/>'),
-};
-
 function hello(): string {
   if (!hasWelcomedToday() || !welcome) {
     welcome = greeting();
     markWelcomed();
   }
+  // 冷版式里不需要长句问候，取前半句做提示语
   return welcome;
 }
+
+function today(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const week = '日一二三四五六'[d.getDay()];
+  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} / 周${week}`;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
 
 export function renderHome(): string {
   const bank = state.bank;
@@ -34,84 +32,90 @@ export function renderHome(): string {
   const recent = getRecent().slice(0, 4);
   const progress = getProgress();
 
+  const total = bank ? bank.length : 0;
+  const suggestion = Math.min(20, Math.max(5, total || 10));
   const skeleton = `<div class="skeleton sk-line w60"></div><div class="skeleton sk-line w80"></div>`;
 
+  const num = (v: number | undefined) => (v === undefined ? '—' : String(v).padStart(2, '0'));
+
   return `
-    <section class="hero">
-      <div class="hero-greet">${escapeHtml(hello())}</div>
-      <div class="hero-hint">${state.user ? `@${escapeHtml(state.user)} · 今天也要加油` : '轻装上阵，一次一题'}</div>
+    <section class="masthead">
+      <div class="mast-meta">
+        <span>${today()}</span>
+        <span class="mast-dot" aria-hidden="true"></span>
+        <span>${state.user ? `@${escapeHtml(state.user)}` : '未登录'}</span>
+      </div>
+      <h1 class="mast-title">
+        今天<br />练 <em>${String(suggestion).padStart(2, '0')}</em> 题
+      </h1>
+      <p class="mast-sub">${escapeHtml(hello())}</p>
     </section>
 
-    <div class="stat-grid">
-      <div class="stat" data-act="goto" data-tab="bank">
-        <div class="stat-num">${bank ? bank.length : '—'}</div>
-        <div class="stat-label">题库</div>
-      </div>
-      <div class="stat" data-act="goto" data-tab="wrong">
-        <div class="stat-num">${wrong ? wrong.length : '—'}</div>
-        <div class="stat-label">错题</div>
-      </div>
-      <div class="stat" data-act="goto" data-tab="fav">
-        <div class="stat-num">${favs ? favs.length : '—'}</div>
-        <div class="stat-label">收藏</div>
-      </div>
-    </div>
+    <section class="overview" aria-label="数据概览">
+      <button class="ov-cell" data-act="goto" data-tab="bank">
+        <span class="ov-num">${num(bank?.length)}</span>
+        <span class="ov-label">题库</span>
+      </button>
+      <button class="ov-cell" data-act="goto" data-tab="wrong">
+        <span class="ov-num">${num(wrong?.length)}</span>
+        <span class="ov-label">错题</span>
+      </button>
+      <button class="ov-cell" data-act="goto" data-tab="fav">
+        <span class="ov-num">${num(favs?.length)}</span>
+        <span class="ov-label">收藏</span>
+      </button>
+    </section>
 
-    <div class="section-title">开始练习</div>
     ${loading.bank && !bank ? `<div class="card card-pad">${skeleton}</div>` : ''}
-    <div class="action-list">
-      <button class="action" data-act="random" ${bank && !bank.length ? 'disabled' : ''}>
-        <span class="action-ico">${ICONS.random}</span>
-        <span class="action-body">
-          <span class="action-title">随机练习</span>
-          <span class="action-desc">从题库里随机抽题，查漏补缺</span>
-        </span>
-        <span class="chev">›</span>
+
+    <button class="cta" data-act="random" ${bank && !bank.length ? 'disabled' : ''}>
+      <span class="cta-kicker">START / 随机抽题</span>
+      <span class="cta-title">开始练习</span>
+      <span class="cta-arrow" aria-hidden="true">→</span>
+    </button>
+
+    <div class="tile-grid">
+      <button class="tile" data-act="sequential" ${bank && !bank.length ? 'disabled' : ''}>
+        <span class="tile-idx">01</span>
+        <span class="tile-name">顺序练习</span>
+        <span class="tile-desc">${progress > 0 ? `停在第 ${progress + 1} 题` : '按顺序推进'}</span>
       </button>
-      <button class="action" data-act="sequential" ${bank && !bank.length ? 'disabled' : ''}>
-        <span class="action-ico">${ICONS.sequential}</span>
-        <span class="action-body">
-          <span class="action-title">顺序练习</span>
-          <span class="action-desc">${progress > 0 ? `上次停在第 ${progress + 1} 题` : '按题库顺序，稳稳推进'}</span>
-        </span>
-        <span class="chev">›</span>
+      <button class="tile" data-act="chapter" ${bank && !bank.length ? 'disabled' : ''}>
+        <span class="tile-idx">02</span>
+        <span class="tile-name">按章节</span>
+        <span class="tile-desc">只练薄弱章节</span>
       </button>
-      <button class="action" data-act="chapter" ${bank && !bank.length ? 'disabled' : ''}>
-        <span class="action-ico">${ICONS.chapter}</span>
-        <span class="action-body">
-          <span class="action-title">按章节练</span>
-          <span class="action-desc">只练薄弱的那一章</span>
-        </span>
-        <span class="chev">›</span>
-      </button>
-      <button class="action" data-act="wrong" ${wrong && !wrong.length ? 'disabled' : ''}>
-        <span class="action-ico red">${ICONS.wrong}</span>
-        <span class="action-body">
-          <span class="action-title">错题重练</span>
-          <span class="action-desc">${wrong ? `${wrong.length} 道错题等着你` : '把错过的都拿回来'}</span>
-        </span>
-        <span class="chev">›</span>
+      <button class="tile" data-act="wrong" ${wrong && !wrong.length ? 'disabled' : ''}>
+        <span class="tile-idx">03</span>
+        <span class="tile-name">错题重练</span>
+        <span class="tile-desc">${wrong ? `${wrong.length} 道待消灭` : '暂无错题'}</span>
       </button>
       ${
         session
-          ? `<button class="action" data-act="resume">
-               <span class="action-ico green">${ICONS.resume}</span>
-               <span class="action-body">
-                 <span class="action-title">继续上次</span>
-                 <span class="action-desc">${session.ids.length} 题 · 停在第 ${session.idx + 1} 题</span>
-               </span>
-               <span class="chev">›</span>
+          ? `<button class="tile tile-accent" data-act="resume">
+               <span class="tile-idx">04</span>
+               <span class="tile-name">继续上次</span>
+               <span class="tile-desc">${session.ids.length} 题 · 第 ${session.idx + 1} 题</span>
              </button>`
-          : ''
+          : `<button class="tile" data-act="goto" data-tab="bank">
+               <span class="tile-idx">04</span>
+               <span class="tile-name">题库管理</span>
+               <span class="tile-desc">导入 / 编辑</span>
+             </button>`
       }
     </div>
 
     ${
       recent.length
-        ? `<div class="section-title">最近练过</div>
-           <div class="list">${recent
-             .map((text) => `<div class="item"><div class="item-q muted">${escapeHtml(text)}</div></div>`)
-             .join('')}</div>`
+        ? `<section class="recent">
+             <div class="section-title">最近练过</div>
+             ${recent
+               .map(
+                 (text, i) =>
+                   `<div class="recent-row"><span class="recent-idx">${pad2(i + 1)}</span><span class="recent-text">${escapeHtml(text)}</span></div>`,
+               )
+               .join('')}
+           </section>`
         : ''
     }
   `;
