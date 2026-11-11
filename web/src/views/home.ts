@@ -68,22 +68,30 @@ export function renderHome(): string {
 
     ${loading.bank && !bank ? `<div class="card card-pad">${skeleton}</div>` : ''}
 
-    <button class="cta" data-act="random" ${bank && !bank.length ? 'disabled' : ''}>
-      <span class="cta-kicker">START / 随机抽题</span>
-      <span class="cta-title">开始练习</span>
-      <span class="cta-arrow" aria-hidden="true">→</span>
-    </button>
+    ${
+      bank && !bank.length
+        ? `<button class="cta" data-act="goto" data-tab="bank">
+             <span class="cta-kicker">EMPTY / 题库为空</span>
+             <span class="cta-title">先导入题库</span>
+             <span class="cta-arrow" aria-hidden="true">→</span>
+           </button>`
+        : `<button class="cta" data-act="random" ${bank ? '' : 'disabled'}>
+             <span class="cta-kicker">START / 随机抽题</span>
+             <span class="cta-title">开始练习</span>
+             <span class="cta-arrow" aria-hidden="true">→</span>
+           </button>`
+    }
 
     <div class="tile-grid">
       <button class="tile" data-act="sequential" ${bank && !bank.length ? 'disabled' : ''}>
         <span class="tile-idx">01</span>
         <span class="tile-name">顺序练习</span>
-        <span class="tile-desc">${progress > 0 ? `停在第 ${progress + 1} 题` : '按顺序推进'}</span>
+        <span class="tile-desc">${bank && !bank.length ? '题库为空' : progress > 0 ? `停在第 ${progress + 1} 题` : '按顺序推进'}</span>
       </button>
       <button class="tile" data-act="chapter" ${bank && !bank.length ? 'disabled' : ''}>
         <span class="tile-idx">02</span>
         <span class="tile-name">按章节</span>
-        <span class="tile-desc">只练薄弱章节</span>
+        <span class="tile-desc">${bank && !bank.length ? '题库为空' : '只练薄弱章节'}</span>
       </button>
       <button class="tile" data-act="wrong" ${wrong && !wrong.length ? 'disabled' : ''}>
         <span class="tile-idx">03</span>
