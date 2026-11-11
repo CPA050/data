@@ -4,6 +4,16 @@ import { escapeHtml, plainText, renderRich } from '../core/format';
 import { confirm, openModal } from '../ui/modal';
 import { notify } from '../ui/toast';
 import type { Answer, Question, QuestionDraft } from '../core/types';
+import { openImport } from '../features/import-dialog';
+
+/** 从 AI 返回里抠出第一个 JSON 对象（可能带 ```json 围栏或前后废话） */
+function extractJsonBlock(raw: string): string {
+  const text = raw.replace(/```json/gi, '```').trim();
+  const block = /```([\s\S]*?)```/.exec(text)?.[1] ?? text;
+  const start = block.indexOf('{');
+  const end = block.lastIndexOf('}');
+  return start === -1 || end <= start ? '{}' : block.slice(start, end + 1);
+}
 
 const ui = {
   search: '',
@@ -79,7 +89,7 @@ export function renderBank(): string {
           .join('')}</div>`
       : `<div class="empty"><div class="empty-ico">▤</div><div class="empty-title">${
           ui.search ? '没有匹配的题目' : '题库还是空的'
-        }</div><div class="empty-desc">${ui.search ? '换个关键词试试' : '点右上角「＋」添加，或用 AI 从图片导入'}</div></div>`;
+        }</div><div class="empty-desc">${ui.search ? '换个关键词试试' : '点右上角「⇪」导入 JSON / TXT / Word / 图片，或点「＋」手写'}</div></div>`;
 
   return `
     <h1 class="page-title">题库</h1>
@@ -88,6 +98,7 @@ export function renderBank(): string {
         <span class="ico">⌕</span>
         <input type="search" placeholder="搜索题目或选项" data-role="search" value="${escapeHtml(ui.search)}" enterkeyhint="search">
       </div>
+      <button class="icon-btn" data-act="import" aria-label="导入题库" title="导入题库">⇪</button>
       <button class="icon-btn" data-act="add" aria-label="添加题目">＋</button>
       <button class="icon-btn" data-act="toggle-edit" aria-label="批量管理">${ui.edit ? '✓' : '☰'}</button>
     </div>
@@ -222,114 +233,8 @@ async function openEditor(question?: Question): Promise<void> {
   }
 }
 
-async function importWithAI(): Promise<void> {
-  const body = document.createElement('div');
-  body.innerHTML = `
-    <label class="field">
-      <span class="field-label">粘贴题目文本，或上传截图</span>
-      <textarea class="textarea" data-role="text" placeholder="把题目文字贴进来…"></textarea>
-    </label>
-    <label class="btn btn-block" style="cursor:pointer">
-      📷 选择图片
-      <input type="file" accept="image/*" data-role="file" hidden>
-    </label>
-    <p class="muted small" style="margin:10px 0 0">AI 会识别题干、选项与答案，导入前可以再改。</p>`;
-  const fileInput = body.querySelector<HTMLInputElement>('[data-role="file"]')!;
-  const label = fileInput.closest('label')!;
-  fileInput.addEventListener('change', () => {
-    const file = fileInput.files?.[0];
-    if (file) label.textContent = `已选择：${file.name}`;
-  });
-
-  const ok = await openModal<boolean>({
-    title: 'AI 导入题目',
-    body,
-    actions: [
-      { label: '取消', value: false },
-      { label: '识别', value: true, variant: 'primary' },
-    ],
-  });
-  if (!ok) return;
-
-  const text = body.querySelector<HTMLTextAreaElement>('[data-role="text"]')!.value.trim();
-  const file = fileInput.files?.[0];
-  if (!text && !file) {
-    notify.info('还没给我内容呢');
-    return;
-  }
-  notify.info('AI 正在识别…');
-  try {
-    const payload: { prompt?: string; image?: string } = {};
-    if (text) payload.prompt = text;
-    if (file) payload.image = await fileToBase64(file);
-    const res = await api.ai.extract(payload);
-    const drafts = parseExtracted(res.result ?? '');
-    if (!drafts.length) {
-      notify.error('没有识别出题目，换个清晰点的图片试试');
-      return;
-    }
-    await api.questions.add(drafts);
-    invalidate('bank');
-    await loadBank(true);
-    notify.ok(`已导入 ${drafts.length} 道题`);
-  } catch (error) {
-    notify.error(error instanceof ApiError ? error.message : '识别失败');
-  }
-}
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error('图片读取失败'));
-    reader.readAsDataURL(file);
-  });
-}
-
-/** 从 AI 返回里抠出第一个 JSON 对象（可能带 ```json 围栏或前后废话） */
-function extractJsonBlock(raw: string): string {
-  const text = raw.replace(/```json/gi, '```').trim();
-  const block = /```([\s\S]*?)```/.exec(text)?.[1] ?? text;
-  const start = block.indexOf('{');
-  const end = block.lastIndexOf('}');
-  return start === -1 || end <= start ? '{}' : block.slice(start, end + 1);
-}
-
-export function parseExtracted(raw: string): QuestionDraft[] {  const text = raw.replace(/```json/gi, '```').trim();
-  const block = /```([\s\S]*?)```/.exec(text)?.[1] ?? text;
-  const start = block.indexOf('[');
-  const end = block.lastIndexOf(']');
-  if (start === -1 || end <= start) return [];
-  try {
-    const arr = JSON.parse(block.slice(start, end + 1)) as Record<string, unknown>[];
-    return arr
-      .map((item): QuestionDraft | null => {
-        const q = String(item.q ?? item.question ?? '').trim();
-        if (!q) return null;
-        const opts = Array.isArray(item.opts ?? item.options)
-          ? ((item.opts ?? item.options) as unknown[]).map(String)
-          : [];
-        let a: Answer = '';
-        const rawA = item.a ?? item.answer;
-        if (typeof rawA === 'string') {
-          const letters = rawA.toUpperCase().split(/[,，\s/]+/).filter(Boolean);
-          const idx = letters.map((ch) => ch.charCodeAt(0) - 65).filter((n) => n >= 0 && n < opts.length);
-          a = opts.length ? (idx.length === 1 ? idx[0] : idx) : rawA;
-        } else if (typeof rawA === 'number') {
-          a = rawA;
-        }
-        return {
-          q,
-          opts,
-          a,
-          chapter: String(item.chapter ?? '').trim(),
-          subject: String(item.subject ?? '默认题库').trim() || '默认题库',
-        } satisfies QuestionDraft;
-      })
-      .filter((x): x is QuestionDraft => Boolean(x));
-  } catch {
-    return [];
-  }
+async function importQuestions(): Promise<void> {
+  await openImport();
 }
 
 function exportSelected(): void {
@@ -395,8 +300,8 @@ export async function handleBank(action: string, el: HTMLElement): Promise<boole
     case 'export':
       exportSelected();
       return true;
-    case 'ai-import':
-      await importWithAI();
+    case 'import':
+      await importQuestions();
       return true;
     case 'search':
       return true;

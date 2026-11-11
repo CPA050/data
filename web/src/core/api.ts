@@ -227,7 +227,7 @@ export const api = {
   ai: {
     explain: (prompt: string) => post<AiResult>('/api/ai', { action: 'explain', prompt }),
     grade: (prompt: string) => post<AiResult>('/api/ai', { action: 'grade', prompt }),
-    extract: (payload: { prompt?: string; image?: string }) =>
+    extract: (payload: { prompt?: string; imageBase64?: string }) =>
       post<AiResult>('/api/ai', { action: 'extract', ...payload }),
     classify: (prompt: string) => post<AiResult>('/api/ai', { action: 'classify', prompt }),
     explainStream: (prompt: string, onDelta: (text: string) => void, signal?: AbortSignal) =>
