@@ -40,8 +40,8 @@ wrangler pages secret put AUTH_SECRET        # 任意长随机字符串，用于
 wrangler pages deploy .
 ```
 
-**AI 上游可以换**：默认优先用 DeepSeek（`deepseek-chat`），图片识别自动回落到智谱
-`glm-4v-flash`（DeepSeek 暂时没有视觉模型）。想强制某一家就再配一个普通环境变量：
+**AI 上游可以换**：默认优先用 DeepSeek（`deepseek-flash`），文本和图片都走它；没配 DeepSeek 时
+自动回落到智谱（文本 `glm-4-flash` / 图片 `glm-4v-flash`）。想强制某一家就再配一个普通环境变量：
 
 ```bash
 wrangler pages secret put AI_PROVIDER   # 值填 deepseek 或 zhipu，留空则自动挑
@@ -49,9 +49,9 @@ wrangler pages secret put AI_PROVIDER   # 值填 deepseek 或 zhipu，留空则�
 
 | 场景 | 用哪家 | 模型 |
 | --- | --- | --- |
-| 解析 / 批改 / 归类 | DeepSeek（配了 key 时） | `deepseek-chat` |
+| 解析 / 批改 / 归类 | DeepSeek（配了 key 时） | `deepseek-flash` |
 | 解析 / 批改 / 归类 | 智谱（没配 DeepSeek key 时） | `glm-4-flash` |
-| 图片识别 | 只能是智谱 | `glm-4v-flash` |
+| 图片识别 | DeepSeek（配了 key 时） | `deepseek-flash`（支持图片输入） |
 
 **从老版本升级（不跑迁移也能直接部署）**：新代码会自动探测 `users` 表用的是 `password` 还是 `password_hash` 列。
 老用户的明文密码不用重置——它会在下一次登录成功时自动升级成 PBKDF2 哈希。
@@ -211,7 +211,7 @@ Pages Functions 能否打包（实际跑一遍 esbuild）、`dist/` 产物是否
 | 流式解析 | `POST /api/ai {action:"explain", prompt, stream:true}` | 返回 `text/event-stream`，每帧 `data:{"delta":"…"}`，结束 `data:{"done":true,"cached":false}`；前端边收边渲染，首字从 2~5 秒降到几百毫秒 |
 | 结果缓存 | 自动 | 同一道题（题干+选项+答案哈希）7 天内重复解析直接命中 `ai_cache`，**不扣配额、不再调用上游**；命中时返回 `cached:true` |
 | 智能归类 | `POST /api/ai {action:"classify", prompt}` | 返回 `{"subject":"…","chapter":"…"}`；题库编辑弹窗里的「✦ AI 归类」按钮就是它 |
-| 图片识别 | `{action:"extract", image:"data:image/…"}` | glm-4v-flash，图片过大（>8MB base64）会被拒 |
+| 图片识别 | `{action:"extract", imageBase64:"data:image/…"}` | deepseek-flash（或 glm-4v-flash），图片过大（>8MB base64）会被拒 |
 
 缓存清理（可选）：
 

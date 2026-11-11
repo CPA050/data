@@ -62,7 +62,7 @@ async function streamAi(
   body: Record<string, unknown>,
   onDelta: (text: string) => void,
   signal?: AbortSignal,
-): Promise<{ text: string; cached: boolean }> {
+): Promise<{ text: string; cached: boolean; provider?: string }> {
   const headers = new Headers({ 'Content-Type': 'application/json' });
   const token = getToken();
   if (token) headers.set('Authorization', `Bearer ${token}`);
@@ -83,7 +83,11 @@ async function streamAi(
     }
     if (typeof payload.result === 'string') {
       onDelta(payload.result as string);
-      return { text: payload.result as string, cached: false };
+      return {
+        text: payload.result as string,
+        cached: false,
+        provider: typeof payload.provider === 'string' ? payload.provider : undefined,
+      };
     }
     throw new ApiError(res.status, typeof payload.error === 'string' ? payload.error : 'AI 解析失败');
   }
@@ -93,6 +97,7 @@ async function streamAi(
   let buffer = '';
   let text = '';
   let cached = false;
+  let provider: string | undefined;
 
   for (;;) {
     const { value, done } = await reader.read();
@@ -114,11 +119,14 @@ async function streamAi(
         onDelta(event.delta);
       }
       if (typeof event.error === 'string') throw new ApiError(502, event.error);
-      if (event.done) cached = event.cached === true;
+      if (event.done) {
+        cached = event.cached === true;
+        if (typeof event.provider === 'string') provider = event.provider;
+      }
     }
   }
 
-  return { text, cached };
+  return { text, cached, provider };
 }
 
 /* ---------- 数据归一化 ---------- */

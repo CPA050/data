@@ -480,8 +480,9 @@ async function aiExplain(): Promise<void> {
       streamed += delta;
       textNode.innerHTML = `${escapeHtml(streamed).replace(/\n/g, '<br>')}<span class="cursor"></span>`;
     });
+    const which = res.provider === 'deepseek' ? 'DeepSeek' : res.provider === 'zhipu' ? '智谱' : '';
     titleNode.textContent = streamed
-      ? `✦ AI 解析${res.cached ? ' · 缓存命中' : ''}`
+      ? `✦ AI 解析${which ? ` · ${which}` : ''}${res.cached ? ' · 缓存命中' : ''}`
       : '✦ AI 解析';
     if (!streamed) await typeOutLegacy(textNode, res.text ?? '');
     else textNode.innerHTML = escapeHtml(res.text || streamed).replace(/\n/g, '<br>');

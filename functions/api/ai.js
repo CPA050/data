@@ -46,16 +46,19 @@ function cleanAiText(text) {
     .trim();
 }
 
-function buildMessages(action, prompt, imageBase64, model) {
+function buildMessages(action, prompt, imageBase64, model, providerName) {
   if (action === 'extract' && imageBase64) {
-    const clean = imageBase64.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
+    // 智谱要裸 base64；DeepSeek(OpenAI 兼容) 要完整 data URL
+    const raw = String(imageBase64).trim();
+    const bare = raw.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
+    const url = providerName === 'zhipu' ? bare : raw.startsWith('data:') ? raw : 'data:image/jpeg;base64,' + bare;
     // 视觉模型不支持 system 角色，提示词必须放进 user
     return {
       model,
       messages: [{
         role: 'user',
         content: [
-          { type: 'image_url', image_url: { url: clean } },
+          { type: 'image_url', image_url: { url } },
           { type: 'text', text: '请提取图片中的题目，并严格输出 JSON。\n' + EXTRACT_PROMPT }
         ]
       }]
@@ -137,7 +140,7 @@ export const onRequestPost = route(async ({ request, env }) => {
   if (prompt.length > 8000) throw new HttpError(413, '输入文本过长，请分批识别');
   if (imageBase64.length > 8 * 1024 * 1024) throw new HttpError(413, '图片过大，请压缩后重试');
 
-  // 图片识别必须有视觉模型（DeepSeek 暂无），其余走文本模型
+  // 图片识别需要视觉模型；DeepSeek(deepseek-flash) 与智谱(glm-4v-flash) 都支持
   const needsVision = action === 'extract' && Boolean(imageBase64);
   let resolved;
   try {
@@ -147,7 +150,7 @@ export const onRequestPost = route(async ({ request, env }) => {
   }
   const { provider, apiKey, model } = resolved;
 
-  const { messages } = buildMessages(action, prompt, imageBase64, model);
+  const { messages } = buildMessages(action, prompt, imageBase64, model, provider.name);
   const bucket = action === 'extract' ? 'extract' : 'text';
   const key = await cacheKey(action, model, prompt, imageBase64);
   const wantStream = body.stream === true && action === 'explain';

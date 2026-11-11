@@ -2,18 +2,19 @@
 //
 // 选择规则：
 //   1. env.AI_PROVIDER = 'deepseek' | 'zhipu' 时强制使用该家；
-//   2. 否则配了 DEEPSEEK_API_KEY 就用 DeepSeek（文本），图片识别自动回落到智谱视觉模型；
-//   3. 再否则用智谱。
+//   2. 否则配了 DEEPSEEK_API_KEY 就用 DeepSeek（文本 + 图片都行）；
+//   3. 再否则用智谱（文本 glm-4-flash / 图片 glm-4v-flash）。
 //
-// 注意：DeepSeek 目前没有视觉模型，extract(action=extract + 图片) 必须走智谱 glm-4v-flash。
+// DeepSeek 的 deepseek-flash 支持图片输入，所以图片识别也能走 DeepSeek；
+// 若某天该能力下线，把 visionModel 改回 null 即自动回落到智谱。
 
 const DEEPSEEK = {
   name: 'deepseek',
   label: 'DeepSeek',
   endpoint: 'https://api.deepseek.com/chat/completions',
   keyEnv: 'DEEPSEEK_API_KEY',
-  textModel: 'deepseek-chat',
-  visionModel: null,
+  textModel: 'deepseek-flash',
+  visionModel: 'deepseek-flash',
 };
 
 const ZHIPU = {
@@ -56,5 +57,10 @@ export function resolveProvider(env, { needsVision = false } = {}) {
 
 /** 给前端/日志看的当前配置摘要（不含密钥） */
 export function describeProviders(env) {
-  return ALL.map((p) => ({ name: p.name, configured: Boolean(env[p.keyEnv]), model: p.textModel }));
+  return ALL.map((p) => ({
+    name: p.name,
+    configured: Boolean(env[p.keyEnv]),
+    model: p.textModel,
+    vision: p.visionModel,
+  }));
 }
