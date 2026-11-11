@@ -1,18 +1,16 @@
-// functions/api/ai.js —— 智谱 AI 代理（识别 / 解析 / 批改 / 归类）
-// 修复：① 原来完全匿名可用，任何人可无限刷、烧光 ZAI_API_KEY → 必须登录 + 按用户每日配额
+// functions/api/ai.js —— AI 代理（识别 / 解析 / 批改 / 归类）
+// 修复：① 原来完全匿名可用，任何人可无限刷、烧光密钥 → 必须登录 + 按用户每日配额
 //       ② 请求体字段不再信任（长度/类型校验），避免把超大 base64 直接转给上游
 //       ③ 上游非 2xx / 超时 / 返回形状异常都有明确错误，未配置密钥时给出可读提示
 //       ④ 不再把上游原始报错和堆栈回传给客户端
 // 增强：⑤ 同一道题的结果落 D1 缓存（ai_cache，7 天），命中不扣配额
 //       ⑥ explain 支持 SSE 流式（stream:true），首字延迟从 2~5s 降到几百毫秒
 //       ⑦ 新增 classify：给一道题猜学科/章节，配合题库导入自动归类
+//       ⑧ 上游可切换：DeepSeek（默认，若配了 DEEPSEEK_API_KEY）/ 智谱 GLM（图片识别必须用智谱）
 import { route, json, readJson, HttpError } from '../_lib/http.js';
 import { currentUser } from '../_lib/session.js';
 import { consume, today } from '../_lib/rate.js';
-
-const ENDPOINT = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-const TEXT_MODEL = 'glm-4-flash';
-const VISION_MODEL = 'glm-4v-flash';
+import { resolveProvider } from '../_lib/ai-provider.js';
 
 // 每个用户每天可用次数（解析/批改共用 60 次，图片识别单独 20 次）
 const QUOTA = { text: 60, extract: 20 };
@@ -48,12 +46,12 @@ function cleanAiText(text) {
     .trim();
 }
 
-function buildMessages(action, prompt, imageBase64) {
+function buildMessages(action, prompt, imageBase64, model) {
   if (action === 'extract' && imageBase64) {
     const clean = imageBase64.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
     // 视觉模型不支持 system 角色，提示词必须放进 user
     return {
-      model: VISION_MODEL,
+      model,
       messages: [{
         role: 'user',
         content: [
@@ -65,7 +63,7 @@ function buildMessages(action, prompt, imageBase64) {
   }
   if (action === 'extract') {
     return {
-      model: TEXT_MODEL,
+      model,
       messages: [
         { role: 'system', content: EXTRACT_PROMPT },
         { role: 'user', content: prompt }
@@ -73,7 +71,7 @@ function buildMessages(action, prompt, imageBase64) {
     };
   }
   return {
-    model: TEXT_MODEL,
+    model,
     messages: [
       { role: 'system', content: SYSTEM_PROMPTS[action] },
       { role: 'user', content: prompt }
@@ -113,7 +111,7 @@ async function readCache(env, key) {
 async function writeCache(env, key, action, payload, model) {
   try {
     await env.exam_db
-      .prepare('INSERT INTO ai_cache (cache_key, action, payload, model) VALUES (?, ?, ?, ?) ON CONFLICT(cache_key) DO UPDATE SET payload = excluded.payload, model = excluded.model, created_at = datetime(\'now\')')
+      .prepare("INSERT INTO ai_cache (cache_key, action, payload, model) VALUES (?, ?, ?, ?) ON CONFLICT(cache_key) DO UPDATE SET payload = excluded.payload, model = excluded.model, created_at = datetime('now')")
       .bind(key, action, payload, model)
       .run();
   } catch (e) {
@@ -121,15 +119,13 @@ async function writeCache(env, key, action, payload, model) {
   }
 }
 
-function mapUpstreamError(status) {
-  if (status === 401 || status === 403) return new HttpError(502, 'AI 服务鉴权失败，请检查服务端密钥');
+function mapUpstreamError(status, provider) {
+  if (status === 401 || status === 403) return new HttpError(502, `AI 服务鉴权失败，请检查服务端 ${provider.keyEnv}`);
   if (status === 429) return new HttpError(429, 'AI 服务繁忙，请稍后再试');
   return new HttpError(502, 'AI 服务暂时不可用，请稍后再试');
 }
 
 export const onRequestPost = route(async ({ request, env }) => {
-  if (!env.ZAI_API_KEY) throw new HttpError(500, '服务端未配置 ZAI_API_KEY 环境变量');
-
   const user = await currentUser(request, env);
   const body = await readJson(request);
   const action = String(body.action || '');
@@ -141,7 +137,17 @@ export const onRequestPost = route(async ({ request, env }) => {
   if (prompt.length > 8000) throw new HttpError(413, '输入文本过长，请分批识别');
   if (imageBase64.length > 8 * 1024 * 1024) throw new HttpError(413, '图片过大，请压缩后重试');
 
-  const { model, messages } = buildMessages(action, prompt, imageBase64);
+  // 图片识别必须有视觉模型（DeepSeek 暂无），其余走文本模型
+  const needsVision = action === 'extract' && Boolean(imageBase64);
+  let resolved;
+  try {
+    resolved = resolveProvider(env, { needsVision });
+  } catch (err) {
+    throw new HttpError(500, err.message);
+  }
+  const { provider, apiKey, model } = resolved;
+
+  const { messages } = buildMessages(action, prompt, imageBase64, model);
   const bucket = action === 'extract' ? 'extract' : 'text';
   const key = await cacheKey(action, model, prompt, imageBase64);
   const wantStream = body.stream === true && action === 'explain';
@@ -151,9 +157,9 @@ export const onRequestPost = route(async ({ request, env }) => {
   if (cached) {
     if (wantStream) return sseResponse((async function* () {
       yield { delta: cached };
-      yield { done: true, cached: true, model };
+      yield { done: true, cached: true, model, provider: provider.name };
     })());
-    return json({ ok: true, result: cached, model, cached: true, remaining: null });
+    return json({ ok: true, result: cached, model, provider: provider.name, cached: true, remaining: null });
   }
 
   // ② 配额
@@ -168,16 +174,16 @@ export const onRequestPost = route(async ({ request, env }) => {
   if (wantStream) {
     let upstream;
     try {
-      upstream = await fetch(ENDPOINT, {
+      upstream = await fetch(provider.endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.ZAI_API_KEY}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({ model, messages, temperature: 0.1, stream: true }),
         signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(60000) : undefined
       });
     } catch (e) {
       throw new HttpError(504, 'AI 服务响应超时，请稍后重试');
     }
-    if (!upstream.ok || !upstream.body) throw mapUpstreamError(upstream.status);
+    if (!upstream.ok || !upstream.body) throw mapUpstreamError(upstream.status, provider);
 
     return sseResponse((async function* () {
       const reader = upstream.body.getReader();
@@ -215,16 +221,16 @@ export const onRequestPost = route(async ({ request, env }) => {
         return;
       }
       await writeCache(env, key, action, text, model);
-      yield { done: true, cached: false, model, remaining };
+      yield { done: true, cached: false, model, provider: provider.name, remaining };
     })());
   }
 
   // ④ 普通 JSON
   let upstream;
   try {
-    upstream = await fetch(ENDPOINT, {
+    upstream = await fetch(provider.endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.ZAI_API_KEY}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({ model, messages, temperature: 0.1, stream: false }),
       signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(45000) : undefined
     });
@@ -236,8 +242,8 @@ export const onRequestPost = route(async ({ request, env }) => {
   try { data = await upstream.json(); } catch (e) { throw new HttpError(502, 'AI 服务返回了无法解析的内容'); }
 
   if (!upstream.ok || data.error) {
-    console.error('智谱 API 报错:', upstream.status, JSON.stringify(data && data.error || data));
-    throw mapUpstreamError(upstream.status);
+    console.error(provider.label + ' API 报错:', upstream.status, JSON.stringify((data && data.error) || data));
+    throw mapUpstreamError(upstream.status, provider);
   }
 
   const aiText = data?.choices?.[0]?.message?.content;
@@ -245,7 +251,7 @@ export const onRequestPost = route(async ({ request, env }) => {
 
   const text = cleanAiText(aiText);
   await writeCache(env, key, action, text, model);
-  return json({ ok: true, result: text, model, cached: false, remaining });
+  return json({ ok: true, result: text, model, provider: provider.name, cached: false, remaining });
 });
 
 /**

@@ -20,6 +20,7 @@ import { handleMe, mountMe, renderMe } from '../views/me';
 import { handleQuiz } from '../views/quiz';
 import { handleWrong, mountWrong, renderWrong, resetWrong } from '../views/wrong';
 import { quizActive } from '../features/session';
+import { installShortcuts } from '../features/shortcuts';
 import { notify } from '../ui/toast';
 
 interface View {
@@ -259,6 +260,7 @@ export function boot(): void {
   document.addEventListener('change', handleChangeOrInput);
   document.addEventListener('input', handleChangeOrInput);
   document.addEventListener('submit', handleSubmit);
+  installShortcuts();
 
   if (state.token) state.authed = true;
   rerender();

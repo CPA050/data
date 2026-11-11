@@ -32,12 +32,26 @@ wrangler d1 create exam_db
 wrangler d1 execute exam_db --remote --file=./schema.sql
 
 # 3) 配置密钥（不要写进代码或 wrangler.toml）
-wrangler pages secret put ZAI_API_KEY     # 智谱 API Key
-wrangler pages secret put AUTH_SECRET     # 任意长随机字符串，用于签发登录令牌
+wrangler pages secret put DEEPSEEK_API_KEY   # DeepSeek API Key（默认用它做解析/批改/归类）
+wrangler pages secret put ZAI_API_KEY        # 智谱 API Key（图片识别必须用视觉模型）
+wrangler pages secret put AUTH_SECRET        # 任意长随机字符串，用于签发登录令牌
 
 # 4) 部署
 wrangler pages deploy .
 ```
+
+**AI 上游可以换**：默认优先用 DeepSeek（`deepseek-chat`），图片识别自动回落到智谱
+`glm-4v-flash`（DeepSeek 暂时没有视觉模型）。想强制某一家就再配一个普通环境变量：
+
+```bash
+wrangler pages secret put AI_PROVIDER   # 值填 deepseek 或 zhipu，留空则自动挑
+```
+
+| 场景 | 用哪家 | 模型 |
+| --- | --- | --- |
+| 解析 / 批改 / 归类 | DeepSeek（配了 key 时） | `deepseek-chat` |
+| 解析 / 批改 / 归类 | 智谱（没配 DeepSeek key 时） | `glm-4-flash` |
+| 图片识别 | 只能是智谱 | `glm-4v-flash` |
 
 **从老版本升级（不跑迁移也能直接部署）**：新代码会自动探测 `users` 表用的是 `password` 还是 `password_hash` 列。
 老用户的明文密码不用重置——它会在下一次登录成功时自动升级成 PBKDF2 哈希。

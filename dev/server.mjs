@@ -22,11 +22,12 @@ const db = new D1Shim(process.env.DB_FILE || ':memory:');
 await migrate(db, undefined, { quiet: true });
 await seed(db);
 
-// 拦截对智谱的调用：本地不烧真 key，返回固定内容；真实部署由 Cloudflare 出网
+// 拦截对 AI 上游（DeepSeek / 智谱）的调用：本地不烧真 key，返回固定内容；真实部署由 Cloudflare 出网
 const realFetch = globalThis.fetch;
+const AI_HOSTS = ['open.bigmodel.cn', 'api.deepseek.com'];
 globalThis.fetch = async (input, init = {}) => {
   const url = typeof input === 'string' ? input : input.url;
-  if (url.includes('open.bigmodel.cn')) {
+  if (AI_HOSTS.some((h) => url.includes(h))) {
     stats.aiCalls++;
     const body = JSON.parse(init.body || '{}');
     const sys = JSON.stringify(body.messages || '');
@@ -64,7 +65,9 @@ globalThis.fetch = async (input, init = {}) => {
 
 export const env = {
   exam_db: db,
-  ZAI_API_KEY: process.env.ZAI_API_KEY || 'dev-fake-key',
+  // 本地默认走 DeepSeek（与线上一致），只给一个假 key；图片识别会自动回落到智谱
+  DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY || 'dev-fake-deepseek-key',
+  ZAI_API_KEY: process.env.ZAI_API_KEY || 'dev-fake-zai-key',
   AUTH_SECRET: process.env.AUTH_SECRET || 'dev-only-insecure-secret-change-me'
 };
 

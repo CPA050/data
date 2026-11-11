@@ -1,0 +1,335 @@
+/* ============================================================
+   glass.css —— 毛玻璃层次（在 app.css 之后加载，只做覆盖与增强）
+   思路：
+   1) 背景做一层缓慢流动的极光渐变，玻璃才有东西可以“透”；
+   2) header / tabbar / 卡片 / 弹窗统一「半透明 + 背景模糊 + 高光描边 + 双层投影」；
+   3) 所有可点元素给 180–420ms 的弹簧缓动，按下有轻微回弹；
+   4) 尊重 prefers-reduced-motion，关掉动效。
+   ============================================================ */
+
+:root {
+  --glass-blur: 22px;
+  --glass-bg: rgba(255, 255, 255, 0.5);
+  --glass-bg-strong: rgba(255, 255, 255, 0.66);
+  --glass-brd: rgba(255, 255, 255, 0.62);
+  --glass-hi: rgba(255, 255, 255, 0.9);
+  --glass-shadow: 0 18px 44px -22px rgba(16, 20, 30, 0.34), 0 2px 10px rgba(16, 20, 30, 0.05);
+  --ease-spring: cubic-bezier(0.22, 1.2, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme='dark'] {
+  --glass-bg: rgba(24, 26, 33, 0.5);
+  --glass-bg-strong: rgba(28, 30, 38, 0.74);
+  --glass-brd: rgba(255, 255, 255, 0.1);
+  --glass-hi: rgba(255, 255, 255, 0.14);
+  --glass-shadow: 0 20px 50px -24px rgba(0, 0, 0, 0.7), 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='eye'] {
+  --glass-bg: rgba(252, 246, 232, 0.62);
+  --glass-bg-strong: rgba(252, 246, 232, 0.8);
+  --glass-brd: rgba(255, 255, 255, 0.72);
+  --glass-hi: rgba(255, 255, 255, 0.92);
+}
+
+/* ---------- 背景：极光层（直接画在 body 上，玻璃才有东西可透） ---------- */
+body {
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(92vmax 78vmax at 12% 4%, color-mix(in srgb, var(--accent) 34%, transparent), transparent 68%),
+    radial-gradient(80vmax 70vmax at 92% 18%, color-mix(in srgb, var(--accent-2) 30%, transparent), transparent 66%),
+    radial-gradient(86vmax 74vmax at 24% 78%, color-mix(in srgb, var(--accent-2) 24%, transparent), transparent 68%),
+    radial-gradient(76vmax 66vmax at 88% 96%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 66%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+/* 细颗粒：毛玻璃的“磨砂”质感靠它 */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  pointer-events: none;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+[data-theme='dark'] body {
+  background-image:
+    radial-gradient(38vmax 38vmax at 18% 6%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 62%),
+    radial-gradient(34vmax 34vmax at 88% 2%, color-mix(in srgb, var(--accent-2) 20%, transparent), transparent 60%),
+    radial-gradient(42vmax 42vmax at 78% 96%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 64%);
+}
+
+/* ---------- 顶栏 ---------- */
+.app-header {
+  background: var(--glass-bg);
+  border-bottom: 1px solid var(--glass-brd);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  box-shadow: 0 1px 0 var(--glass-hi) inset;
+}
+
+/* ---------- 卡片 ---------- */
+.card,
+.q-card,
+.stat-grid > *,
+.profile {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-brd);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hi);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  transition: transform 0.32s var(--ease-spring), box-shadow 0.32s var(--ease-out),
+    background-color 0.32s var(--ease-out), border-color 0.32s var(--ease-out);
+}
+
+.action,
+.list-item,
+.item {
+  background: color-mix(in srgb, var(--glass-bg) 70%, transparent);
+  border: 1px solid var(--glass-brd);
+  box-shadow: 0 10px 24px -18px rgba(16, 20, 30, 0.3), inset 0 1px 0 var(--glass-hi);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  transition: transform 0.28s var(--ease-spring), box-shadow 0.28s var(--ease-out),
+    background-color 0.28s var(--ease-out);
+}
+
+@media (hover: hover) {
+  .action:hover,
+  .list-item:hover,
+  .item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 16px 30px -18px rgba(16, 20, 30, 0.36), inset 0 1px 0 var(--glass-hi);
+  }
+}
+
+/* ---------- 底部导航：玻璃 Dock ---------- */
+.tabbar {
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-brd);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  box-shadow: 0 22px 48px -20px rgba(16, 20, 30, 0.42), inset 0 1px 0 var(--glass-hi),
+    inset 0 -1px 0 rgba(16, 20, 30, 0.04);
+}
+
+/* ---------- 弹窗 ---------- */
+.modal-layer {
+  background: rgba(12, 14, 20, 0.28);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+}
+
+.modal-card {
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-brd);
+  backdrop-filter: blur(30px) saturate(190%);
+  -webkit-backdrop-filter: blur(30px) saturate(190%);
+  box-shadow: 0 40px 90px -32px rgba(16, 20, 30, 0.5), inset 0 1px 0 var(--glass-hi);
+  animation: card-rise 0.34s var(--ease-spring);
+}
+
+@keyframes card-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+.answer-panel {
+  background: color-mix(in srgb, var(--glass-bg) 84%, transparent);
+  border: 1px solid var(--glass-brd);
+  box-shadow: inset 0 1px 0 var(--glass-hi);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ---------- 输入控件 ---------- */
+.input,
+.textarea,
+.opt {
+  transition: border-color 0.22s var(--ease-out), box-shadow 0.22s var(--ease-out),
+    transform 0.22s var(--ease-spring), background-color 0.22s var(--ease-out);
+}
+
+.input:focus,
+.textarea:focus {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.opt:active {
+  transform: scale(0.985);
+}
+
+/* ---------- 按钮 ---------- */
+.btn {
+  transition: transform 0.2s var(--ease-spring), box-shadow 0.24s var(--ease-out),
+    background-color 0.2s var(--ease-out), color 0.2s var(--ease-out);
+}
+
+.btn:active {
+  transform: scale(0.968);
+}
+
+.btn-primary {
+  background-image: var(--accent-grad);
+  box-shadow: 0 12px 26px -14px color-mix(in srgb, var(--accent) 70%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 16px 32px -14px color-mix(in srgb, var(--accent) 76%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* ---------- 页面切换 ---------- */
+.view-inner {
+  animation: view-in 0.34s var(--ease-spring);
+}
+
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.hero {
+  background-image: var(--accent-grad);
+  box-shadow: 0 26px 60px -26px color-mix(in srgb, var(--accent) 60%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(120% 80% at 100% 0%, rgba(255, 255, 255, 0.34), transparent 60%);
+}
+
+/* ---------- 新增：简答题批改 / 快捷键 / 滑杆 ---------- */
+.essay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.tag-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.tag-bad {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.row-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.dim-row .range {
+  width: 44%;
+}
+
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-3) 34%, transparent);
+  outline: none;
+}
+
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  box-shadow: 0 3px 8px rgba(16, 20, 30, 0.24);
+  cursor: pointer;
+  transition: transform 0.2s var(--ease-spring);
+}
+
+.range::-webkit-slider-thumb:active {
+  transform: scale(1.12);
+}
+
+.kbd-list {
+  display: grid;
+  gap: 6px;
+}
+
+.kbd-row {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px dashed color-mix(in srgb, var(--text-3) 26%, transparent);
+}
+
+.kbd-row:last-child {
+  border-bottom: 0;
+}
+
+.kbd {
+  justify-self: start;
+  padding: 3px 8px;
+  font: 600 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+
+.kbd-desc {
+  font-size: 13.5px;
+  color: var(--text-2);
+}
+
+.kbd-scope {
+  font-size: 11.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* ---------- 降级：不支持 backdrop-filter 时用实色 ---------- */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .app-header,
+  .tabbar,
+  .card,
+  .q-card,
+  .modal-card,
+  .action,
+  .list-item,
+  .item {
+    background: var(--surface);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before {
+    animation: none;
+  }
+  .view-inner,
+  .modal-card {
+    animation: none;
+  }
+  .btn,
+  .card,
+  .action,
+  .opt {
+    transition: none;
+  }
+}

@@ -12,7 +12,7 @@ import {
 } from '../core/format';
 import { pushRecent, saveNote, getNotes, setProgress } from '../core/storage';
 import { notify } from '../ui/toast';
-import { confirm, openModal } from '../ui/modal';
+import { closeAllModals, confirm, openModal } from '../ui/modal';
 import type { Question, QuizSource, RecordItem } from '../core/types';
 
 export interface QuizOptions {
@@ -99,10 +99,19 @@ function renderAnswerPanel(q: Question, rec: RecordItem): string {
     ? plainText(rec.text) || '（空）'
     : formatAnswer(rec.picked.length ? rec.picked : [], q.opts) || '（未选）';
   if (isEssay(q.a)) {
+    const markRow = rec.correct === null || rec.correct === undefined
+      ? `<div class="essay-actions">
+          <button class="btn btn-sm btn-primary" data-act="ai-grade" ${runtime?.busy ? 'disabled' : ''}>✦ AI 阅卷</button>
+          <button class="btn btn-sm" data-act="mark" data-ok="1">我答对了</button>
+          <button class="btn btn-sm" data-act="mark" data-ok="0">没答对</button>
+        </div>`
+      : `<div class="essay-actions"><span class="tag ${rec.correct ? 'tag-ok' : 'tag-bad'}">${rec.correct ? '已标记：答对' : '已标记：答错'}</span></div>`;
     return `<div class="answer-panel">
       <div class="ai-title">参考答案</div>${escapeHtml(answerText)}
       <div class="divider"></div>
       <div class="ai-title" style="color:var(--text-3)">你的作答</div>${escapeHtml(mine)}
+      <div class="divider"></div>
+      ${markRow}
     </div>`;
   }
   return `<div class="answer-panel">
@@ -168,7 +177,58 @@ export function mountQuiz(root: HTMLElement, options: QuizOptions): void {
   };
   paint();
   escapeHandler = (ev: KeyboardEvent) => {
-    if (ev.key === 'Escape') void askExit();
+    const rt2 = runtime;
+    if (!rt2) return;
+    const target = ev.target as HTMLElement | null;
+    const typing = Boolean(target && ['input', 'textarea'].includes(target.tagName.toLowerCase()));
+    if (ev.key === 'Escape') {
+      if (document.querySelector('.modal-layer')) return;
+      void askExit();
+      return;
+    }
+    if (typing) return;
+    const cur = current();
+    if (!cur) return;
+    const rec = recordOf(cur);
+
+    if (ev.key === ' ' || ev.key === 'Enter') {
+      const submit = rt2.root?.querySelector<HTMLElement>('[data-act="submit"]');
+      const next = rt2.root?.querySelector<HTMLElement>('[data-act="next"]');
+      if (submit) {
+        ev.preventDefault();
+        void handleQuiz('submit', submit);
+      } else if (next) {
+        ev.preventDefault();
+        void handleQuiz('next', next);
+      }
+      return;
+    }
+    if (ev.key === 'ArrowRight') {
+      ev.preventDefault();
+      if (rec.submitted) advance();
+      else void handleQuiz('submit', rt2.root!.querySelector<HTMLElement>('[data-act="submit"]')!);
+      return;
+    }
+    if (ev.key === 'ArrowLeft') {
+      ev.preventDefault();
+      void handleQuiz('prev', rt2.root!);
+      return;
+    }
+    const key = ev.key.toLowerCase();
+    if (/^[1-9]$/.test(key) || /^[a-h]$/.test(key)) {
+      const idx = /^[1-9]$/.test(key) ? Number(key) - 1 : key.charCodeAt(0) - 97;
+      if (idx < cur.opts.length) {
+        ev.preventDefault();
+        const btn = rt2.root?.querySelector<HTMLElement>(`.opt[data-idx="${idx}"]`);
+        if (btn) void handleQuiz('pick', btn);
+      }
+      return;
+    }
+    if (key === 's') void handleQuiz('fav', rt2.root!);
+    else if (key === 'n') void handleQuiz('note', rt2.root!);
+    else if (key === 'e') void handleQuiz('ai', rt2.root!);
+    else if (key === 'g') void handleQuiz('ai-grade', rt2.root!);
+    else if (key === '?') void import('../features/shortcuts').then((m) => m.openShortcuts());
   };
   document.addEventListener('keydown', escapeHandler);
   root.addEventListener('submit', (ev) => ev.preventDefault());
@@ -328,6 +388,44 @@ async function finish(): Promise<void> {
   rt.options.onExit?.();
 }
 
+function markEssay(q: Question, rec: RecordItem, ok: boolean): void {
+  rec.correct = ok;
+  if (ok) {
+    vibrate(10);
+  } else {
+    void saveWrong(q, rec);
+  }
+  paint();
+  if (ok) notify.ok('已记为答对');
+}
+
+async function gradeEssay(q: Question, rec: RecordItem): Promise<void> {
+  const rt = runtime;
+  if (!rt) return;
+  rt.busy = true;
+  paint();
+  try {
+    const prompt = [
+      `题目：${plainText(q.q)}`,
+      `标准答案：${String(q.a)}`,
+      `学生回答：${plainText(rec.text) || '（空）'}`,
+      '请判断学生回答是否表达了标准答案的主要意思，只输出「得分」或「不得分」。',
+    ].join('\n');
+    const res = await api.ai.grade(prompt);
+    const text = String(res.result || '');
+    const ok = text.includes('得分') && !text.includes('不得分');
+    rec.correct = ok;
+    if (!ok) void saveWrong(q, rec);
+    else vibrate(10);
+    notify.ok(ok ? 'AI 阅卷：答对' : 'AI 阅卷：答错');
+  } catch (error) {
+    notify.error(error instanceof ApiError ? error.message : 'AI 阅卷失败，请稍后再试');
+  } finally {
+    rt.busy = false;
+    paint();
+  }
+}
+
 async function openNote(): Promise<void> {
   const q = current();
   if (!q) return;
@@ -412,10 +510,10 @@ function openNav(): void {
     .map((q, i) => {
       const rec = rt.records.get(q.id);
       const st = i === rt.idx ? 'current' : rec?.correct === true ? 'done' : rec?.submitted ? 'wrong' : '';
-      return `<button class="nav-cell" data-act="jump" data-idx="${i}" data-state="${st}">${i + 1}</button>`;
+      return `<button class="nav-cell" data-idx="${i}" data-state="${st}">${i + 1}</button>`;
     })
     .join('');
-  void openModal({
+  void openModal<'finish' | 'close'>({
     title: '题目导航',
     body: `<div class="nav-grid">${cells}</div>
       <div class="legend"><span><i style="background:var(--ok)"></i>答对</span><span><i style="background:var(--danger)"></i>答错</span><span><i style="background:var(--accent)"></i>当前</span></div>`,
@@ -423,6 +521,19 @@ function openNav(): void {
       { label: '结束本次练习', value: 'finish', variant: 'danger' },
       { label: '继续', value: 'close', variant: 'primary' },
     ],
+    // 导航格子在弹窗内部，点击由这里直接处理（事件委托会先被弹窗吞掉）
+    onMount: (card) => {
+      card.querySelectorAll<HTMLElement>('.nav-cell').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.dataset.idx);
+          if (!Number.isFinite(idx) || !runtime) return;
+          runtime.idx = idx;
+          runtime.textDraft = '';
+          closeAllModals();
+          paint();
+        });
+      });
+    },
   }).then((value) => {
     if (value === 'finish') void askExit();
   });
@@ -468,6 +579,16 @@ export async function handleQuiz(action: string, el: HTMLElement): Promise<boole
       }
       return true;
     }
+    case 'ai-grade': {
+      if (!isEssay(q.a) || runtime?.busy) return true;
+      await gradeEssay(q, rec);
+      return true;
+    }
+    case 'mark': {
+      if (!isEssay(q.a)) return true;
+      markEssay(q, rec, el.dataset.ok === '1');
+      return true;
+    }
     case 'next':
       advance();
       return true;
@@ -482,7 +603,7 @@ export async function handleQuiz(action: string, el: HTMLElement): Promise<boole
     case 'jump': {
       rt.idx = Number(el.dataset.idx);
       rt.textDraft = '';
-      document.querySelector('.modal-root')?.replaceChildren();
+      closeAllModals();
       paint();
       return true;
     }
