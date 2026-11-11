@@ -1,15 +1,33 @@
 {
   "name": "origin-quiz",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "原点 · Origin —— 刷题 / 错题 / 收藏，Cloudflare Pages + D1",
+  "description": "原点 · Origin —— 刷题 / 错题 / 收藏，Cloudflare Pages + D1 + 智谱 AI",
   "scripts": {
     "dev": "node dev/server.mjs",
+    "dev:web": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
     "check": "node dev/verify.mjs",
+    "check:legacy": "node dev/legacy-check.mjs",
     "db:init": "wrangler d1 execute exam_db --local --file=./schema.sql",
-    "cf:dev": "wrangler pages dev .",
-    "deploy": "wrangler pages deploy ."
+    "cf:dev": "wrangler pages dev dist --d1 exam_db",
+    "deploy": "npm run build && wrangler pages deploy dist --project-name origin-quiz"
   },
-  "engines": { "node": ">=22.5" }
+  "engines": {
+    "node": ">=22.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241218.0",
+    "@types/node": "^26.6.6",
+    "jsdom": "^31.0.0",
+    "playwright-core": "^1.65.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3",
+    "vite-plugin-pwa": "^0.21.1",
+    "vitest": "^2.1.8",
+    "wrangler": "^3.95.0"
+  }
 }

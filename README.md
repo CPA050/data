@@ -54,8 +54,15 @@ wrangler d1 execute exam_db --remote --file=./schema.sql
 ## 目录结构
 
 ```
-index.html            单页应用
-app.js                全部前端逻辑（QuizApp 全局对象）
+web/                  v2 前端源码（Vite + TypeScript，零框架）
+  index.html          入口
+  src/core/           状态、接口、存储、格式化、路由
+  src/views/          首页 / 题库 / 错题 / 收藏 / 我的 / 答题 / 登录
+  src/styles/         设计 token（浅色 / 深色 / 护眼）与组件样式
+  src/features/       练习会话、AI 能力
+dist/                 构建产物（Pages 部署目录）
+index.html            旧版单页应用（保留作回退，构建模式下不再使用）
+app.js                旧版前端逻辑（QuizApp 全局对象，仅回退用）
 style.css
 wrong.html            独立的错题页（与 SPA 错题页功能重复，见 BUG-REPORT）
 favicon.png
@@ -70,7 +77,51 @@ dev/
   d1.mjs              D1 兼容层
   seed.mjs            演示数据
   verify.mjs          接口回归测试
+  shots.mjs           用本机 Edge 拍界面截图（可选，需 playwright-core）
 ```
+
+## v2 前端（Vite + TypeScript）
+
+旧版是"一个 136 KB 的 app.js 拼 innerHTML"。v2 把它重写成有类型的模块，**依然是零框架、零运行时依赖**：
+构建后只有一份压缩过的 JS + CSS，交互全部走事件委托，视图函数返回字符串再整体替换，逻辑与样式彻底分离。
+
+```bash
+npm install            # 首次
+npm run dev            # 终端 1：后端（http://127.0.0.1:8788）
+npm run dev:web        # 终端 2：前端（http://localhost:5173，/api 自动代理到 8788）
+npm run build          # 类型检查 + 打包到 dist/
+npm test               # vitest：格式化 / 组件流程
+```
+
+界面能力：
+
+- 设计 token + 三套主题（跟随系统 / 明亮 / 深色 / 护眼），`prefers-reduced-motion` 自动降级动画
+- PWA：manifest + Service Worker，可"添加到主屏幕"，题库接口 NetworkFirst 缓存
+- 答题卡：选项状态色、连对鼓励、答错自动入错题本、键盘快捷键、打字机 AI 解析
+- 错题/收藏/题库：搜索、科目筛选、批量选择、JSON 导出、AI 粘贴导入
+- 无障碍：可缩放 viewport、`aria-*` 状态、焦点管理与 Esc 关闭弹窗、44px 触控目标
+
+### 部署（两种方式，二选一）
+
+**A. Cloudflare Pages 构建模式（推荐）**
+
+仓库根目录已是项目根，Pages 设置里填：
+
+| 配置项 | 值 |
+|---|---|
+| 构建命令 | `npm run build` |
+| 输出目录 | `dist` |
+
+`functions/` 仍在仓库根目录，Pages 会自动识别并部署。
+
+**B. 本地构建后直接上传**
+
+```bash
+npm run build
+npm run deploy          # = wrangler pages deploy dist --project-name origin-quiz
+```
+
+切换前旧版静态文件仍在仓库根目录，即使暂时不构建也不会白屏。
 
 ## 接口一览
 
