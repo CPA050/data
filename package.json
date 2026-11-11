@@ -15,6 +15,7 @@
     "check:legacy": "node dev/legacy-check.mjs",
     "cf:check": "node dev/check-cloudflare.mjs",
     "check:offline": "node dev/check-offline.mjs",
+    "sync:root": "node dev/sync-root.mjs",
     "db:migrate:local": "node dev/migrate.mjs",
     "db:seed:local": "node dev/make-seed-sql.mjs > dev/seed.local.sql && wrangler d1 execute exam_db --local --persist-to .wrangler/state --file=dev/seed.local.sql",
     "db:reset:local": "node -e \"require('node:fs').rmSync('.wrangler/state',{recursive:true,force:true})\"",

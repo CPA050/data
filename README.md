@@ -105,9 +105,9 @@ npm test               # vitest：格式化 / 组件流程
 - 错题/收藏/题库：搜索、科目筛选、批量选择、JSON 导出、AI 粘贴导入
 - 无障碍：可缩放 viewport、`aria-*` 状态、焦点管理与 Esc 关闭弹窗、44px 触控目标
 
-### 部署（两种方式，二选一）
+### 部署（三种方式，按你的 Pages 项目类型选一种）
 
-**A. Cloudflare Pages 构建模式（推荐）**
+**A. Cloudflare Pages 构建模式（推荐，需要能进后台改配置）**
 
 仓库根目录已是项目根，Pages 设置里填：
 
@@ -118,14 +118,24 @@ npm test               # vitest：格式化 / 组件流程
 
 `functions/` 仍在仓库根目录，Pages 会自动识别并部署。
 
-**B. 本地构建后直接上传**
+**B. 零配置部署（Pages 没有构建命令时用这个）**
+
+默认情况下 Pages 直接把仓库根目录当静态站点发布。仓库根目录里的
+`index.html + assets/ + sw.js` 就是 v2 前端的构建产物，所以**什么都不用配**，
+推上去重新部署就是新版：
+
+```bash
+npm run build && npm run sync:root   # 改了前端后，重新生成根目录产物
+```
+
+> 只改后端（`functions/`）不需要重跑，Pages 会直接部署函数。
+
+**C. 本地构建后直接上传**
 
 ```bash
 npm run build
 npm run deploy          # = wrangler pages deploy dist --project-name origin-quiz
 ```
-
-切换前旧版静态文件仍在仓库根目录，即使暂时不构建也不会白屏。
 
 ## 数据库与迁移
 

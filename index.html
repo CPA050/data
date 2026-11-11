@@ -1,184 +1,22 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#e8eef7">
-    <meta name="description" content="原点 · Origin —— 本地优先的刷题与错题管理工具">
-    <link rel="icon" href="favicon.png">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="format-detection" content="telephone=no">
-    
-    <!-- 网页标签名字 -->
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#111214" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)" />
+    <meta name="description" content="原点 · Origin —— 刷题、错题本、收藏夹，离线也能练。" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="原点" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
     <title>原点 · Origin</title>
-    
-    <!-- 手机添加到主屏幕的名字 -->
-    <meta name="apple-mobile-web-app-title" content="原点">
-
-    <!-- 电脑浏览器标签页图标 / 手机主屏幕图标 -->
-    <link rel="icon" type="image/png" href="/favicon.png">
-    <link rel="apple-touch-icon" href="/favicon.png">
-    
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-
-    <!-- ============================================================
-         彩色光斑背景（液态玻璃的关键）
-         ============================================================ -->
-    <div class="bg-blobs" aria-hidden="true"></div>
-
-    <!-- ============================================================
-         首页（欢迎词 + 刷题按钮）
-         ============================================================ -->
-    <div id="home" class="page">
-
-        <!-- ★ 新增：原点 高级排版大标题 -->
-        <div style="margin-top: 40px;">
-            <h1 style="text-align:center; font-size:32px; font-weight:800; letter-spacing:6px; color:#1d1d1f; margin:0 0 6px 0; padding-left:6px;">原 点</h1>
-            <div style="text-align:center; font-size:12px; font-weight:600; letter-spacing:8px; color:#a0a0a5; margin-bottom:4px; padding-left:8px;">O R I G I N</div>
-            <div style="text-align:center; font-size:13px; color:#86868b; letter-spacing:2px; margin-bottom:20px;">回归本质 · 探本溯源</div>
-        </div>
-
-        <!-- 欢迎词区域：点击任意位置展开刷题按钮 -->
-        <div class="welcome-text" id="welcomeText"></div>
-        <div class="welcome-hint" id="welcomeHint">轻触屏幕继续</div>
-
-        <!-- 恢复上次答题提示（动态插入） -->
-        <div id="resumeHintWrap"></div>
-
-        <!-- 刷题按钮（初始隐藏） -->
-        <div id="quizActions" class="quiz-actions" style="display:none;">
-            <button class="glass-btn primary"
-                    onclick="QuizApp.chooseMode('sequential')">
-                顺序刷题
-            </button>
-            <button class="glass-btn secondary"
-                    onclick="QuizApp.chooseMode('random')">
-                乱序刷题
-            </button>
-        </div>
-    </div>
-
-    <!-- ============================================================
-         应用容器（题库 / 错题 / 收藏 / 我的 / 答题，都渲染到这里）
-         ============================================================ -->
-    <div id="app" class="page" style="display:none;"></div>
-
-    <!-- ============================================================
-         液态玻璃底栏
-         ============================================================ -->
-    <nav class="tabbar" id="tabbar">
-        <div class="slider" id="tabSlider"></div>
-        <button class="tab-btn active" data-tab="home">首页</button>
-        <button class="tab-btn" data-tab="bank">题库</button>
-        <button class="tab-btn" data-tab="wrong">错题</button>
-        <button class="tab-btn" data-tab="fav">收藏</button>
-        <button class="tab-btn" data-tab="me">我的</button>
-    </nav>
-
-    <!-- ============================================================
-         弹窗容器（重要！添加题目、编辑等功能依赖这个容器）
-         ============================================================ -->
-    <div id="modalRoot"></div>
-
-    <!-- ============================================================
-         数量选择弹窗
-         ============================================================ -->
-    <div id="quantityModal" class="modal-overlay" style="display:none;">
-        <div class="modal-card">
-            <div class="modal-header">
-                <span class="modal-title" id="modalTitle">选择刷题数量</span>
-                <button class="modal-close"
-                        onclick="QuizApp.closeQuantityModal()">✕</button>
-            </div>
-            <div class="modal-body">
-                <div class="modal-info">
-                    题库共 <strong id="totalCount">0</strong> 道题
-                </div>
-
-                <div class="preset-grid">
-                    <button class="preset-btn"
-                            onclick="QuizApp.selectQuantity(20)">20</button>
-                    <button class="preset-btn"
-                            onclick="QuizApp.selectQuantity(50)">50</button>
-                    <button class="preset-btn"
-                            onclick="QuizApp.selectQuantity(100)">100</button>
-                    <button class="preset-btn"
-                            onclick="QuizApp.selectQuantity(-1)">全部</button>
-                </div>
-
-                <div class="custom-row">
-                    <input type="number" id="customQuantity"
-                           min="1" placeholder="自定义数量">
-                    <button class="custom-confirm"
-                            onclick="QuizApp.confirmCustom()">确定</button>
-                </div>
-
-                <div class="modal-preview" id="modalPreview"></div>
-            </div>
-            <div class="modal-footer">
-                <button class="modal-start-btn"
-                        onclick="QuizApp.startWithQuantity()">
-                    开始刷题
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ============================================================
-         快捷键帮助弹窗
-         ============================================================ -->
-    <div id="shortcutHelp" class="modal-overlay" style="display:none;">
-        <div class="modal-card" style="max-width:480px;">
-            <div class="modal-header">
-                <span class="modal-title">快捷键</span>
-                <button class="modal-close"
-                        onclick="QuizApp.closeShortcutHelp()">✕</button>
-            </div>
-            <div class="modal-body" style="font-size:14px; line-height:1.9;">
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 16px;">
-                    <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> 选选项</span>
-                    <span><kbd>←</kbd><kbd>→</kbd> 切换题目</span>
-                    <span><kbd>Enter</kbd> 确认</span>
-                    <span><kbd>Esc</kbd> 关闭弹窗</span>
-                    <span><kbd>S</kbd> 顺序刷题</span>
-                    <span><kbd>R</kbd> 乱序刷题</span>
-                    <span><kbd>W</kbd> 错题</span>
-                    <span><kbd>M</kbd> 题库</span>
-                    <span><kbd>H</kbd> 返回首页</span>
-                    <span><kbd>T</kbd> 切换主题</span>
-                    <span><kbd>F</kbd> 全屏</span>
-                    <span><kbd>?</kbd> 显示帮助</span>
-                </div>
-            </div>
-            <div class="modal-footer" style="margin-top:16px;">
-                <button class="modal-start-btn"
-                        onclick="QuizApp.closeShortcutHelp()"
-                        style="background:rgba(0,113,227,0.15); color:#0071e3; box-shadow:none;">
-                    知道了
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ============================================================
-         Toast 提示容器
-         ============================================================ -->
-    <div id="toastContainer" class="toast-container"></div>
-
-    <!-- ============================================================
-         隐藏的背景图上传控件（保留兼容性）
-         ============================================================ -->
-    <input type="file" id="bgImageInput" accept="image/*"
-           style="display:none;">
-
-    <!-- ============================================================
-         主脚本
-         ============================================================ -->
-    <script src="app.js"></script>
-
-</body>
+    <script type="module" crossorigin src="/assets/index-Ds9vaipj.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/style-Bdhopb4i.css">
+  <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
+  <body>
+    <div id="app-root"></div>
+    <noscript>需要启用 JavaScript 才能使用原点。</noscript>
+  </body>
 </html>

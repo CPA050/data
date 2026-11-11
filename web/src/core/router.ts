@@ -61,7 +61,8 @@ function mountShell(): void {
           .toUpperCase()}</button>
       </header>
       <main id="view" class="view"></main>
-      <nav class="tabbar" role="tablist">
+      <nav class="tabbar" role="tablist" style="--tab-count:${TABS.length}">
+        <span class="tab-ind" aria-hidden="true"></span>
         ${TABS.map(
           (tab) =>
             `<button class="tab-btn" role="tab" data-act="tab" data-tab="${tab.id}" aria-label="${tab.label}">
@@ -79,6 +80,15 @@ function syncTabs(): void {
     btn.classList.toggle('is-active', active);
     btn.setAttribute('aria-selected', String(active));
   });
+  // 滑动光晕跟着当前 tab 走
+  const nav = document.querySelector<HTMLElement>('.tabbar');
+  if (nav) {
+    const index = Math.max(
+      0,
+      TABS.findIndex((tab) => tab.id === state.tab),
+    );
+    nav.style.setProperty('--tab-index', String(index));
+  }
 }
 
 function renderView(): void {

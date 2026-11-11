@@ -1667,3 +1667,104 @@ label.setting-row {
 .answer-panel .ai-body {
   white-space: pre-wrap;
 }
+
+/* ================= 底部导航 v2（悬浮玻璃 Dock + 滑动光晕） ================= */
+.tabbar {
+  --tab-count: 5;
+  --tab-index: 0;
+  width: min(500px, calc(100% - 22px));
+  padding: 9px 7px calc(8px + env(safe-area-inset-bottom, 0px));
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  box-shadow:
+    0 22px 44px -22px rgba(16, 18, 40, 0.42),
+    0 3px 10px rgba(16, 18, 40, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  overflow: hidden;
+}
+
+/* 滑动的高光块：跟着当前 tab 走 */
+.tabbar .tab-ind {
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  left: 7px;
+  width: calc((100% - 14px) / var(--tab-count));
+  border-radius: 20px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 72%),
+    color-mix(in srgb, var(--accent) 8%, transparent);
+  transform: translateX(calc(var(--tab-index) * 100%));
+  transition: transform 0.42s var(--ease-spring, cubic-bezier(0.22, 0.9, 0.28, 1));
+  pointer-events: none;
+}
+
+.tabbar .tab-btn {
+  position: relative;
+  z-index: 1;
+  gap: 3px;
+  padding: 7px 0 6px;
+  border-radius: 18px;
+  color: var(--text-3);
+  font-size: 10.5px;
+  letter-spacing: 0.2px;
+  background: none;
+  border: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tabbar .tab-btn .tab-ico {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 28px;
+  border-radius: 12px;
+  font-size: 19px;
+  line-height: 1;
+  transition:
+    transform 0.38s var(--ease-spring, cubic-bezier(0.22, 0.9, 0.28, 1)),
+    background 0.3s ease,
+    box-shadow 0.3s ease,
+    color 0.3s ease;
+}
+
+.tabbar .tab-btn .tab-ico svg {
+  width: 21px;
+  height: 21px;
+}
+
+.tabbar .tab-btn .tab-label {
+  font-weight: 600;
+  transition: color 0.3s ease, opacity 0.3s ease;
+}
+
+/* 激活态：图标块浮起 + 渐变底 + 光晕 */
+.tabbar .tab-btn.is-active {
+  color: var(--accent);
+}
+
+.tabbar .tab-btn.is-active .tab-ico {
+  background: var(--accent-grad);
+  color: #fff;
+  transform: translateY(-4px) scale(1.04);
+  box-shadow:
+    0 10px 20px -8px color-mix(in srgb, var(--accent) 75%, transparent),
+    0 2px 6px rgba(16, 18, 40, 0.12);
+}
+
+.tabbar .tab-btn.is-active .tab-label {
+  transform: translateY(1px);
+}
+
+/* 按下反馈 */
+.tabbar .tab-btn:active .tab-ico {
+  transform: translateY(-1px) scale(0.94);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tabbar .tab-ind,
+  .tabbar .tab-btn .tab-ico {
+    transition: none;
+  }
+}
