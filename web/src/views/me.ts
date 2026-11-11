@@ -1,4 +1,4 @@
-﻿import { api, ApiError } from '../core/api';
+import { api, ApiError } from '../core/api';
 import { applyAppearance, emit, logout, saveAppearance, saveSettings, settings, state, updateTheme } from '../core/app';
 import { escapeHtml } from '../core/format';
 import { confirm, openModal } from '../ui/modal';

@@ -54,6 +54,73 @@ const get = <T>(path: string): Promise<T> => request<T>(path);
 const post = <T>(path: string, body: unknown): Promise<T> =>
   request<T>(path, { method: 'POST', body: JSON.stringify(body) });
 
+/**
+ * 流式解析：POST /api/ai { stream: true }，逐段回调 onDelta。
+ * 返回完整文本；服务端不支持流式（返回 JSON）时自动降级为一次性结果。
+ */
+async function streamAi(
+  body: Record<string, unknown>,
+  onDelta: (text: string) => void,
+  signal?: AbortSignal,
+): Promise<{ text: string; cached: boolean }> {
+  const headers = new Headers({ 'Content-Type': 'application/json' });
+  const token = getToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+
+  const res = await fetch('/api/ai', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ ...body, stream: true }),
+    signal,
+  });
+
+  if (!res.ok || !res.body) {
+    // 降级：错误体或普通 JSON 一次返回
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (res.status === 401) {
+      unauthorizedHandler?.();
+      throw new ApiError(401, '登录已过期，请重新登录');
+    }
+    if (typeof payload.result === 'string') {
+      onDelta(payload.result as string);
+      return { text: payload.result as string, cached: false };
+    }
+    throw new ApiError(res.status, typeof payload.error === 'string' ? payload.error : 'AI 解析失败');
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let text = '';
+  let cached = false;
+
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const frames = buffer.split('\n\n');
+    buffer = frames.pop() ?? '';
+    for (const frame of frames) {
+      const line = frame.split('\n').find((l) => l.startsWith('data:'));
+      if (!line) continue;
+      let event: Record<string, unknown>;
+      try {
+        event = JSON.parse(line.slice(5).trim()) as Record<string, unknown>;
+      } catch {
+        continue;
+      }
+      if (typeof event.delta === 'string' && event.delta) {
+        text += event.delta;
+        onDelta(event.delta);
+      }
+      if (typeof event.error === 'string') throw new ApiError(502, event.error);
+      if (event.done) cached = event.cached === true;
+    }
+  }
+
+  return { text, cached };
+}
+
 /* ---------- 数据归一化 ---------- */
 
 function normalizeQuestion(raw: Record<string, unknown>): Question {
@@ -154,5 +221,8 @@ export const api = {
     grade: (prompt: string) => post<AiResult>('/api/ai', { action: 'grade', prompt }),
     extract: (payload: { prompt?: string; image?: string }) =>
       post<AiResult>('/api/ai', { action: 'extract', ...payload }),
+    classify: (prompt: string) => post<AiResult>('/api/ai', { action: 'classify', prompt }),
+    explainStream: (prompt: string, onDelta: (text: string) => void, signal?: AbortSignal) =>
+      streamAi({ action: 'explain', prompt }, onDelta, signal),
   },
 };

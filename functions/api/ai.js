@@ -1,8 +1,11 @@
-// functions/api/ai.js —— 智谱 AI 代理（识别 / 解析 / 批改）
-// 修复：① 原来完全匿名可用，任何人可无限刷、烧光 ZAI_API_KEY → 现在必须登录 + 按用户每日配额
+// functions/api/ai.js —— 智谱 AI 代理（识别 / 解析 / 批改 / 归类）
+// 修复：① 原来完全匿名可用，任何人可无限刷、烧光 ZAI_API_KEY → 必须登录 + 按用户每日配额
 //       ② 请求体字段不再信任（长度/类型校验），避免把超大 base64 直接转给上游
 //       ③ 上游非 2xx / 超时 / 返回形状异常都有明确错误，未配置密钥时给出可读提示
 //       ④ 不再把上游原始报错和堆栈回传给客户端
+// 增强：⑤ 同一道题的结果落 D1 缓存（ai_cache，7 天），命中不扣配额
+//       ⑥ explain 支持 SSE 流式（stream:true），首字延迟从 2~5s 降到几百毫秒
+//       ⑦ 新增 classify：给一道题猜学科/章节，配合题库导入自动归类
 import { route, json, readJson, HttpError } from '../_lib/http.js';
 import { currentUser } from '../_lib/session.js';
 import { consume, today } from '../_lib/rate.js';
@@ -14,6 +17,7 @@ const VISION_MODEL = 'glm-4v-flash';
 // 每个用户每天可用次数（解析/批改共用 60 次，图片识别单独 20 次）
 const QUOTA = { text: 60, extract: 20 };
 const GLOBAL_DAILY_CAP = 3000;
+const CACHE_DAYS = 7;
 
 const EXTRACT_PROMPT = `你是一个题目提取助手。请从用户提供的文本或图片中，提取所有题目并严格输出为 JSON 数组格式。
 必须严格遵守以下 JSON 格式，不要输出任何其他的废话或 markdown 标记（如 \`\`\`json）：
@@ -33,7 +37,8 @@ const EXTRACT_PROMPT = `你是一个题目提取助手。请从用户提供的�
 
 const SYSTEM_PROMPTS = {
   explain: '你是一个极简的答题助手。请直接输出：\n1. 核心考点：xxx\n2. 解析：xxx\n严禁输出任何多余的废话、开场白或结束语。字数控制在150字以内。',
-  grade: "你是阅卷老师。请对比标准答案和学生回答。如果意思相近即算正确。只允许输出两个字：'得分' 或 '不得分'。"
+  grade: "你是阅卷老师。请对比标准答案和学生回答。如果意思相近即算正确。只允许输出两个字：'得分' 或 '不得分'。",
+  classify: '你是题库整理助手。根据题目内容判断它属于哪个学科、哪个章节。只输出 JSON：{"subject":"学科名","chapter":"章节名"}，不要任何解释。学科与章节都用简短中文（2~8 个字）。'
 };
 
 function cleanAiText(text) {
@@ -76,6 +81,52 @@ function buildMessages(action, prompt, imageBase64) {
   };
 }
 
+async function sha256(text) {
+  const bytes = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function cacheKey(action, model, prompt, imageBase64) {
+  // 图片只取哈希，避免把几 MB 的 base64 塞进缓存键
+  const img = imageBase64 ? await sha256(imageBase64) : '';
+  return sha256(`${action}|${model}|${prompt}|${img}`);
+}
+
+async function readCache(env, key) {
+  try {
+    const row = await env.exam_db
+      .prepare('SELECT payload, created_at FROM ai_cache WHERE cache_key = ?')
+      .bind(key)
+      .first();
+    if (!row) return null;
+    const age = Date.now() - new Date(String(row.created_at).replace(' ', 'T') + 'Z').getTime();
+    if (!Number.isFinite(age) || age > CACHE_DAYS * 86400_000) return null;
+    env.exam_db.prepare('UPDATE ai_cache SET hits = hits + 1 WHERE cache_key = ?').bind(key).run().catch(() => {});
+    return String(row.payload);
+  } catch (e) {
+    // 表没建（没跑迁移）时静默跳过缓存，不影响主流程
+    return null;
+  }
+}
+
+async function writeCache(env, key, action, payload, model) {
+  try {
+    await env.exam_db
+      .prepare('INSERT INTO ai_cache (cache_key, action, payload, model) VALUES (?, ?, ?, ?) ON CONFLICT(cache_key) DO UPDATE SET payload = excluded.payload, model = excluded.model, created_at = datetime(\'now\')')
+      .bind(key, action, payload, model)
+      .run();
+  } catch (e) {
+    // 同上：缓存失败不影响回答
+  }
+}
+
+function mapUpstreamError(status) {
+  if (status === 401 || status === 403) return new HttpError(502, 'AI 服务鉴权失败，请检查服务端密钥');
+  if (status === 429) return new HttpError(429, 'AI 服务繁忙，请稍后再试');
+  return new HttpError(502, 'AI 服务暂时不可用，请稍后再试');
+}
+
 export const onRequestPost = route(async ({ request, env }) => {
   if (!env.ZAI_API_KEY) throw new HttpError(500, '服务端未配置 ZAI_API_KEY 环境变量');
 
@@ -90,15 +141,85 @@ export const onRequestPost = route(async ({ request, env }) => {
   if (prompt.length > 8000) throw new HttpError(413, '输入文本过长，请分批识别');
   if (imageBase64.length > 8 * 1024 * 1024) throw new HttpError(413, '图片过大，请压缩后重试');
 
-  const day = today();
+  const { model, messages } = buildMessages(action, prompt, imageBase64);
   const bucket = action === 'extract' ? 'extract' : 'text';
+  const key = await cacheKey(action, model, prompt, imageBase64);
+  const wantStream = body.stream === true && action === 'explain';
+
+  // ① 命中缓存：直接返回（不扣配额，秒回）
+  const cached = await readCache(env, key);
+  if (cached) {
+    if (wantStream) return sseResponse((async function* () {
+      yield { delta: cached };
+      yield { done: true, cached: true, model };
+    })());
+    return json({ ok: true, result: cached, model, cached: true, remaining: null });
+  }
+
+  // ② 配额
+  const day = today();
   const rl = await consume(env, `ai:${user}:${day}:${bucket}`, 24 * 3600, QUOTA[bucket]);
   if (!rl.allowed) throw new HttpError(429, `今日 AI ${bucket === 'extract' ? '识别' : '解析'}次数已用完（每天 ${QUOTA[bucket]} 次）`);
   const globalRl = await consume(env, `ai:global:${day}`, 24 * 3600, GLOBAL_DAILY_CAP);
   if (!globalRl.allowed) throw new HttpError(503, '服务今日 AI 调用总量已达上限，请明天再试');
+  const remaining = Math.max(0, QUOTA[bucket] - rl.count);
 
-  const { model, messages } = buildMessages(action, prompt, imageBase64);
+  // ③ 流式
+  if (wantStream) {
+    let upstream;
+    try {
+      upstream = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.ZAI_API_KEY}` },
+        body: JSON.stringify({ model, messages, temperature: 0.1, stream: true }),
+        signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(60000) : undefined
+      });
+    } catch (e) {
+      throw new HttpError(504, 'AI 服务响应超时，请稍后重试');
+    }
+    if (!upstream.ok || !upstream.body) throw mapUpstreamError(upstream.status);
 
+    return sseResponse((async function* () {
+      const reader = upstream.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let full = '';
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data:')) continue;
+            const payload = trimmed.slice(5).trim();
+            if (!payload || payload === '[DONE]') continue;
+            let parsed;
+            try { parsed = JSON.parse(payload); } catch { continue; }
+            const delta = parsed?.choices?.[0]?.delta?.content;
+            if (typeof delta === 'string' && delta) {
+              full += delta;
+              yield { delta };
+            }
+          }
+        }
+      } catch (e) {
+        yield { error: 'AI 流式输出中断，请重试' };
+        return;
+      }
+      const text = cleanAiText(full);
+      if (!text) {
+        yield { error: 'AI 返回内容为空' };
+        return;
+      }
+      await writeCache(env, key, action, text, model);
+      yield { done: true, cached: false, model, remaining };
+    })());
+  }
+
+  // ④ 普通 JSON
   let upstream;
   try {
     upstream = await fetch(ENDPOINT, {
@@ -116,13 +237,43 @@ export const onRequestPost = route(async ({ request, env }) => {
 
   if (!upstream.ok || data.error) {
     console.error('智谱 API 报错:', upstream.status, JSON.stringify(data && data.error || data));
-    if (upstream.status === 401 || upstream.status === 403) throw new HttpError(502, 'AI 服务鉴权失败，请检查服务端密钥');
-    if (upstream.status === 429) throw new HttpError(429, 'AI 服务繁忙，请稍后再试');
-    throw new HttpError(502, 'AI 服务暂时不可用，请稍后再试');
+    throw mapUpstreamError(upstream.status);
   }
 
   const aiText = data?.choices?.[0]?.message?.content;
   if (!aiText) throw new HttpError(502, 'AI 返回内容为空');
 
-  return json({ ok: true, result: cleanAiText(aiText), model, remaining: Math.max(0, QUOTA[bucket] - rl.count) });
+  const text = cleanAiText(aiText);
+  await writeCache(env, key, action, text, model);
+  return json({ ok: true, result: text, model, cached: false, remaining });
 });
+
+/**
+ * 把 (async generator) 变成 SSE 响应。
+ * 每帧：data: {"delta":"..."}；结束：data: {"done":true,...}；出错：data: {"error":"..."}
+ */
+function sseResponse(generator) {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const event of generator) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        }
+      } catch (e) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'AI 服务异常中断' })}\n\n`));
+      } finally {
+        controller.close();
+      }
+    }
+  });
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/event-stream; charset=UTF-8',
+      'Cache-Control': 'no-store',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no'
+    }
+  });
+}

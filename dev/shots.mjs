@@ -91,11 +91,19 @@ try {
     await shot(page, '11-quiz-answered');
   }
 
+  const startedAi = Date.now();
   const ai = page.locator('[data-act="ai"]');
   if (await ai.count()) {
     await ai.click();
-    await page.waitForTimeout(1500);
+    // 流式解析：先等第一段文字出现（首字延迟），再等 done 后的完整文本
+    await page.waitForFunction(() => {
+      const node = document.querySelector('[data-role="text"]');
+      return !!node && (node.textContent || '').trim().length > 4;
+    }, { timeout: 15000 });
+    const firstMs = Date.now() - startedAi;
+    await page.waitForTimeout(1800);
     await shot(page, '12-quiz-ai');
+    log(`   AI 首字 ${firstMs} ms`);
   }
 } catch (e) {
   errors.push('flow: ' + e.message.split('\n')[0]);

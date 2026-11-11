@@ -29,10 +29,35 @@ globalThis.fetch = async (input, init = {}) => {
   if (url.includes('open.bigmodel.cn')) {
     stats.aiCalls++;
     const body = JSON.parse(init.body || '{}');
-    const isGrade = JSON.stringify(body.messages || '').includes('阅卷老师');
-    return new Response(JSON.stringify({
-      choices: [{ message: { content: isGrade ? '得分' : '1. 【考点定位】模拟解析\n2. 【解析】这是一条本地开发用的假数据。' } }]
-    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const sys = JSON.stringify(body.messages || '');
+    const isGrade = sys.includes('阅卷老师');
+    const isClassify = sys.includes('题库整理助手');
+    let content = '1. 【考点定位】模拟解析\n2. 【解析】这是一条本地开发用的假数据。';
+    if (isGrade) content = '得分';
+    if (isClassify) content = '{"subject":"一建建筑","chapter":"建筑材料"}';
+    stats.aiLastBody = body;
+
+    // 流式：按字符切片模拟上游 SSE，顺便验证客户端的增量解析
+    if (body.stream === true) {
+      const encoder = new TextEncoder();
+      const chunks = content.match(/[\s\S]{1,6}/g) || [];
+      const stream = new ReadableStream({
+        async start(controller) {
+          for (const piece of chunks) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: piece } }] })}\n\n`));
+            await new Promise(r => setTimeout(r, 2));
+          }
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        }
+      });
+      return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+    }
+
+    return new Response(JSON.stringify({ choices: [{ message: { content } }] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
   return realFetch(input, init);
 };

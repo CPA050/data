@@ -1,4 +1,4 @@
-﻿// dev/check-cloudflare.mjs —— 部署链路自检：不启动 workerd 也能验证"能不能上 Cloudflare"
+// dev/check-cloudflare.mjs —— 部署链路自检：不启动 workerd 也能验证"能不能上 Cloudflare"
 // 覆盖：wrangler.toml 关键字段、migrations 是否齐全、Pages Functions 能否打包、dist 构建产物是否完整
 import { execFile } from 'node:child_process';
 import { readFile, readdir, stat, rm } from 'node:fs/promises';

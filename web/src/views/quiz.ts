@@ -376,24 +376,33 @@ async function aiExplain(): Promise<void> {
   const textNode = body.querySelector<HTMLElement>('[data-role="text"]')!;
   const titleNode = body.querySelector<HTMLElement>('.ai-title')!;
   try {
-    const res = await api.ai.explain(prompt);
-    titleNode.textContent = `✦ ${res.model ?? 'AI'} 解析${typeof res.remaining === 'number' ? ` · 今日剩余 ${res.remaining} 次` : ''}`;
-    await typeOut(textNode, res.result ?? '');
+    // 流式：边收边渲染，首字几百毫秒就出现；服务端不支持时自动降级
+    let streamed = '';
+    const res = await api.ai.explainStream(prompt, (delta) => {
+      streamed += delta;
+      textNode.innerHTML = `${escapeHtml(streamed).replace(/\n/g, '<br>')}<span class="cursor"></span>`;
+    });
+    titleNode.textContent = streamed
+      ? `✦ AI 解析${res.cached ? ' · 缓存命中' : ''}`
+      : '✦ AI 解析';
+    if (!streamed) await typeOutLegacy(textNode, res.text ?? '');
+    else textNode.innerHTML = escapeHtml(res.text || streamed).replace(/\n/g, '<br>');
+    textNode.classList.remove('cursor');
   } catch (error) {
+    const message = error instanceof ApiError ? error.message : 'AI 解析失败，请稍后重试';
+    notify.error(message);
     titleNode.textContent = '✦ 解析失败';
     textNode.classList.remove('cursor');
-    textNode.textContent = error instanceof ApiError ? error.message : String(error);
+    textNode.textContent = message;
   }
 }
 
-async function typeOut(node: HTMLElement, text: string): Promise<void> {
-  node.classList.add('cursor');
-  const chunk = Math.max(2, Math.ceil(text.length / 220));
-  for (let i = 0; i < text.length; i += chunk) {
-    node.textContent = text.slice(0, i + chunk);
-    await sleep(16);
+/** 旧的打字机效果：保留给降级路径 */
+async function typeOutLegacy(textNode: HTMLElement, text: string): Promise<void> {
+  for (let i = 0; i < text.length; i += 2) {
+    textNode.innerHTML = escapeHtml(text.slice(0, i + 2)).replace(/\n/g, '<br>');
+    await sleep(12);
   }
-  node.classList.remove('cursor');
 }
 
 function openNav(): void {

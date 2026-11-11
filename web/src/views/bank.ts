@@ -130,6 +130,9 @@ async function openEditor(question?: Question): Promise<void> {
         <span class="field-label">题库</span>
         <input class="input" data-role="subject" value="${escapeHtml(question?.subject ?? '默认题库')}" placeholder="默认题库">
       </label>
+    </div>
+    <div class="row" style="justify-content:flex-end;margin-top:-4px">
+      <button type="button" class="btn btn-ghost btn-sm" data-role="classify">✦ AI 归类</button>
     </div>`;
 
   const ok = await openModal<boolean>({
@@ -139,6 +142,35 @@ async function openEditor(question?: Question): Promise<void> {
       { label: '取消', value: false },
       { label: isNew ? '添加' : '保存', value: true, variant: 'primary' },
     ],
+    onMount: (card) => {
+      const btn = card.querySelector<HTMLButtonElement>('[data-role="classify"]');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        const qText = card.querySelector<HTMLTextAreaElement>('[data-role="q"]')?.value.trim() ?? '';
+        if (!qText) {
+          notify.error('先写题干，AI 才能判断归类');
+          return;
+        }
+        const optsText = card.querySelector<HTMLTextAreaElement>('[data-role="opts"]')?.value ?? '';
+        const label = btn.textContent ?? '';
+        btn.disabled = true;
+        btn.textContent = '归类中…';
+        try {
+          const res = await api.ai.classify(`题目：${qText}\n选项：${optsText.split('\n').join('；')}`);
+          const parsed = JSON.parse(extractJsonBlock(res.result ?? '{}')) as { subject?: string; chapter?: string };
+          const subjectEl = card.querySelector<HTMLInputElement>('[data-role="subject"]');
+          const chapterEl = card.querySelector<HTMLInputElement>('[data-role="chapter"]');
+          if (parsed.subject && subjectEl) subjectEl.value = String(parsed.subject).slice(0, 24);
+          if (parsed.chapter && chapterEl) chapterEl.value = String(parsed.chapter).slice(0, 24);
+          notify.ok('已根据题目填入题库与章节');
+        } catch {
+          notify.error('AI 归类失败，可手动填写');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = label;
+        }
+      });
+    },
   });
   if (!ok) return;
 
@@ -254,8 +286,16 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-export function parseExtracted(raw: string): QuestionDraft[] {
+/** 从 AI 返回里抠出第一个 JSON 对象（可能带 ```json 围栏或前后废话） */
+function extractJsonBlock(raw: string): string {
   const text = raw.replace(/```json/gi, '```').trim();
+  const block = /```([\s\S]*?)```/.exec(text)?.[1] ?? text;
+  const start = block.indexOf('{');
+  const end = block.lastIndexOf('}');
+  return start === -1 || end <= start ? '{}' : block.slice(start, end + 1);
+}
+
+export function parseExtracted(raw: string): QuestionDraft[] {  const text = raw.replace(/```json/gi, '```').trim();
   const block = /```([\s\S]*?)```/.exec(text)?.[1] ?? text;
   const start = block.indexOf('[');
   const end = block.lastIndexOf(']');

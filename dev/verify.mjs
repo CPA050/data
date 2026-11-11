@@ -220,6 +220,62 @@ await test('AI 输入过长被拒绝（413）', async () => {
   assert.equal(r.status, 413);
 });
 
+// ---------- 7.1 AI 缓存 / 流式 / 归类（Phase 3） ----------
+await test('同一道题第二次解析命中缓存，不再调用上游、不扣配额', async () => {
+  const prompt = '题目：缓存命中测试 ' + Date.now();
+  const first = await call('/api/ai', { method: 'POST', token: aliceToken, body: { prompt, action: 'explain' } });
+  assert.equal(first.status, 200, first.text);
+  assert.equal(first.json.cached, false);
+  const calls = stats.aiCalls;
+
+  const second = await call('/api/ai', { method: 'POST', token: aliceToken, body: { prompt, action: 'explain' } });
+  assert.equal(second.status, 200, second.text);
+  assert.equal(second.json.cached, true, '第二次应命中缓存');
+  assert.equal(second.json.result, first.json.result, '缓存内容应与首次一致');
+  assert.equal(stats.aiCalls, calls, '命中缓存不应再调用上游');
+});
+
+await test('缓存写入了 ai_cache 表并记录命中次数', async () => {
+  const rows = await db.dump('ai_cache');
+  assert.ok(rows.length > 0, 'ai_cache 应有记录');
+  assert.ok(rows.some(r => Number(r.hits) >= 1), '命中后 hits 应自增');
+});
+
+await test('stream:true 返回 SSE，逐段增量并以 done 收尾', async () => {
+  const prompt = '题目：流式测试 ' + Date.now();
+  const res = await fetch(base + '/api/ai', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + aliceToken },
+    body: JSON.stringify({ action: 'explain', prompt, stream: true }),
+  });
+  assert.equal(res.status, 200);
+  assert.ok((res.headers.get('content-type') || '').includes('text/event-stream'), '应为 SSE 响应');
+  const text = await res.text();
+  const frames = text.split('\n\n').filter(Boolean).map(f => f.replace(/^data:\s*/, ''));
+  const events = frames.map(f => JSON.parse(f));
+  const deltas = events.filter(e => typeof e.delta === 'string');
+  assert.ok(deltas.length >= 2, '应产生多段增量，实际 ' + deltas.length);
+  assert.ok(events.some(e => e.done === true), '应有 done 帧');
+  const whole = deltas.map(e => e.delta).join('');
+  assert.ok(whole.includes('考点'), '拼起来应是完整解析：' + whole.slice(0, 40));
+});
+
+await test('classify 返回学科与章节', async () => {
+  const r = await call('/api/ai', { method: 'POST', token: aliceToken, body: { prompt: '题目：普通硅酸盐水泥初凝时间', action: 'classify' } });
+  assert.equal(r.status, 200, r.text);
+  const parsed = JSON.parse(/\{[\s\S]*\}/.exec(r.json.result)[0]);
+  assert.ok(parsed.subject && parsed.chapter, '应返回 subject/chapter');
+});
+
+await test('流式接口同样需要登录', async () => {
+  const res = await fetch(base + '/api/ai', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'explain', prompt: 'x', stream: true }),
+  });
+  assert.equal(res.status, 401);
+});
+
 await test('AI 每日配额生效（第 61 次返回 429）', async () => {
   await call('/api/auth', { method: 'POST', body: { action: 'set', username: 'quota_user', password: '123456' } });
   const t = await login('quota_user');

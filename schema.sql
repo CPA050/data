@@ -44,3 +44,15 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   window_start INTEGER NOT NULL,
   count        INTEGER NOT NULL DEFAULT 0
 );
+
+-- AI 结果缓存（与 migrations/0002_ai_cache.sql 等价，供只跑 schema.sql 的老流程使用）
+CREATE TABLE IF NOT EXISTS ai_cache (
+  cache_key TEXT PRIMARY KEY,
+  action TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  model TEXT,
+  hits INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_cache_created ON ai_cache (created_at);

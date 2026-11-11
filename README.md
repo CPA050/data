@@ -175,9 +175,24 @@ Pages Functions 能否打包（实际跑一遍 esbuild）、`dist/` 产物是否
 | POST | `/api/wrong-delete` | 删除错题 | Bearer |
 | GET | `/api/favorites?user_id=` | 收藏列表 | Bearer |
 | POST | `/api/favorites-add` / `favorites-remove` | 收藏增删 | Bearer |
-| POST | `/api/ai` | `extract` / `explain` / `grade`（有每日配额） | Bearer |
+| POST | `/api/ai` | `extract` / `explain` / `grade` / `classify`（有每日配额，支持 `stream:true`） | Bearer |
 
 统一响应约定：成功 `{ok:true, ...}`，失败 `{ok:false, success:false, error:"人话"}`，错误码走 HTTP status，不回传堆栈。
+
+## AI 能力
+
+| 能力 | 用法 | 说明 |
+|---|---|---|
+| 流式解析 | `POST /api/ai {action:"explain", prompt, stream:true}` | 返回 `text/event-stream`，每帧 `data:{"delta":"…"}`，结束 `data:{"done":true,"cached":false}`；前端边收边渲染，首字从 2~5 秒降到几百毫秒 |
+| 结果缓存 | 自动 | 同一道题（题干+选项+答案哈希）7 天内重复解析直接命中 `ai_cache`，**不扣配额、不再调用上游**；命中时返回 `cached:true` |
+| 智能归类 | `POST /api/ai {action:"classify", prompt}` | 返回 `{"subject":"…","chapter":"…"}`；题库编辑弹窗里的「✦ AI 归类」按钮就是它 |
+| 图片识别 | `{action:"extract", image:"data:image/…"}` | glm-4v-flash，图片过大（>8MB base64）会被拒 |
+
+缓存清理（可选）：
+
+```sql
+DELETE FROM ai_cache WHERE created_at < datetime('now', '-7 day');
+```
 
 ## 每日 AI 配额
 
