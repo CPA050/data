@@ -10,7 +10,7 @@
 :root {
   --glass-blur: 22px;
   --glass-bg: rgba(255, 255, 255, 0.5);
-  --glass-bg-strong: rgba(255, 255, 255, 0.66);
+  --glass-bg-strong: rgba(255, 255, 255, 0.80);
   --glass-brd: rgba(255, 255, 255, 0.62);
   --glass-hi: rgba(255, 255, 255, 0.9);
   --glass-shadow: 0 18px 44px -22px rgba(16, 20, 30, 0.34), 0 2px 10px rgba(16, 20, 30, 0.05);
@@ -120,7 +120,7 @@ body::after {
 
 /* ---------- 弹窗 ---------- */
 .modal-layer {
-  background: rgba(12, 14, 20, 0.28);
+  background: rgba(12, 14, 20, 0.18);
   backdrop-filter: blur(10px) saturate(120%);
   -webkit-backdrop-filter: blur(10px) saturate(120%);
 }

@@ -19,6 +19,9 @@ export const onRequestPost = route(async ({ request, env }) => {
   const password = String(body.password || '');
   const newPassword = String(body.newPassword || '');
 
+  // 令牌是无状态的，登出只是前端清 localStorage；这里保留接口用于兼容/埋点
+  if (action === 'logout') return json({ ok: true });
+
   if (!username) throw new HttpError(400, '缺少用户名');
   if (username.length > 32) throw new HttpError(400, '用户名不能超过 32 个字符');
 
