@@ -36,8 +36,12 @@ const login = async (username, password = '123456') => {
 console.log('\n=== 原点 · Origin 回归测试 ===\n');
 
 // ---------- 1. 静态资源 ----------
-await test('静态资源可访问（首页 / app.js / style.css / wrong.html / favicon）', async () => {
-  for (const p of ['/', '/app.js', '/style.css', '/wrong.html', '/favicon.png']) {
+await test('静态资源可访问（首页 / 构建后资源 / favicon）', async () => {
+  const index = await call('/');
+  assert.equal(index.status, 200, `首页应返回 200，实际 ${index.status}`);
+  const asset = index.text.match(/\/assets\/index-[\w-]+\.js/);
+  assert.ok(asset, '首页应引用构建后的 /assets/index-*.js');
+  for (const p of [asset[0], '/favicon.png', '/manifest.webmanifest']) {
     const r = await call(p);
     assert.equal(r.status, 200, `${p} 应返回 200，实际 ${r.status}`);
     assert.ok(r.text.length > 100 || p.endsWith('.png'), `${p} 内容为空`);

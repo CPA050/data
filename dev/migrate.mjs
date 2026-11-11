@@ -30,6 +30,13 @@ export async function migrate(db, dir = MIGRATIONS, { quiet = false } = {}) {
       await db.exec('COMMIT');
       done.push(file);
     } catch (error) {
+      // 0003 这类「给老库补列」的迁移，在新库上会 duplicate column：视为已应用
+      if (/duplicate column name/i.test(String(error.message))) {
+        await db.exec('ROLLBACK');
+        await db.prepare('INSERT OR IGNORE INTO d1_migrations (name) VALUES (?)').bind(file).run();
+        done.push(file + '（列已存在，跳过）');
+        continue;
+      }
       await db.exec('ROLLBACK');
       throw new Error(`迁移 ${file} 失败：${error.message}`);
     }

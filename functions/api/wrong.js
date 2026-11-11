@@ -12,8 +12,9 @@ export const onRequestGet = route(async ({ request, env }) => {
   const url = new URL(request.url);
   assertSameUser(url.searchParams.get('user_id'), user);
 
+  // 用 SELECT *：线上老库可能还没有 chapter / user_choice 列，写死列名会整页 500
   const { results } = await env.exam_db.prepare(
-    'SELECT id, q, opts, a, chapter, subject, user_choice, created_at FROM wrong_questions WHERE user_id = ? ORDER BY created_at DESC, id DESC'
+    'SELECT * FROM wrong_questions WHERE user_id = ? ORDER BY created_at DESC, id DESC'
   ).bind(user).all();
 
   const formatted = results.map(row => {
