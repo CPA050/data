@@ -49,7 +49,7 @@ wrangler d1 execute exam_db --remote --file=./schema.sql
 ```
 
 没有 `rate_limits` 表时限流会自动降级为关闭，并在日志里打一条告警（不会把登录接口打挂）。
-`migrations/legacy-upgrade.sql` 是"把老列改名"的可选脚本，不改名也能正常跑。
+`docs/legacy-upgrade.sql` 是"把老列改名"的可选脚本，不改名也能正常跑。
 
 ## 目录结构
 
@@ -68,7 +68,8 @@ wrong.html            独立的错题页（与 SPA 错题页功能重复，见 B
 favicon.png
 schema.sql            D1 建表语句
 wrangler.toml         Pages 配置 + D1 绑定
-migrations/           老库升级脚本
+migrations/           D1 迁移（0001_init.sql，本地/线上共用）
+docs/                老库升级脚本等文档
 functions/
   _lib/               公共库：http 响应/错误、db 序列化、auth 哈希与令牌、session、限流
   api/                11 个接口：auth / questions* / wrong* / favorites* / ai
@@ -77,6 +78,8 @@ dev/
   d1.mjs              D1 兼容层
   seed.mjs            演示数据
   verify.mjs          接口回归测试
+  migrate.mjs         本地按序应用 migrations/*.sql
+  check-cloudflare.mjs  部署链路自检（toml / 迁移 / Functions 打包 / dist）
   shots.mjs           用本机 Edge 拍界面截图（可选，需 playwright-core）
 ```
 
@@ -122,6 +125,41 @@ npm run deploy          # = wrangler pages deploy dist --project-name origin-qui
 ```
 
 切换前旧版静态文件仍在仓库根目录，即使暂时不构建也不会白屏。
+
+## 数据库与迁移
+
+线上和本地用**同一份** `migrations/*.sql`，本地开发不再单独维护建表脚本。
+
+```bash
+# 本地：把 migrations 应用到开发库（默认内存库，DB_FILE 可指定文件）
+npm run db:migrate:local
+
+# 本地：灌演示数据（alice / bob，密码 123456）
+npm run db:seed:local
+
+# 线上：先建库，把 database_id 填进 wrangler.toml，再迁移
+wrangler d1 create exam_db
+npm run db:migrate          # = wrangler d1 migrations apply exam_db --remote
+```
+
+`dev/migrate.mjs` 会像 D1 一样把已执行的文件记在 `d1_migrations` 表里，重复执行不会重跑；
+`npm run dev` 启动时也会自动迁移，所以本地永远是最新结构。
+
+老库升级：`docs/legacy-upgrade.sql`（可选，把 `users.password` 改名成 `password_hash`）。
+不跑也能上线——后端会自动探测列名，明文密码在下次登录成功时升级为 PBKDF2。
+
+### 部署前自检
+
+```bash
+npm run build && npm run cf:check
+```
+
+`cf:check` 会验证：wrangler.toml 关键字段、`database_id` 是否还是占位符、migrations 命名、
+Pages Functions 能否打包（实际跑一遍 esbuild）、`dist/` 产物是否完整。12 项全绿再发布。
+
+> 想用 Cloudflare 官方运行时本地跑：`npm run dev:cf`（`wrangler pages dev`）。
+> 它依赖 workerd 原生二进制；在个别 Windows 环境（如精简版系统/受限容器）workerd 启动会
+> `std::terminate()`，此时用 `npm run dev`（node:sqlite 模拟 D1）即可，功能一致。
 
 ## 接口一览
 

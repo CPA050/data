@@ -5,3 +5,6 @@ dev/*.log
 *.log
 .DS_Store
 screens/
+.wf-build/
+dev/seed.local.sql
+.wf-*/

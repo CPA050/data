@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { D1Shim } from './d1.mjs';
 import { seed } from './seed.mjs';
+import { migrate } from './migrate.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(__dirname, '..');
@@ -17,7 +18,8 @@ const PORT = Number(process.env.PORT || 8788);
 export const stats = { aiCalls: 0 };
 
 const db = new D1Shim(process.env.DB_FILE || ':memory:');
-db.exec(await readFile(path.join(ROOT, 'schema.sql'), 'utf8'));
+// 与线上同一份 migrations/*.sql，本地不再单独维护 schema.sql
+await migrate(db, undefined, { quiet: true });
 await seed(db);
 
 // 拦截对智谱的调用：本地不烧真 key，返回固定内容；真实部署由 Cloudflare 出网

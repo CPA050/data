@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "origin-quiz",
   "version": "2.0.0",
   "private": true,
@@ -7,13 +7,17 @@
   "scripts": {
     "dev": "node dev/server.mjs",
     "dev:web": "vite",
+    "dev:cf": "wrangler pages dev dist --d1 exam_db --persist-to .wrangler/state --port 8788",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "check": "node dev/verify.mjs",
     "check:legacy": "node dev/legacy-check.mjs",
-    "db:init": "wrangler d1 execute exam_db --local --file=./schema.sql",
-    "cf:dev": "wrangler pages dev dist --d1 exam_db",
+    "cf:check": "node dev/check-cloudflare.mjs",
+    "db:migrate:local": "node dev/migrate.mjs",
+    "db:seed:local": "node dev/make-seed-sql.mjs > dev/seed.local.sql && wrangler d1 execute exam_db --local --persist-to .wrangler/state --file=dev/seed.local.sql",
+    "db:reset:local": "node -e \"require('node:fs').rmSync('.wrangler/state',{recursive:true,force:true})\"",
+    "db:migrate": "wrangler d1 migrations apply exam_db --remote",
     "deploy": "npm run build && wrangler pages deploy dist --project-name origin-quiz"
   },
   "engines": {
@@ -28,6 +32,6 @@
     "vite": "^6.0.3",
     "vite-plugin-pwa": "^0.21.1",
     "vitest": "^2.1.8",
-    "wrangler": "^3.95.0"
+    "wrangler": "^3.114.0"
   }
 }
