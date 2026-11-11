@@ -99,7 +99,8 @@ npm test               # vitest：格式化 / 组件流程
 界面能力：
 
 - 设计 token + 三套主题（跟随系统 / 明亮 / 深色 / 护眼），`prefers-reduced-motion` 自动降级动画
-- PWA：manifest + Service Worker，可"添加到主屏幕"，题库接口 NetworkFirst 缓存
+- PWA：manifest + Service Worker，可"添加到主屏幕"，题库接口 NetworkFirst 缓存，**断网也能打开首屏**
+  （`npm run build && npm run check:offline` 会用本机 Edge 断网复测：SW 激活、预缓存 > 0、离线首屏可渲染）
 - 答题卡：选项状态色、连对鼓励、答错自动入错题本、键盘快捷键、打字机 AI 解析
 - 错题/收藏/题库：搜索、科目筛选、批量选择、JSON 导出、AI 粘贴导入
 - 无障碍：可缩放 viewport、`aria-*` 状态、焦点管理与 Esc 关闭弹窗、44px 触控目标
