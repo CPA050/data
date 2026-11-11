@@ -1,6 +1,7 @@
 import { api, ApiError } from '../core/api';
 import { invalidate, loadBank, state } from '../core/app';
 import { escapeHtml, plainText, renderRich } from '../core/format';
+import { insertAtCursor, shrinkToDataUrl } from '../core/image';
 import { confirm, openModal } from '../ui/modal';
 import { notify } from '../ui/toast';
 import type { Answer, Question, QuestionDraft } from '../core/types';
@@ -120,8 +121,13 @@ async function openEditor(question?: Question): Promise<void> {
   body.innerHTML = `
     <label class="field">
       <span class="field-label">题干</span>
-      <textarea class="textarea" data-role="q" placeholder="支持换行与图片">${escapeHtml(question?.q ?? '')}</textarea>
+      <textarea class="textarea" data-role="q" placeholder="支持换行、图片与公式">${escapeHtml(question?.q ?? '')}</textarea>
     </label>
+    <div class="row" style="gap:8px;margin-top:-8px;flex-wrap:wrap">
+      <button type="button" class="btn btn-ghost btn-sm" data-role="pick-img">＋ 插入图片</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-role="pick-math">＋ 插入公式</button>
+      <span class="muted small" data-role="img-hint">图片自动压缩后内联，公式写 $E=mc^2$</span>
+    </div>
     <label class="field">
       <span class="field-label">选项（每行一个，留空表示简答题）</span>
       <textarea class="textarea" data-role="opts" placeholder="A. 选项一&#10;B. 选项二">${escapeHtml(
@@ -154,6 +160,46 @@ async function openEditor(question?: Question): Promise<void> {
       { label: isNew ? '添加' : '保存', value: true, variant: 'primary' },
     ],
     onMount: (card) => {
+      const qArea = card.querySelector<HTMLTextAreaElement>('[data-role="q"]');
+
+      // 插图：选图 → 压缩 → 以 <img> 内联进题干
+      const imgBtn = card.querySelector<HTMLButtonElement>('[data-role="pick-img"]');
+      if (imgBtn && qArea) {
+        imgBtn.addEventListener('click', () => {
+          const picker = document.createElement('input');
+          picker.type = 'file';
+          picker.accept = 'image/*';
+          picker.onchange = async () => {
+            const file = picker.files?.[0];
+            if (!file) return;
+            const hint = card.querySelector<HTMLElement>('[data-role="img-hint"]');
+            if (hint) hint.textContent = '正在压缩图片…';
+            try {
+              const dataUrl = await shrinkToDataUrl(file);
+              insertAtCursor(qArea, `\n<img src="${dataUrl}" alt="题图">\n`);
+              if (hint) {
+                const kb = Math.round((dataUrl.length * 0.75) / 1024);
+                hint.textContent = `已插入 ${kb} KB 图片`;
+              }
+            } catch {
+              if (hint) hint.textContent = '图片读取失败，换一张试试';
+            }
+          };
+          picker.click();
+        });
+      }
+
+      // 公式：选中内容包一层 $，没有选中就插入占位符
+      const mathBtn = card.querySelector<HTMLButtonElement>('[data-role="pick-math"]');
+      if (mathBtn && qArea) {
+        mathBtn.addEventListener('click', () => {
+          const start = qArea.selectionStart ?? qArea.value.length;
+          const end = qArea.selectionEnd ?? start;
+          const picked = qArea.value.slice(start, end);
+          insertAtCursor(qArea, picked ? `$${picked}$` : '$公式$');
+        });
+      }
+
       const btn = card.querySelector<HTMLButtonElement>('[data-role="classify"]');
       if (!btn) return;
       btn.addEventListener('click', async () => {

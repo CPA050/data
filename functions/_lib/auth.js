@@ -67,13 +67,16 @@ export async function signToken(username, secret, ttlSeconds = 30 * 24 * 3600) {
 
 export async function verifyToken(token, secret) {
   if (!token || typeof token !== 'string' || !secret) return null;
-  const [payload, sig] = token.split('.');
+  const [payload, sig] = token.trim().replace(/^"|"$/g, '').split('.');
   if (!payload || !sig) return null;
-  const expect = b64urlFromBytes(await hmac(secret, payload));
-  if (!timingSafeEqual(bytesFromB64url(sig), bytesFromB64url(expect))) return null;
   try {
+    const expect = b64urlFromBytes(await hmac(secret, payload));
+    if (!timingSafeEqual(bytesFromB64url(sig), bytesFromB64url(expect))) return null;
     const data = JSON.parse(new TextDecoder().decode(bytesFromB64url(payload)));
     if (!data.u || !data.exp || data.exp * 1000 < Date.now()) return null;
     return data;
-  } catch { return null; }
+  } catch {
+    // 畸形 token（比如前端把带引号的 JSON 塞进来）一律当作未登录，不能 500
+    return null;
+  }
 }

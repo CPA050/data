@@ -1,4 +1,5 @@
 import type { Answer } from './types';
+import katex from 'katex';
 
 const ESCAPES: Record<string, string> = {
   '&': '&amp;',
@@ -12,6 +13,40 @@ export function escapeHtml(value: unknown): string {
   return String(value ?? '').replace(/[&<>"']/g, (ch) => ESCAPES[ch] ?? ch);
 }
 
+/** 公式：$...$ 行内、$$...$$ 独立成行、\(...\) 与 \[...\] 也认 */
+const MATH_RE = /\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$([^$\n]+?)\$/g;
+
+function mathHtml(source: string, display: boolean): string {
+  try {
+    // 用 MathML 输出：不引入 KaTeX 字体与样式表，体积为零，Chromium/Safari 原生渲染
+    return katex.renderToString(source, {
+      displayMode: display,
+      throwOnError: false,
+      output: 'mathml',
+      strict: false,
+      trust: false,
+    });
+  } catch {
+    return escapeHtml(display ? `$$${source}$$` : `$${source}$`);
+  }
+}
+
+/** 文本 → HTML，顺带把公式渲染掉 */
+export function renderMathText(raw: string): string {
+  let out = '';
+  let last = 0;
+  MATH_RE.lastIndex = 0;
+  for (let m = MATH_RE.exec(raw); m; m = MATH_RE.exec(raw)) {
+    out += escapeHtml(raw.slice(last, m.index)).replace(/\n/g, '<br>');
+    const display = Boolean(m[1] || m[2]);
+    const source = (m[1] ?? m[2] ?? m[3] ?? m[4] ?? '').trim();
+    out += source ? mathHtml(source, display) : escapeHtml(m[0]);
+    last = m.index + m[0].length;
+  }
+  out += escapeHtml(raw.slice(last)).replace(/\n/g, '<br>');
+  return out;
+}
+
 /** 题干允许少量排版标签（图片、换行、加粗），其余一律转义 */
 const ALLOWED_TAGS = new Set(['IMG', 'BR', 'B', 'STRONG', 'I', 'EM', 'U', 'SUB', 'SUP', 'P', 'DIV', 'SPAN', 'CODE']);
 
@@ -23,12 +58,12 @@ function markdownImages(text: string): string {
 export function renderRich(value: unknown): string {
   const text = markdownImages(String(value ?? ''));
   if (!text) return '';
-  if (!/<[a-z][\s\S]*>/i.test(text)) return escapeHtml(text).replace(/\n/g, '<br>');
+  if (!/<[a-z][\s\S]*>/i.test(text)) return renderMathText(text);
   const doc = new DOMParser().parseFromString(`<div>${text}</div>`, 'text/html');
   const holder = doc.body.firstElementChild;
   if (!holder) return escapeHtml(text);
   const walk = (node: Node): string => {
-    if (node.nodeType === Node.TEXT_NODE) return escapeHtml(node.textContent ?? '').replace(/\n/g, '<br>');
+    if (node.nodeType === Node.TEXT_NODE) return renderMathText(node.textContent ?? '');
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
     const el = node as HTMLElement;
     const tag = el.tagName;
