@@ -1,10 +1,10 @@
 /* ============================================================
-   glass.css —— 毛玻璃层次（在 app.css 之后加载，只做覆盖与增强）
-   思路：
-   1) 背景做一层缓慢流动的极光渐变，玻璃才有东西可以“透”；
-   2) header / tabbar / 卡片 / 弹窗统一「半透明 + 背景模糊 + 高光描边 + 双层投影」；
-   3) 所有可点元素给 180–420ms 的弹簧缓动，按下有轻微回弹；
-   4) 尊重 prefers-reduced-motion，关掉动效。
+   glass.css 鈥斺€� 姣涚幓鐠冨眰娆★紙鍦� app.css 涔嬪悗鍔犺浇锛屽彧鍋氳鐩栦笌澧炲己锛�
+   鎬濊矾锛�
+   1) 鑳屾櫙鍋氫竴灞傜紦鎱㈡祦鍔ㄧ殑鏋佸厜娓愬彉锛岀幓鐠冩墠鏈変笢瑗垮彲浠モ€滈€忊€濓紱
+   2) header / tabbar / 鍗＄墖 / 寮圭獥缁熶竴銆屽崐閫忔槑 + 鑳屾櫙妯＄硦 + 楂樺厜鎻忚竟 + 鍙屽眰鎶曞奖銆嶏紱
+   3) 鎵€鏈夊彲鐐瑰厓绱犵粰 180鈥�420ms 鐨勫脊绨х紦鍔紝鎸変笅鏈夎交寰洖寮癸紱
+   4) 灏婇噸 prefers-reduced-motion锛屽叧鎺夊姩鏁堛€�
    ============================================================ */
 
 :root {
@@ -33,7 +33,7 @@
   --glass-hi: rgba(255, 255, 255, 0.92);
 }
 
-/* ---------- 背景：极光层（直接画在 body 上，玻璃才有东西可透） ---------- */
+/* ---------- 鑳屾櫙锛氭瀬鍏夊眰锛堢洿鎺ョ敾鍦� body 涓婏紝鐜荤拑鎵嶆湁涓滆タ鍙€忥級 ---------- */
 body {
   background-color: var(--bg);
   background-image:
@@ -45,7 +45,7 @@ body {
   background-repeat: no-repeat;
 }
 
-/* 细颗粒：毛玻璃的“磨砂”质感靠它 */
+/* 缁嗛绮掞細姣涚幓鐠冪殑鈥滅（鐮傗€濊川鎰熼潬瀹� */
 body::after {
   content: '';
   position: fixed;
@@ -64,7 +64,7 @@ body::after {
     radial-gradient(42vmax 42vmax at 78% 96%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 64%);
 }
 
-/* ---------- 顶栏 ---------- */
+/* ---------- 椤舵爮 ---------- */
 .app-header {
   background: var(--glass-bg);
   border-bottom: 1px solid var(--glass-brd);
@@ -73,7 +73,7 @@ body::after {
   box-shadow: 0 1px 0 var(--glass-hi) inset;
 }
 
-/* ---------- 卡片 ---------- */
+/* ---------- 鍗＄墖 ---------- */
 .card,
 .q-card,
 .stat-grid > *,
@@ -108,7 +108,7 @@ body::after {
   }
 }
 
-/* ---------- 底部导航：玻璃 Dock ---------- */
+/* ---------- 搴曢儴瀵艰埅锛氱幓鐠� Dock ---------- */
 .tabbar {
   background: var(--glass-bg-strong);
   border: 1px solid var(--glass-brd);
@@ -118,7 +118,7 @@ body::after {
     inset 0 -1px 0 rgba(16, 20, 30, 0.04);
 }
 
-/* ---------- 弹窗 ---------- */
+/* ---------- 寮圭獥 ---------- */
 .modal-layer {
   background: rgba(12, 14, 20, 0.18);
   backdrop-filter: blur(10px) saturate(120%);
@@ -147,7 +147,7 @@ body::after {
   -webkit-backdrop-filter: blur(12px);
 }
 
-/* ---------- 输入控件 ---------- */
+/* ---------- 杈撳叆鎺т欢 ---------- */
 .input,
 .textarea,
 .opt {
@@ -164,7 +164,7 @@ body::after {
   transform: scale(0.985);
 }
 
-/* ---------- 按钮 ---------- */
+/* ---------- 鎸夐挳 ---------- */
 .btn {
   transition: transform 0.2s var(--ease-spring), box-shadow 0.24s var(--ease-out),
     background-color 0.2s var(--ease-out), color 0.2s var(--ease-out);
@@ -185,7 +185,7 @@ body::after {
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
-/* ---------- 页面切换 ---------- */
+/* ---------- 椤甸潰鍒囨崲 ---------- */
 .view-inner {
   animation: view-in 0.34s var(--ease-spring);
 }
@@ -210,7 +210,7 @@ body::after {
   background: radial-gradient(120% 80% at 100% 0%, rgba(255, 255, 255, 0.34), transparent 60%);
 }
 
-/* ---------- 新增：简答题批改 / 快捷键 / 滑杆 ---------- */
+/* ---------- 鏂板锛氱畝绛旈鎵规敼 / 蹇嵎閿� / 婊戞潌 ---------- */
 .essay-actions {
   display: flex;
   flex-wrap: wrap;
@@ -304,7 +304,7 @@ body::after {
   white-space: nowrap;
 }
 
-/* ---------- 降级：不支持 backdrop-filter 时用实色 ---------- */
+/* ---------- 闄嶇骇锛氫笉鏀寔 backdrop-filter 鏃剁敤瀹炶壊 ---------- */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .app-header,
   .tabbar,
@@ -334,7 +334,7 @@ body::after {
   }
 }
 
-/* ---------- ������� ---------- */
+/* ---------- 导入题库 ---------- */
 .import { display: flex; flex-direction: column; gap: 12px; }
 
 .dropzone {

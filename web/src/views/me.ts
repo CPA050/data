@@ -121,9 +121,9 @@ export function renderMe(): string {
 
     <div class="section-title">帮助</div>
     <div class="card card-pad">
-      <button class="btn btn-ghost btn-block" data-act="shortcuts" style="justify-content:flex-start">键盘快捷键</button>
+      <button class="btn btn-ghost btn-block" data-act="shortcuts">键盘快捷键</button>
       <div class="divider"></div>
-      <button class="btn btn-ghost btn-block" data-act="about" style="justify-content:flex-start">关于这个题库</button>
+      <button class="btn btn-ghost btn-block" data-act="about">关于这个题库</button>
     </div>
 
     <div class="section-title">练习</div>
@@ -145,16 +145,16 @@ export function renderMe(): string {
 
     <div class="section-title">数据</div>
     <div class="card card-pad">
-      <button class="btn btn-ghost btn-block" data-act="export-bank" style="justify-content:flex-start">导出题库（JSON）</button>
+      <button class="btn btn-ghost btn-block" data-act="export-bank">导出题库（JSON）</button>
       <div class="divider"></div>
-      <button class="btn btn-ghost btn-block" data-act="export-wrong" style="justify-content:flex-start">导出错题（JSON）</button>
+      <button class="btn btn-ghost btn-block" data-act="export-wrong">导出错题（JSON）</button>
     </div>
 
     <div class="section-title">账号</div>
     <div class="card card-pad">
-      <button class="btn btn-ghost btn-block" data-act="change-password" style="justify-content:flex-start">修改密码</button>
+      <button class="btn btn-ghost btn-block" data-act="change-password">修改密码</button>
       <div class="divider"></div>
-      <button class="btn btn-ghost btn-block danger-text" data-act="logout" style="justify-content:flex-start">退出登录</button>
+      <button class="btn btn-ghost btn-block danger-text" data-act="logout">退出登录</button>
     </div>
 
     <p class="muted small" style="text-align:center;margin:22px 0 6px">origin-quiz v2.0.0</p>

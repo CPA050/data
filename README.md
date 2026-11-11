@@ -116,7 +116,12 @@ npm test               # vitest：格式化 / 组件流程
 - PWA：manifest + Service Worker，可"添加到主屏幕"，题库接口 NetworkFirst 缓存，**断网也能打开首屏**
   （`npm run build && npm run check:offline` 会用本机 Edge 断网复测：SW 激活、预缓存 > 0、离线首屏可渲染）
 - 答题卡：选项状态色、连对鼓励、答错自动入错题本、键盘快捷键、打字机 AI 解析
-- 错题/收藏/题库：搜索、科目筛选、批量选择、JSON 导出、AI 粘贴导入
+- 错题/收藏/题库：搜索、科目筛选、批量选择、JSON 导出
+- 导入题库（题库页右上角「⇪」）：**JSON / TXT / Markdown / CSV / Word(.docx) / 图片 / 直接粘贴**，
+  前端先本地解析（`web/src/features/import.ts`，Word 用 `fflate` 解 `word/document.xml`），解析不出再让 AI 读
+  - 文本格式：`1. 题干` + `A. 选项` + `答案：A` + 可选 `章节：` / `科目：` / `解析：`
+  - JSON 格式：`[{q,opts,a}]`、`{questions:[...]}`、`{data:[...]}` 都认，也认 `题目/选项/答案/章节/科目` 中文键
+  - 图片：选完自动识别，识别结果进预览区，确认后再写库
 - 无障碍：可缩放 viewport、`aria-*` 状态、焦点管理与 Esc 关闭弹窗、44px 触控目标
 
 ### 部署（三种方式，按你的 Pages 项目类型选一种）

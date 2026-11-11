@@ -18,12 +18,35 @@ import type { Question, ThemeName, WrongItem } from './types';
 
 export type Tab = 'home' | 'bank' | 'wrong' | 'fav' | 'me';
 
+const stroke = 'fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"';
+
+// 线性图标：统一 1.3px 描边，跟着文字颜色走
 export const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'home', label: '首页', icon: '⌂' },
-  { id: 'bank', label: '题库', icon: '▤' },
-  { id: 'wrong', label: '错题', icon: '⚑' },
-  { id: 'fav', label: '收藏', icon: '★' },
-  { id: 'me', label: '我的', icon: '☺' },
+  {
+    id: 'home',
+    label: '首页',
+    icon: `<svg viewBox="0 0 24 24" ${stroke} aria-hidden="true"><path d="M3.5 10.6 12 3.8l8.5 6.8"/><path d="M5.8 9.8V20h12.4V9.8"/></svg>`,
+  },
+  {
+    id: 'bank',
+    label: '题库',
+    icon: `<svg viewBox="0 0 24 24" ${stroke} aria-hidden="true"><path d="M4 6.4h16M4 12h16M4 17.6h10.5"/></svg>`,
+  },
+  {
+    id: 'wrong',
+    label: '错题',
+    icon: `<svg viewBox="0 0 24 24" ${stroke} aria-hidden="true"><path d="M6.2 3.6v16.8"/><path d="M6.2 4.6h11.2l-2.1 3.9 2.1 3.9H6.2"/></svg>`,
+  },
+  {
+    id: 'fav',
+    label: '收藏',
+    icon: `<svg viewBox="0 0 24 24" ${stroke} aria-hidden="true"><path d="M12 4.2l2.3 4.8 5.2.7-3.8 3.6.9 5.2-4.6-2.5-4.6 2.5.9-5.2L4.5 9.7l5.2-.7z"/></svg>`,
+  },
+  {
+    id: 'me',
+    label: '我的',
+    icon: `<svg viewBox="0 0 24 24" ${stroke} aria-hidden="true"><circle cx="12" cy="8.4" r="3.4"/><path d="M4.8 20c1.2-3.9 3.9-5.9 7.2-5.9s6 2 7.2 5.9"/></svg>`,
+  },
 ];
 
 export const GREETINGS = [
