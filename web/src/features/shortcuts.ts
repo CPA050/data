@@ -4,7 +4,7 @@ import { openModal } from '../ui/modal';
 import { openSearch } from './search';
 
 export const SHORTCUTS: { keys: string; desc: string; scope: string }[] = [
-  { keys: '1 2 3 4 / A B C D', desc: '选择对应选项', scope: '答题中' },
+  { keys: '1–4 / A–D', desc: '选择对应选项', scope: '答题中' },
   { keys: 'Enter', desc: '提交答案 / 下一题', scope: '答题中' },
   { keys: '← →', desc: '上一题 / 下一题', scope: '答题中' },
   { keys: 'S', desc: '收藏这道题', scope: '答题中' },
@@ -12,7 +12,7 @@ export const SHORTCUTS: { keys: string; desc: string; scope: string }[] = [
   { keys: 'E', desc: 'AI 深度解析', scope: '答题中' },
   { keys: 'G', desc: 'AI 阅卷（简答题）', scope: '答题中' },
   { keys: 'Esc', desc: '关闭弹窗 / 结束练习', scope: '全局' },
-  { keys: '1 – 5', desc: '切换 首页 / 题库 / 错题 / 收藏 / 我的', scope: '非答题时' },
+  { keys: '1–5', desc: '切换 首页 / 题库 / 错题 / 收藏 / 我的', scope: '非答题时' },
   { keys: '/ 或 Ctrl+K', desc: '全局搜索（题库 / 错题 / 收藏）', scope: '全局' },
   { keys: '?', desc: '打开这份快捷键说明', scope: '全局' },
 ];

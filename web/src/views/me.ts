@@ -3,6 +3,7 @@ import { applyAppearance, emit, logout, saveAppearance, saveSettings, settings, 
 import { escapeHtml } from '../core/format';
 import { TYPE_LABEL } from '../core/question-type';
 import { clearLog as clearStats, summary as statsSummary } from '../core/stats';
+import { openAbout } from '../features/about';
 import { openShortcuts } from '../features/shortcuts';
 import { confirm, openModal } from '../ui/modal';
 import { notify } from '../ui/toast';
@@ -177,9 +178,7 @@ export function renderMe(): string {
 
     <div class="section-title">帮助</div>
     <div class="card card-pad">
-      <button class="btn btn-ghost btn-block" data-act="shortcuts">键盘快捷键</button>
-      <div class="divider"></div>
-      <button class="btn btn-ghost btn-block" data-act="about">关于这个题库</button>
+      <button class="btn btn-ghost btn-block" data-act="about">关于基准与快捷键</button>
     </div>
 
     <div class="section-title">练习</div>
@@ -306,13 +305,7 @@ export async function handleMe(action: string, el: HTMLElement): Promise<boolean
       openShortcuts();
       return true;
     case 'about': {
-      void openModal({
-        title: '关于',
-        body: `<p class="muted small" style="margin:0 0 10px">基准 —— 个人题库与错题本，数据存在你自己的 Cloudflare D1。</p>
-          <p class="muted small" style="margin:0 0 6px">题库 ${state.bank?.length ?? 0} 题 · 错题 ${state.wrong?.length ?? 0} 道 · 收藏 ${state.favs?.length ?? 0} 条</p>
-          <p class="muted small" style="margin:0">版本 v2.0.0 · 支持 PWA 离线打开</p>`,
-        actions: [{ label: '知道了', value: 'ok', variant: 'primary' }],
-      });
+      openAbout();
       return true;
     }
     case 'clear-stats': {
