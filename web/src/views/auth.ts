@@ -24,7 +24,12 @@ export function resetAuth(): void {
 export function renderAuth(): string {
   const brand = `
     <div class="auth-brand">
-      <div class="brand-mark">原</div>
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 100 100" width="20" height="20" focusable="false">
+          <rect x="19" y="19" width="62" height="62" fill="none" stroke="currentColor" stroke-width="11.5" />
+          <circle cx="50" cy="50" r="14.5" fill="currentColor" />
+        </svg>
+      </div>
       <div>
         <div class="auth-title">原点 · Origin</div>
         <div class="brand-sub">刷题 · 错题 · 收藏</div>

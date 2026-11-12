@@ -823,5 +823,11 @@
   border-radius: 2px;
   background: #0a0c0f;
   color: #fff;
-  font-weight: 700;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.brand-mark svg {
+  display: block;
 }
