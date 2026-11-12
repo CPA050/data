@@ -1542,3 +1542,19 @@ mark.hl {
   font-size: 13px;
   line-height: 1.55;
 }
+
+/* 表单控件：白卡上的发丝线太淡，提一点对比 */
+:root {
+  --input-brd: color-mix(in srgb, var(--text) 18%, transparent);
+}
+
+.input,
+.textarea,
+select.input {
+  border-color: var(--input-brd);
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: var(--text);
+}
