@@ -26,8 +26,8 @@ export function renderAuth(): string {
     <div class="auth-brand">
       <div class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 100 100" width="20" height="20" focusable="false">
-          <rect x="19" y="19" width="62" height="62" fill="none" stroke="currentColor" stroke-width="11.5" />
-          <circle cx="50" cy="50" r="14.5" fill="currentColor" />
+          <rect x="18.5" y="18.5" width="63" height="63" fill="none" stroke="currentColor" stroke-width="4.2" />
+          <circle cx="50" cy="50" r="10" fill="currentColor" />
         </svg>
       </div>
       <div>

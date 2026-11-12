@@ -4,12 +4,20 @@ import { chromium } from 'playwright-core';
 const EDGE = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const OUT = 'web/public';
 
-// 统一标记：黑方 + 白色方框 + 中心点（「原点」）
-// pad 控制方框内缩，maskable 用更大 pad 保证安全区
-function markSvg(size, pad = 0.19) {
-  const p = size * pad;
-  const sw = Math.max(1.5, size * 0.115);
-  const d = size * 0.145;
+// 每个尺寸单独调「光学」比例：小图标线要粗、点要大；大图标要收敛
+const SPEC = {
+  16: { pad: 0.155, sw: 0.125, dot: 0.155 },
+  32: { pad: 0.165, sw: 0.098, dot: 0.145 },
+  48: { pad: 0.17, sw: 0.083, dot: 0.138 },
+  180: { pad: 0.185, sw: 0.052, dot: 0.112 },
+  192: { pad: 0.185, sw: 0.052, dot: 0.112 },
+  512: { pad: 0.185, sw: 0.042, dot: 0.1 },
+};
+
+function markSvg(size, spec) {
+  const p = size * spec.pad;
+  const sw = Math.max(1.6, size * spec.sw);
+  const d = size * spec.dot;
   const c = size / 2;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
   <rect width="${size}" height="${size}" fill="#0a0c0f"/>
@@ -29,16 +37,15 @@ async function shoot(size, svg, name) {
   await page.close();
 }
 
-await shoot(16, markSvg(16), 'icon-16.png');
-await shoot(32, markSvg(32), 'icon-32.png');
-await shoot(48, markSvg(48), 'icon-48.png');
-await shoot(180, markSvg(180), 'apple-touch-icon.png');
-await shoot(192, markSvg(192), 'icon-192.png');
-await shoot(512, markSvg(512), 'icon-512.png');
-// maskable：内容压到 ~62% 直径内，圆形/圆角遮罩都不会切到
-await shoot(512, markSvg(512, 0.26), 'icon-maskable-512.png');
+for (const size of [16, 32, 48, 192, 512]) {
+  const name = size === 32 ? 'favicon.png' : `icon-${size}.png`;
+  await shoot(size, markSvg(size, SPEC[size]), `icon-${size}.png`);
+  if (size === 32) fs.copyFileSync(`${OUT}/icon-32.png`, `${OUT}/favicon.png`);
+}
 
-fs.copyFileSync(`${OUT}/icon-32.png`, `${OUT}/favicon.png`);
+await shoot(180, markSvg(180, SPEC[180]), 'apple-touch-icon.png');
+// maskable：把整组元素缩到 76% 居中，圆形遮罩也安全
+await shoot(512, markSvg(512, { pad: 0.28, sw: 0.045, dot: 0.095 }), 'icon-maskable-512.png');
 
 await browser.close();
 
@@ -63,9 +70,3 @@ const dirs = sizes.map((s, i) => {
 });
 fs.writeFileSync(`${OUT}/favicon.ico`, Buffer.concat([header, ...dirs, ...pngs]));
 console.log('favicon.ico', fs.statSync(`${OUT}/favicon.ico`).size);
-
-fs.writeFileSync(
-  `${OUT}/safari-pinned-tab.svg`,
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#0a0c0f"/><rect x="19" y="19" width="62" height="62" fill="none" stroke="#ffffff" stroke-width="11.5"/><circle cx="50" cy="50" r="14.5" fill="#ffffff"/></svg>`,
-);
-console.log('pinned tab ok');
