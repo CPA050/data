@@ -54,7 +54,7 @@ function mountShell(): void {
   appRoot().innerHTML = `
     <div class="app-shell">
       <aside class="sidebar" aria-label="主导航">
-        <div class="sidebar-brand">Origin Quiz</div>
+        <div class="sidebar-brand">基准</div>
         <nav class="sidebar-nav">
           ${TABS.map(
             (tab) =>
@@ -72,7 +72,7 @@ function mountShell(): void {
         <div class="header-inner">
           <div class="brand">
             <span class="brand-dot"></span>
-            <span class="brand-name">Origin Quiz</span>
+            <span class="brand-name">基准</span>
           </div>
           <button class="avatar" data-act="tab" data-tab="me" aria-label="我的">${(state.user || '?')
             .slice(0, 1)

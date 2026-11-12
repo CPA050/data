@@ -67,7 +67,7 @@ describe('前端整体流程', () => {
     const { state } = await import('./core/app');
 
     boot();
-    expect(text()).toContain('原点 · Origin');
+    expect(text()).toContain('基准');
 
     // 1. 输入用户名
     const nameForm = document.querySelector<HTMLFormElement>('form[data-form="name"]')!;

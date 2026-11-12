@@ -35,8 +35,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png'],
       manifest: {
-        name: '原点 · Origin',
-        short_name: '原点',
+        name: '基准',
+        short_name: '基准',
         description: '刷题 · 错题 · 收藏，离线也能练',
         lang: 'zh-CN',
         start_url: '/',

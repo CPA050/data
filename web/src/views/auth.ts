@@ -31,8 +31,8 @@ export function renderAuth(): string {
         </svg>
       </div>
       <div>
-        <div class="auth-title">原点 · Origin</div>
-        <div class="brand-sub">刷题 · 错题 · 收藏</div>
+        <div class="auth-title">基准</div>
+        <div class="brand-sub">一建刷题 / 错题 / 收藏</div>
       </div>
     </div>`;
 

@@ -458,13 +458,13 @@ export async function handleBank(action: string, el: HTMLElement): Promise<boole
     case 'docx':
       await exportDocx(filtered(), {
         title: `题库 · ${ui.subject === 'all' ? '全部' : ui.subject}`,
-        subtitle: '原点 · Origin',
+        subtitle: '基准',
       });
       return true;
     case 'docx-selected':
       await exportDocx(bank().filter((q) => ui.selected.has(q.id)), {
         title: '选中题目 · 试卷',
-        subtitle: '原点 · Origin',
+        subtitle: '基准',
       });
       return true;
     case 'print-selected':

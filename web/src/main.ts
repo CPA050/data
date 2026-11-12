@@ -11,7 +11,7 @@ function start(): void {
     boot();
     installOfflineQueue();
   } catch (error) {
-    console.error('[origin-quiz] 启动失败', error);
+    console.error('[datum] 启动失败', error);
     const root = document.getElementById('app-root');
     if (root) {
       root.innerHTML = `<div class="fatal"><h1>页面加载失败</h1><p>${String(

@@ -213,7 +213,7 @@ export function renderMe(): string {
       <button class="btn btn-ghost btn-block danger-text" data-act="logout">退出登录</button>
     </div>
 
-    <p class="muted small" style="text-align:center;margin:22px 0 6px">origin-quiz v2.0.0</p>
+    <p class="muted small" style="text-align:center;margin:22px 0 6px">DATUM v2.0.0</p>
     <p class="muted small" style="text-align:center;margin:0 0 10px">数据存放在你自己的 Cloudflare D1 里</p>`;
 }
 
@@ -308,7 +308,7 @@ export async function handleMe(action: string, el: HTMLElement): Promise<boolean
     case 'about': {
       void openModal({
         title: '关于',
-        body: `<p class="muted small" style="margin:0 0 10px">原点 · Origin —— 个人题库与错题本，数据存在你自己的 Cloudflare D1。</p>
+        body: `<p class="muted small" style="margin:0 0 10px">基准 —— 个人题库与错题本，数据存在你自己的 Cloudflare D1。</p>
           <p class="muted small" style="margin:0 0 6px">题库 ${state.bank?.length ?? 0} 题 · 错题 ${state.wrong?.length ?? 0} 道 · 收藏 ${state.favs?.length ?? 0} 条</p>
           <p class="muted small" style="margin:0">版本 v2.0.0 · 支持 PWA 离线打开</p>`,
         actions: [{ label: '知道了', value: 'ok', variant: 'primary' }],

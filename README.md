@@ -1,4 +1,4 @@
-# 原点 · Origin（修复版）
+# 基准 DATUM（修复版）
 
 一个"刷题 + 错题 + 收藏"的移动端 Web 应用。**Cloudflare Pages + Pages Functions + D1**，零框架、零构建。
 
@@ -153,7 +153,7 @@ npm run build && npm run sync:root   # 改了前端后，重新生成根目录�
 
 ```bash
 npm run build
-npm run deploy          # = wrangler pages deploy dist --project-name origin-quiz
+npm run deploy          # = wrangler pages deploy dist --project-name data
 ```
 
 ## 数据库与迁移

@@ -94,13 +94,13 @@ export function exportSheet(rows: Question[], options: SheetOptions = {}): void 
 <style>${PAGE_CSS}</style></head>
 <body>
   <header class="sheet-head">
-    <div class="sheet-kicker">Origin Quiz / Practice Sheet</div>
+    <div class="sheet-kicker">基准 DATUM / Practice Sheet</div>
     <h1 class="sheet-title">${esc(title)}</h1>
     <div class="sheet-meta">${date} · 共 ${rows.length} 题${options.subtitle ? ' · ' + esc(options.subtitle) : ''} · 姓名 __________ 得分 ______</div>
   </header>
   ${questions}
   ${keys}
-  <p class="tips">由「原点 · Origin」导出 · 打印对话框里选择「另存为 PDF」即可保存。</p>
+  <p class="tips">由「基准」导出 · 打印对话框里选择「另存为 PDF」即可保存。</p>
 </body></html>`;
 
   const win = window.open('', '_blank');
