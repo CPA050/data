@@ -152,7 +152,11 @@ function splitInlineOptions(line: string): string[] {
 }
 
 export function parseTextQuestions(raw: string): QuestionDraft[] {
-  const text = raw.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  // 先把 ![图](data:...) 这种 markdown 图片转成 <img>，题干里就能直接显示
+  const text = raw
+    .replace(/^\uFEFF/, '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/!\[[^\]]*\]\((data:image\/[^)]+)\)/g, (_all, src: string) => `<img src="${src}" alt="题图">`);
   const lines = text.split('\n');
   const drafts: QuestionDraft[] = [];
 
@@ -189,6 +193,12 @@ export function parseTextQuestions(raw: string): QuestionDraft[] {
 
   for (const line of lines) {
     if (!line.trim()) continue;
+
+    // 图片单独一行：永远算题干的一部分，别被当成选项续行
+    if (/^\s*<img\b/i.test(line)) {
+      q = `${q}${q ? '\n' : ''}${line.trim()}`;
+      continue;
+    }
 
     const head = QUESTION_HEAD_RE.exec(line);
     const opt = OPTION_RE.exec(line);
@@ -250,17 +260,65 @@ export function docxToText(buffer: ArrayBuffer): string {
   const files = unzipSync(new Uint8Array(buffer));
   const xml = files['word/document.xml'];
   if (!xml) throw new Error('这个 docx 里没有正文，另存为 .docx 再试一次');
-  const src = strFromU8(xml);
-  return src
+
+  // Word 把图片放在 word/media/*，正文里用 r:embed="rIdN" 引用，
+  // rId → 文件名的映射在 word/_rels/document.xml.rels 里。
+  const relsXml = files['word/_rels/document.xml.rels'];
+  const relMap = new Map<string, string>();
+  if (relsXml) {
+    const rels = strFromU8(relsXml);
+    for (const m of rels.matchAll(/<Relationship\b[^>]*>/g)) {
+      const tag = m[0];
+      const id = /\bId="([^"]+)"/.exec(tag)?.[1];
+      const target = /\bTarget="([^"]+)"/.exec(tag)?.[1];
+      const type = /\bType="([^"]+)"/.exec(tag)?.[1] ?? '';
+      if (!id || !target) continue;
+      if (!/image/i.test(type)) continue;
+      const path = target.startsWith('/') ? target.slice(1) : `word/${target.replace(/^\.\//, '')}`;
+      const bytes = files[path];
+      if (!bytes) continue;
+      relMap.set(id, `data:${mimeOf(path)};base64,${bytesToBase64(bytes)}`);
+    }
+  }
+
+  // 先把「含图片的段落」里的 r:embed 换成占位标记，再逐段抽文字
+  const withMarkers = strFromU8(xml).replace(/<a:blip\b[^>]*r:embed="([^"]+)"[^>]*\/?>/g, (_all, rid: string) => {
+    const data = relMap.get(rid);
+    return data ? `[[IMG:${data}]]` : '';
+  });
+
+  const text = withMarkers
     .replace(/<w:tab\b[^>]*\/>/g, '\t')
     .replace(/<w:br\b[^>]*\/>/g, '\n')
     .replace(/<\/w:p>/g, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
+    .replace(/&amp;/g, '&');
+
+  return text
+    .replace(/\[\[IMG:([^\]]+)\]\]/g, (_all, data: string) => `\n![docx 图片](${data})\n`)
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+function mimeOf(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase() ?? '';
+  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+  if (ext === 'gif') return 'image/gif';
+  if (ext === 'bmp') return 'image/bmp';
+  if (ext === 'webp') return 'image/webp';
+  if (ext === 'svg') return 'image/svg+xml';
+  return 'image/png';
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let bin = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(bin);
 }
 
 /* ------------------------------ 文件读取 ------------------------------ */

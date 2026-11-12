@@ -3,6 +3,7 @@ import { invalidate, loadBank, state } from '../core/app';
 import { escapeHtml, plainText, renderRich } from '../core/format';
 import { highlightHtml } from '../core/highlight';
 import { detectType, TYPE_LABEL } from '../core/question-type';
+import { formatAnswer } from '../core/format';
 import { confirm, openModal } from '../ui/modal';
 import { createRichEditor } from '../ui/rich-editor';
 import type { RichEditor } from '../ui/rich-editor';
@@ -10,6 +11,7 @@ import { notify } from '../ui/toast';
 import type { Answer, Question, QuestionDraft } from '../core/types';
 import { openImport } from '../features/import-dialog';
 import { exportSheet } from '../features/export-sheet';
+import { exportDocx } from '../features/export-docx';
 
 /** 从 AI 返回里抠出第一个 JSON 对象（可能带 ```json 围栏或前后废话） */
 function extractJsonBlock(raw: string): string {
@@ -22,9 +24,12 @@ function extractJsonBlock(raw: string): string {
 
 const PAGE_SIZE = 20;
 
+type TypeFilter = 'all' | 'single' | 'multi' | 'judge' | 'blank' | 'essay';
+
 const ui = {
   search: '',
   subject: 'all',
+  type: 'all' as TypeFilter,
   edit: false,
   page: 0,
   selected: new Set<number>(),
@@ -33,6 +38,7 @@ const ui = {
 export function resetBank(): void {
   ui.search = '';
   ui.subject = 'all';
+  ui.type = 'all';
   ui.edit = false;
   ui.page = 0;
   ui.selected.clear();
@@ -50,6 +56,7 @@ function filtered(): Question[] {
   const keyword = ui.search.trim().toLowerCase();
   return bank().filter((q) => {
     if (ui.subject !== 'all' && (q.subject || '默认题库') !== ui.subject) return false;
+    if (ui.type !== 'all' && detectType(q) !== ui.type) return false;
     if (!keyword) return true;
     return plainText(q.q).toLowerCase().includes(keyword) || q.opts.some((o) => plainText(o).toLowerCase().includes(keyword));
   });
@@ -77,11 +84,35 @@ export function renderBank(): string {
     )
     .join('');
 
+  const all = bank();
+  const counts: Record<string, number> = { single: 0, multi: 0, judge: 0, blank: 0, essay: 0 };
+  all.forEach((q) => {
+    counts[detectType(q)] += 1;
+  });
+  const typeChips = (
+    [
+      ['all', '全部', all.length],
+      ['single', '单选', counts.single],
+      ['multi', '多选', counts.multi],
+      ['judge', '判断', counts.judge],
+      ['blank', '填空', counts.blank],
+      ['essay', '简答', counts.essay],
+    ] as Array<[TypeFilter, string, number]>
+  )
+    .filter(([key, , n]) => key === 'all' || n > 0)
+    .map(
+      ([key, label, n]) =>
+        `<button class="chip" data-act="type" data-type="${key}" aria-pressed="${ui.type === key}">${label} <span class="chip-n">${n}</span></button>`,
+    )
+    .join('');
+
   const tableRows = pageRows
     .map((q, i) => {
       const type = detectType(q);
       const no = String(ui.page * PAGE_SIZE + i + 1).padStart(2, '0');
-      return `<tr class="q-row ${ui.edit ? 'selectable' : ''}" data-id="${q.id}">
+      return `<tr class="q-row ${ui.edit ? 'selectable' : 'is-clickable'}" data-id="${q.id}" ${
+        ui.edit ? '' : 'data-act="peek"'
+      }>
         <td class="c-no">${
           ui.edit
             ? `<button class="checkbox" data-act="select" data-id="${q.id}" aria-pressed="${ui.selected.has(q.id)}">✓</button>`
@@ -128,22 +159,25 @@ export function renderBank(): string {
 
   return `
     <h1 class="page-title">题库</h1>
-    <div class="row" style="margin-bottom:12px">
-      <div class="search-box grow">
-        <span class="ico">⌕</span>
-        <input type="search" placeholder="搜索题干或选项（/ 聚焦）" data-role="search" value="${escapeHtml(ui.search)}" enterkeyhint="search">
-      </div>
-      <button class="icon-btn" data-act="import" aria-label="导入题库" title="导入题库">⇪</button>
-      <button class="icon-btn" data-act="add" aria-label="添加题目" title="添加题目">＋</button>
-      <button class="icon-btn" data-act="print" aria-label="导出试卷" title="导出试卷（打印 / 存 PDF）">⎙</button>
-      <button class="icon-btn" data-act="toggle-edit" aria-label="批量管理" title="批量管理">${ui.edit ? '✓' : '☰'}</button>
+    <div class="search-box">
+      <span class="ico">⌕</span>
+      <input type="search" placeholder="搜索题干或选项（/ 聚焦）" data-role="search" value="${escapeHtml(ui.search)}" enterkeyhint="search">
+    </div>
+    <div class="tool-row">
+      <button class="tool-btn" data-act="import" title="导入题库">⇪<span>导入</span></button>
+      <button class="tool-btn" data-act="add" title="添加题目">＋<span>新建</span></button>
+      <button class="tool-btn" data-act="print" title="导出试卷（打印 / 存 PDF）">⎙<span>试卷</span></button>
+      <button class="tool-btn" data-act="docx" title="导出 Word（.docx）">⤓<span>Word</span></button>
+      <button class="tool-btn" data-act="toggle-edit" title="批量管理">${ui.edit ? '✓' : '☰'}<span>批量</span></button>
     </div>
     <div class="chips">${chips}</div>
+    <div class="chips chips-type">${typeChips}</div>
     ${ui.edit ? `<div class="row between" style="margin-bottom:12px">
         <button class="btn btn-sm btn-ghost" data-act="select-all">${ui.selected.size === rows.length && rows.length ? '取消全选' : '全选本页'}</button>
         <div class="btn-row" style="gap:8px">
           <button class="btn btn-sm" data-act="export" ${ui.selected.size ? '' : 'disabled'}>导出 JSON</button>
           <button class="btn btn-sm" data-act="print-selected" ${ui.selected.size ? '' : 'disabled'}>导出试卷</button>
+          <button class="btn btn-sm" data-act="docx-selected" ${ui.selected.size ? '' : 'disabled'}>导出 Word</button>
           <button class="btn btn-sm btn-danger" data-act="delete-selected" ${ui.selected.size ? '' : 'disabled'}>删除</button>
         </div>
       </div>` : ''}
@@ -353,6 +387,18 @@ export async function handleBank(action: string, el: HTMLElement): Promise<boole
     case 'print':
       exportSheet(filtered(), { title: `题库 · ${ui.subject === 'all' ? '全部' : ui.subject}` });
       return true;
+    case 'docx':
+      await exportDocx(filtered(), {
+        title: `题库 · ${ui.subject === 'all' ? '全部' : ui.subject}`,
+        subtitle: '原点 · Origin',
+      });
+      return true;
+    case 'docx-selected':
+      await exportDocx(bank().filter((q) => ui.selected.has(q.id)), {
+        title: '选中题目 · 试卷',
+        subtitle: '原点 · Origin',
+      });
+      return true;
     case 'print-selected':
       exportSheet(
         bank().filter((q) => ui.selected.has(q.id)),
@@ -374,11 +420,63 @@ export async function handleBank(action: string, el: HTMLElement): Promise<boole
     case 'import':
       await importQuestions();
       return true;
+    case 'type': {
+    const next = el.dataset.type as TypeFilter | undefined;
+    if (next) {
+      ui.type = next;
+      ui.page = 0;
+    }
+    return true;
+  }
+    case 'peek': {
+      const id = Number(el.dataset.id);
+      const q = bank().find((item) => item.id === id);
+      if (!q) return true;
+      await peekQuestion(q);
+      return true;
+    }
     case 'search':
       return true;
     default:
       return false;
   }
+}
+
+/** 只读预览：不打断复习节奏，扫一眼题干和答案就够了 */
+async function peekQuestion(q: Question): Promise<void> {
+  const type = detectType(q);
+  const body = document.createElement('div');
+  body.className = 'peek';
+  body.innerHTML = `
+    <div class="peek-meta">
+      <span class="tag tag-type">${TYPE_LABEL[type]}</span>
+      ${q.subject ? `<span class="tag">${escapeHtml(q.subject)}</span>` : ''}
+      ${q.chapter ? `<span class="tag">${escapeHtml(q.chapter)}</span>` : ''}
+    </div>
+    <div class="peek-q q-text">${renderRich(q.q)}</div>
+    ${
+      q.opts.length
+        ? `<ul class="peek-opts">${q.opts
+            .map((o, i) => {
+              const hit = Array.isArray(q.a) ? q.a.includes(i) : q.a === i;
+              return `<li class="${hit ? 'is-hit' : ''}"><b>${String.fromCharCode(65 + i)}</b>${renderRich(
+                String(o).replace(/^\s*[A-Ha-h]\s*[.、．)：:]\s*/, ''),
+              )}</li>`;
+            })
+            .join('')}</ul>`
+        : ''
+    }
+    <div class="peek-ans"><span class="muted">答案</span> ${escapeHtml(formatAnswer(q.a, q.opts) || '（无）')}</div>`;
+
+  const action = await openModal<'edit' | 'close'>({
+    title: '题目预览',
+    body,
+    actions: [
+      { label: '关闭', value: 'close' },
+      { label: '编辑这题', value: 'edit', variant: 'primary' },
+    ],
+  });
+  if (action === 'edit') await openEditor(q);
 }
 
 export function onBankInput(el: HTMLElement): boolean {

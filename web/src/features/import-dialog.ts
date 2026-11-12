@@ -21,17 +21,36 @@ function previewHtml(drafts: QuestionDraft[], sourceName: string): string {
   }
   const head = drafts.slice(0, 4);
   const rows = head
-    .map(
-      (d, i) => `<li><b>${i + 1}.</b> ${escapeHtml(d.q).slice(0, 90)}${(d.opts ?? []).length ? `<span class="muted"> · ${(d.opts ?? []).length} 个选项</span>` : '<span class="muted"> · 简答</span>'}</li>`,
-    )
+    .map((d, i) => {
+      const opts = (d.opts ?? []).length;
+      const warn = problemOf(d);
+      const imgs = (d.q.match(/<img\b/gi) ?? []).length;
+      const plain = d.q.replace(/<img\b[^>]*>/gi, ' ').replace(/\s+/g, ' ').trim();
+      return `<li><b>${i + 1}.</b> ${escapeHtml(plain).slice(0, 90)}${imgs ? `<span class="muted"> · 含 ${imgs} 张图</span>` : ''}${
+        opts ? `<span class="muted"> · ${opts} 个选项</span>` : '<span class="muted"> · 简答</span>'
+      }${warn ? `<span class="tag-warn">${warn}</span>` : ''}</li>`;
+    })
     .join('');
   const more = drafts.length > head.length ? `<li class="muted">…还有 ${drafts.length - head.length} 道</li>` : '';
+  const problems = drafts.map(problemOf).filter(Boolean).length;
   return `
     <div class="import-summary">
       <span class="tag tag-ok">识别到 ${drafts.length} 道题</span>
+      ${problems ? `<span class="tag tag-warn">${problems} 道待确认</span>` : ''}
       ${sourceName ? `<span class="muted small">${escapeHtml(sourceName)}</span>` : ''}
     </div>
     <ul class="import-list">${rows}${more}</ul>`;
+}
+
+/** 一眼就能发现的问题：没答案、单选题选项不足 */
+function problemOf(d: QuestionDraft): string {
+  const opts = (d.opts ?? []).length;
+  const a = d.a;
+  const hasAnswer = Array.isArray(a) ? a.length > 0 : a !== '' && a !== null && a !== undefined;
+  if (!hasAnswer) return '没识别到答案';
+  if (opts === 1) return '只有 1 个选项';
+  if (opts >= 2 && typeof a === 'number' && (a < 0 || a >= opts)) return '答案越界';
+  return '';
 }
 
 function parseByKind(kind: string, text: string): QuestionDraft[] {
@@ -45,8 +64,8 @@ export async function openImport(): Promise<void> {
     <label class="dropzone" data-role="drop">
       <span class="dz-icon">⇪</span>
       <span class="dz-title">把文件拖进来，或点这里选文件</span>
-      <span class="dz-hint">支持 .json / .txt / .md / .csv / .docx / 图片（png、jpg、webp）</span>
-      <input type="file" hidden data-role="file"
+      <span class="dz-hint">支持 .json / .txt / .md / .csv / .docx / 图片，可一次选多个；也能直接 Ctrl+V 粘贴截图</span>
+      <input type="file" hidden multiple data-role="file"
              accept=".json,.txt,.md,.csv,.tsv,.docx,image/png,image/jpeg,image/webp,image/gif,image/bmp">
     </label>
     <div class="import-or"><span>或者直接粘贴文字</span></div>
@@ -123,9 +142,44 @@ export async function openImport(): Promise<void> {
     }
   };
 
+  const handleFiles = async (files: File[]): Promise<void> => {
+    if (!files.length) return;
+    if (files.length === 1) {
+      await handleFile(files[0]);
+      return;
+    }
+    const merged: QuestionDraft[] = [];
+    const notes: string[] = [];
+    for (const file of files) {
+      try {
+        const kind = detectKind(file);
+        if (kind === 'image') {
+          const dataUrl = await readAsDataUrl(file);
+          const res = await api.ai.extract({ imageBase64: dataUrl });
+          merged.push(...parseAnyQuestions(res.result ?? ''));
+          notes.push(file.name);
+          continue;
+        }
+        if (kind === 'docx') {
+          merged.push(...parseByKind('docx', docxToText(await readAsBuffer(file))));
+          notes.push(file.name);
+          continue;
+        }
+        merged.push(...parseByKind(kind, await readAsText(file)));
+        notes.push(file.name);
+      } catch (error) {
+        notify.error(`${file.name} 没读出来：${error instanceof Error ? error.message : '格式不对'}`);
+      }
+    }
+    drafts = merged;
+    imagePayload = '';
+    sourceName = `${files.length} 个文件（${notes.join('、')}）`;
+    textArea.value = '';
+    refresh();
+  };
+
   fileInput.addEventListener('change', () => {
-    const file = fileInput.files?.[0];
-    if (file) void handleFile(file);
+    void handleFiles([...(fileInput.files ?? [])]);
   });
 
   for (const type of ['dragenter', 'dragover'] as const) {
@@ -141,8 +195,18 @@ export async function openImport(): Promise<void> {
     });
   }
   drop.addEventListener('drop', (e) => {
-    const file = (e as DragEvent).dataTransfer?.files?.[0];
-    if (file) void handleFile(file);
+    const files = [...((e as DragEvent).dataTransfer?.files ?? [])];
+    void handleFiles(files);
+  });
+
+  textArea.addEventListener('paste', (e) => {
+    const items = [...((e as ClipboardEvent).clipboardData?.items ?? [])];
+    const imgItem = items.find((it) => it.kind === 'file' && it.type.startsWith('image/'));
+    if (!imgItem) return;
+    const file = imgItem.getAsFile();
+    if (!file) return;
+    e.preventDefault();
+    void handleFile(file);
   });
 
   let timer = 0;
