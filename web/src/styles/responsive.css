@@ -579,3 +579,14 @@
   padding: 18px 0 0;
   border-bottom: 0;
 }
+
+/* 大屏：顶栏与侧边栏重复，直接收掉顶栏，正文上移 */
+@media (min-width: 1280px) {
+  .app-header {
+    display: none;
+  }
+
+  .view {
+    padding-top: 40px;
+  }
+}
