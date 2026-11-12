@@ -1,7 +1,7 @@
 import { go, greeting, loadBank, loadFavs, loadWrong, state } from '../core/app';
 import { escapeHtml } from '../core/format';
 import { getProgress, getSession, hasWelcomedToday, markWelcomed } from '../core/storage';
-import { DAILY_GOAL, summary as statsSummary } from '../core/stats';
+import { summary as statsSummary } from '../core/stats';
 import { practiceBank, practiceShuffle, practiceWrong, resumeSession } from '../features/session';
 import { startExam } from '../features/exam';
 import { notify } from '../ui/toast';
@@ -39,11 +39,7 @@ export function renderHome(): string {
         <div class="today-head">
           <span class="today-num">${pad2(todayN)}</span>
           <span class="today-unit">题 · 今日已练</span>
-          <span class="today-side">${stats.today.n ? `正确率 <b>${rateText}</b>` : '今天还没开始'}</span>
-        </div>
-        <div class="today-goal">
-          <span class="today-ticks">${Array.from({ length: DAILY_GOAL }, (_, i) => `<i class="${i < todayN ? 'on' : ''}"></i>`).join('')}</span>
-          <span class="today-goal-cap">${todayN} / ${DAILY_GOAL}${stats.streak > 1 ? ` · 连练 ${stats.streak} 天` : ''}</span>
+          <span class="today-side">${stats.today.n ? `正确率 <b>${rateText}</b>${stats.streak > 1 ? ` · 连练 <b>${stats.streak}</b> 天` : ''}` : '今天还没开始'}</span>
         </div>
       </div>
       <div class="stat-strip">

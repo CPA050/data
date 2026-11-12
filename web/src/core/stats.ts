@@ -47,9 +47,6 @@ export interface DayStat {
   ok: number;
 }
 
-/** 每天的目标题量，首页进度条用 */
-export const DAILY_GOAL = 20;
-
 export interface StatsSummary {
   total: number;
   ok: number;

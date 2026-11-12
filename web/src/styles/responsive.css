@@ -723,7 +723,8 @@
 /* ---------------- 今日进度（首页） ---------------- */
 
 .today {
-  margin-top: 8px;
+  margin-top: 10px;
+  padding-bottom: 6px;
 }
 
 .today-head {
@@ -733,7 +734,7 @@
 }
 
 .today-num {
-  font-size: 56px;
+  font-size: 64px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.045em;
@@ -807,31 +808,12 @@
 
 @media (min-width: 720px) {
   .today-num {
-    font-size: 64px;
+    font-size: 76px;
   }
 }
 
-/* 进度条与下方数据条之间留一点空气 */
+/* 数据条与上方今日进度之间留一点空气 */
 .stat-strip {
-  margin-top: 18px;
+  margin-top: 12px;
 }
 
-/* 今日目标：刻度条 */
-.today-ticks {
-  display: flex;
-  flex: 1;
-  gap: 3px;
-  align-items: center;
-}
-
-.today-ticks i {
-  flex: 1;
-  height: 9px;
-  max-width: 6px;
-  background: color-mix(in srgb, var(--text) 14%, transparent);
-  transition: background 0.25s ease;
-}
-
-.today-ticks i.on {
-  background: var(--text);
-}
