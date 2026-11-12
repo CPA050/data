@@ -50,9 +50,8 @@ export async function migrate(db, dir = MIGRATIONS, { quiet = false } = {}) {
 
 // 直接运行：node dev/migrate.mjs [db 文件路径]
 if (process.argv[1] && process.argv[1].endsWith('migrate.mjs')) {
-  const { DatabaseSync } = await import('node:sqlite');
+  const { D1Shim } = await import('./d1.mjs');
   const file = process.argv[2] || process.env.DB_FILE || ':memory:';
-  const db = new DatabaseSync(file);
+  const db = new D1Shim(file);
   await migrate(db);
-  db.close();
 }

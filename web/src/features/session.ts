@@ -47,11 +47,15 @@ export function closeQuiz(): void {
 
 /** 从题库开始练习 */
 export async function practiceBank(mode: 'random' | 'sequential' | 'chapter' = 'random'): Promise<void> {
-  const bank = state.bank ?? [];
-  if (!bank.length) {
+  const all = state.bank ?? [];
+  if (!all.length) {
     notify.info('题库还是空的，先去添加题目吧');
     return;
   }
+
+  const subject = await askSubject(all);
+  if (subject === null) return;
+  const bank = subject ? all.filter((q) => (q.subject?.trim() || '默认题库') === subject) : all;
 
   if (mode === 'chapter') {
     const picked = await askChapters(bank);
@@ -81,16 +85,19 @@ export async function practiceBank(mode: 'random' | 'sequential' | 'chapter' = '
 }
 
 /** 乱序练习：整库打乱，直接开始，不再弹数量选择 */
-export function practiceShuffle(): void {
-  const bank = state.bank ?? [];
-  if (!bank.length) {
+export async function practiceShuffle(): Promise<void> {
+  const all = state.bank ?? [];
+  if (!all.length) {
     notify.info('题库还是空的，先去添加题目吧');
     return;
   }
+  const subject = await askSubject(all);
+  if (subject === null) return;
+  const bank = subject ? all.filter((q) => (q.subject?.trim() || '默认题库') === subject) : all;
   startQuiz({
     questions: shuffle(bank),
     source: 'all',
-    title: `乱序练习 · ${bank.length} 题`,
+    title: `乱序练习 · ${bank.length} 题${subject ? ` · ${subject}` : ''}`,
   });
 }
 
@@ -217,6 +224,53 @@ export async function askChapters(bank: Question[]): Promise<string[] | null> {
     .filter((el) => el.dataset.checked === 'true')
     .map((el) => el.dataset.chapter ?? '');
   return picked.length ? picked : null;
+}
+
+/** 选科目：题库里不止一个科目时先问一句，避免"一练就是全部" */
+export async function askSubject(bank: Question[]): Promise<string | null> {
+  const counts = new Map<string, number>();
+  bank.forEach((q) => {
+    const subject = q.subject?.trim() || '默认题库';
+    counts.set(subject, (counts.get(subject) ?? 0) + 1);
+  });
+  const list = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  if (list.length < 2) return '';
+
+  const body = document.createElement('div');
+  body.innerHTML = `
+    <div class="chip-row" data-role="subject">
+      <button type="button" class="chip is-on" data-sub="" aria-pressed="true">全部 · ${bank.length}</button>
+      ${list
+        .map(
+          ([name, count]) =>
+            `<button type="button" class="chip" data-sub="${escapeHtml(name)}" aria-pressed="false">${escapeHtml(name)} · ${count}</button>`,
+        )
+        .join('')}
+    </div>
+    <p class="muted small" style="margin:12px 0 0">选科目后只会练这个科目下的题</p>`;
+  const row = body.querySelector<HTMLElement>('[data-role="subject"]')!;
+  row.addEventListener('click', (ev) => {
+    const btn = (ev.target as HTMLElement).closest<HTMLElement>('button[data-sub]');
+    if (!btn) return;
+    row.querySelectorAll('button').forEach((b) => {
+      b.classList.remove('is-on');
+      b.setAttribute('aria-pressed', 'false');
+    });
+    btn.classList.add('is-on');
+    btn.setAttribute('aria-pressed', 'true');
+  });
+
+  const ok = await openModal<boolean>({
+    title: '练哪个科目',
+    body,
+    actions: [
+      { label: '取消', value: false },
+      { label: '开始', value: true, variant: 'primary' },
+    ],
+  });
+  if (!ok) return null;
+  const active = row.querySelector<HTMLElement>('button.is-on');
+  return active?.dataset.sub ?? '';
 }
 
 export function clearCurrentSession(): void {

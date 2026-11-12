@@ -10,6 +10,8 @@ export interface Question {
   subject: string;
   /** 解析：为什么选它 / 其它选项错在哪 */
   explain?: string;
+  /** 作者显式标注的题型（single/multi/judge/blank/essay/calc），空 = 自动识别 */
+  type?: string;
   /** 乐观锁版本号（服务端写入时间），多端编辑冲突检测用 */
   updated_at?: string;
   created_at?: string;
@@ -54,6 +56,7 @@ export interface RecordItem {
 
 export interface QuestionDraft {
   q: string;
+  type?: string;
   opts?: string[];
   a?: Answer;
   chapter?: string;

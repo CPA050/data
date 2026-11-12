@@ -126,7 +126,7 @@ export async function handleHome(action: string, el: HTMLElement): Promise<boole
       await practiceBank('sequential');
       return true;
     case 'shuffle':
-      practiceShuffle();
+      await practiceShuffle();
       return true;
     case 'chapter':
       await practiceBank('chapter');

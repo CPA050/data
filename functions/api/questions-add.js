@@ -26,14 +26,15 @@ export const onRequestPost = route(async ({ request, env }) => {
       a: toDbAnswer(a),
       chapter: String(item.chapter || ''),
       subject: String(item.subject || '默认题库'),
+      type: String(item.type || ''),
       explain: String(item.explain || '')
     };
   });
 
-  const stmt = 'INSERT INTO questions (user_id, q, opts, a, chapter, subject, explain, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+  const stmt = 'INSERT INTO questions (user_id, q, opts, a, chapter, subject, explain, type, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const chunk = rows.slice(i, i + BATCH_SIZE).map(r =>
-      env.exam_db.prepare(stmt).bind(user, r.q, r.opts, r.a, r.chapter, r.subject, r.explain, now));
+      env.exam_db.prepare(stmt).bind(user, r.q, r.opts, r.a, r.chapter, r.subject, r.explain, r.type, now));
     await env.exam_db.batch(chunk);
   }
 

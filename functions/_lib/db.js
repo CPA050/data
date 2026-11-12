@@ -24,7 +24,7 @@ export function normalizeAnswer(raw) {
 
 export function normalizeRow(row) {
   if (!row) return row;
-  return { ...row, opts: normalizeOpts(row.opts), a: normalizeAnswer(row.a) };
+  return { ...row, opts: normalizeOpts(row.opts), a: normalizeAnswer(row.a), type: row.type || '' };
 }
 
 // 写库统一 JSON.stringify；undefined 会被 D1 拒绝，先兜底成 ''

@@ -11,6 +11,8 @@ import {
   sameAnswer,
 } from '../core/format';
 import { pushRecent, saveNote, getNotes, setProgress } from '../core/storage';
+import { detectType, isTextAnswer, TYPE_LABEL } from '../core/question-type';
+import { record as recordStat } from '../core/stats';
 import { notify } from '../ui/toast';
 import { closeAllModals, confirm, openModal } from '../ui/modal';
 import type { Question, QuizSource, RecordItem } from '../core/types';
@@ -63,8 +65,14 @@ function correctCount(): number {
 
 /* ---------------- 渲染 ---------------- */
 
+
+function textMode(q: Question): boolean {
+  const t = detectType(q);
+  return t === 'blank' || t === 'essay' || t === 'calc' || isEssay(q.a);
+}
+
 function renderOptions(q: Question, rec: RecordItem): string {
-  if (isEssay(q.a)) {
+  if (textMode(q)) {
     return `
       <div class="essay-box">
         <textarea class="textarea" data-role="essay" placeholder="写下你的答案，可以和标准答案比对着看…" ${rec.submitted ? 'readonly' : ''}>${escapeHtml(rec.text)}</textarea>
@@ -94,11 +102,11 @@ function renderOptions(q: Question, rec: RecordItem): string {
 
 function renderAnswerPanel(q: Question, rec: RecordItem): string {
   if (!rec.submitted) return '';
-  const answerText = isEssay(q.a) ? String(q.a) : formatAnswer(q.a, q.opts);
-  const mine = isEssay(q.a)
+  const answerText = textMode(q) ? String(q.a) : formatAnswer(q.a, q.opts);
+  const mine = textMode(q)
     ? plainText(rec.text) || '（空）'
     : formatAnswer(rec.picked.length ? rec.picked : [], q.opts) || '（未选）';
-  if (isEssay(q.a)) {
+  if (textMode(q)) {
     const markRow = rec.correct === null || rec.correct === undefined
       ? `<div class="essay-actions">
           <button class="btn btn-sm btn-primary" data-act="ai-grade" ${runtime?.busy ? 'disabled' : ''}>✦ AI 阅卷</button>
@@ -136,7 +144,7 @@ function renderShell(): string {
   const rec = recordOf(q);
   const total = rt.options.questions.length;
   const progress = total ? Math.round(((rt.idx + (rec.submitted ? 1 : 0)) / total) * 100) : 0;
-  const multi = choiceIndexes(q.a).length > 1 && !isEssay(q.a);
+  const multi = !textMode(q) && choiceIndexes(q.a).length > 1;
 
   return `
     <div class="quiz-top">
@@ -152,7 +160,7 @@ function renderShell(): string {
           ${q.subject ? `<span class="tag tag-accent">${escapeHtml(q.subject)}</span>` : ''}
           ${q.chapter ? `<span class="tag">${escapeHtml(q.chapter)}</span>` : ''}
           <span class="grow"></span>
-          <span>${multi ? '多选' : isEssay(q.a) ? '简答' : '单选'}</span>
+          <span>${TYPE_LABEL[detectType(q)]}</span>
         </div>
         <div class="q-text">${renderRich(q.q)}</div>
         ${renderOptions(q, rec)}
@@ -169,7 +177,7 @@ function renderShell(): string {
       ${
         rec.submitted
           ? `<button class="btn btn-primary grow" data-act="next">${rt.idx === total - 1 ? '完成本次' : '下一题'}</button>`
-          : `<button class="btn btn-primary grow" data-act="submit">${multi || isEssay(q.a) ? '提交答案' : '查看答案'}</button>`
+          : `<button class="btn btn-primary grow" data-act="submit">${multi || textMode(q) ? '提交答案' : '查看答案'}</button>`
       }
     </div>`;
 }
@@ -260,8 +268,15 @@ function onInput(ev: Event): void {
 async function grade(q: Question, rec: RecordItem): Promise<void> {
   const rt = runtime!;
   rec.submitted = true;
-  if (isEssay(q.a)) {
-    rec.correct = null;
+  const qtype = detectType(q);
+  if (isTextAnswer(qtype)) {
+    if (qtype === 'blank') {
+      // 填空题：去掉空白与标点后比对，答对直接判对
+      const norm = (v: string) => String(v).replace(/[\s，。、；：""''（）()【】\[\]]/g, '').toLowerCase();
+      rec.correct = norm(rec.text ?? '') !== '' && norm(rec.text ?? '') === norm(String(q.a ?? ''));
+    } else {
+      rec.correct = null;
+    }
   } else {
     rec.correct = sameAnswer(rec.picked, q.a);
     if (rec.correct) {
@@ -273,11 +288,21 @@ async function grade(q: Question, rec: RecordItem): Promise<void> {
       void saveWrong(q, rec);
     }
   }
+  note(q, rec);
   paint();
   if (rec.correct && rt.options.questions.length > rt.idx + 1) {
     await sleep(600);
     if (runtime && runtime.idx === rt.idx) advance();
   }
+}
+
+/** 每道题只统计一次，用于「练习记录」 */
+function note(q: Question, rec: RecordItem): void {
+  if (!rec.submitted || rec.correct === null || rec.correct === undefined) return;
+  const key = rec as RecordItem & { counted?: boolean };
+  if (key.counted) return;
+  key.counted = true;
+  recordStat(detectType(q), rec.correct === true);
 }
 
 function correctStreak(): number {
@@ -398,6 +423,9 @@ async function finish(): Promise<void> {
 
 function markEssay(q: Question, rec: RecordItem, ok: boolean): void {
   rec.correct = ok;
+  rec.submitted = true;
+  note(q, rec);
+  note(q, rec);
   if (ok) {
     vibrate(10);
   } else {
@@ -464,8 +492,8 @@ async function aiExplain(): Promise<void> {
   const prompt = [
     `题目：${plainText(q.q)}`,
     q.opts.length ? `选项：${q.opts.map((o, i) => `${String.fromCharCode(65 + i)}. ${plainText(o)}`).join('；')}` : '',
-    `正确答案：${isEssay(q.a) ? q.a : formatAnswer(q.a, q.opts)}`,
-    rec.submitted ? `我的作答：${isEssay(q.a) ? rec.text : formatAnswer(rec.picked, q.opts)}` : '',
+    `正确答案：${textMode(q) ? q.a : formatAnswer(q.a, q.opts)}`,
+    rec.submitted ? `我的作答：${textMode(q) ? rec.text : formatAnswer(rec.picked, q.opts)}` : '',
     '请用中文简洁地讲解：考点、为什么选它、其他选项错在哪、容易混淆的知识点。',
   ]
     .filter(Boolean)
@@ -559,7 +587,7 @@ export async function handleQuiz(action: string, el: HTMLElement): Promise<boole
     case 'pick': {
       if (rec.submitted) return true;
       const idx = Number(el.dataset.idx);
-      if (isEssay(q.a)) return true;
+      if (textMode(q)) return true;
       const multi = choiceIndexes(q.a).length > 1;
       if (multi) {
         rec.picked = rec.picked.includes(idx) ? rec.picked.filter((n) => n !== idx) : [...rec.picked, idx];
@@ -571,7 +599,7 @@ export async function handleQuiz(action: string, el: HTMLElement): Promise<boole
       return true;
     }
     case 'submit': {
-      if (isEssay(q.a)) {
+      if (textMode(q)) {
         const box = rt.root?.querySelector<HTMLTextAreaElement>('[data-role="essay"]');
         rec.text = box?.value ?? rt.textDraft;
         if (!rec.text.trim()) {
@@ -589,12 +617,12 @@ export async function handleQuiz(action: string, el: HTMLElement): Promise<boole
       return true;
     }
     case 'ai-grade': {
-      if (!isEssay(q.a) || runtime?.busy) return true;
+      if (!textMode(q) || runtime?.busy) return true;
       await gradeEssay(q, rec);
       return true;
     }
     case 'mark': {
-      if (!isEssay(q.a)) return true;
+      if (!textMode(q)) return true;
       markEssay(q, rec, el.dataset.ok === '1');
       return true;
     }

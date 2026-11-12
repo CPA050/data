@@ -1,6 +1,8 @@
 import { api, ApiError } from '../core/api';
 import { applyAppearance, emit, logout, saveAppearance, saveSettings, settings, state, updateTheme } from '../core/app';
 import { escapeHtml } from '../core/format';
+import { TYPE_LABEL } from '../core/question-type';
+import { clearLog as clearStats, summary as statsSummary } from '../core/stats';
 import { openShortcuts } from '../features/shortcuts';
 import { confirm, openModal } from '../ui/modal';
 import { notify } from '../ui/toast';
@@ -80,6 +82,10 @@ export function renderMe(): string {
     }
   })();
 
+  const stats = statsSummary();
+  const pct = (v: number) => (v > 0 ? `${Math.round(v * 100)}%` : '—');
+  const maxDay = Math.max(1, ...stats.days7.map((d) => d.n));
+
   return `
     <div class="profile">
       <div class="profile-avatar">${initial}</div>
@@ -89,7 +95,57 @@ export function renderMe(): string {
       </div>
     </div>
 
+    <div class="section-title">练习记录</div>
+    <div class="card card-pad">
+      <div class="stat-grid">
+        <div class="stat-cell">
+          <span class="stat-big">${stats.today.n}</span>
+          <span class="stat-cap">今日答题</span>
+        </div>
+        <div class="stat-cell">
+          <span class="stat-big">${stats.total}</span>
+          <span class="stat-cap">累计答题</span>
+        </div>
+        <div class="stat-cell">
+          <span class="stat-big">${pct(stats.rate)}</span>
+          <span class="stat-cap">总正确率</span>
+        </div>
+      </div>
+
+      ${
+        stats.byType.length
+          ? `<div class="type-stats">${stats.byType
+              .map(
+                (t) => `
+            <div class="type-row">
+              <span class="type-name">${TYPE_LABEL[t.type]}</span>
+              <span class="type-bar"><i style="width:${Math.round(t.rate * 100)}%"></i></span>
+              <span class="type-val">${t.ok}/${t.n}</span>
+            </div>`,
+              )
+              .join('')}</div>`
+          : `<p class="muted small" style="margin:10px 0 0">还没有练习记录，去刷几题吧</p>`
+      }
+
+      ${
+        stats.days7.length
+          ? `<div class="days">${stats.days7
+              .map(
+                (d) =>
+                  `<div class="day"><i style="height:${Math.max(6, Math.round((d.n / maxDay) * 46))}px"></i><span>${d.label}</span></div>`,
+              )
+              .join('')}</div>`
+          : ''
+      }
+
+      <div class="row between" style="margin-top:14px">
+        <span class="muted small">只统计本机练习；换设备不同步</span>
+        <button class="btn btn-sm btn-ghost" data-act="clear-stats">清空记录</button>
+      </div>
+    </div>
+
     <div class="section-title">外观</div>
+
     <div class="card card-pad">
       <div class="setting-row">
         <div><div class="setting-title">主题</div><div class="setting-desc">深色模式也会跟随系统自动切换</div></div>
@@ -257,6 +313,19 @@ export async function handleMe(action: string, el: HTMLElement): Promise<boolean
           <p class="muted small" style="margin:0">版本 v2.0.0 · 支持 PWA 离线打开</p>`,
         actions: [{ label: '知道了', value: 'ok', variant: 'primary' }],
       });
+      return true;
+    }
+    case 'clear-stats': {
+      const okClear = await confirm({
+        title: '清空练习记录',
+        message: '本机的答题统计会被清除，题库不受影响。',
+        okText: '清空',
+        danger: true,
+      });
+      if (!okClear) return true;
+      clearStats();
+      emit('render');
+      notify.ok('练习记录已清空');
       return true;
     }
     case 'reset-bg':

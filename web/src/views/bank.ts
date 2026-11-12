@@ -2,7 +2,7 @@ import { api, ApiError } from '../core/api';
 import { invalidate, loadBank, state } from '../core/app';
 import { escapeHtml, plainText, renderRich } from '../core/format';
 import { highlightHtml } from '../core/highlight';
-import { detectType, TYPE_LABEL } from '../core/question-type';
+import { detectType, TYPE_LABEL, TYPE_OPTIONS } from '../core/question-type';
 import { formatAnswer } from '../core/format';
 import { confirm, openModal } from '../ui/modal';
 import { createRichEditor } from '../ui/rich-editor';
@@ -205,6 +205,15 @@ async function openEditor(question?: Question): Promise<void> {
       )}</textarea>
     </label>
     <label class="field">
+      <span class="field-label">题型 <span class="muted small">（自动识别不准时手动指定）</span></span>
+      <select class="input" data-role="type">
+        ${TYPE_OPTIONS.map(
+          (t) =>
+            `<option value="${t.value}"${((question?.type ?? '') === t.value) ? ' selected' : ''}>${t.label}</option>`,
+        ).join('')}
+      </select>
+    </label>
+    <label class="field">
       <span class="field-label">答案（单选 A；多选 A,B；简答直接写文字）</span>
       <input class="input" data-role="a" value="${escapeHtml(question ? answerLabel(question) : '')}" placeholder="A">
     </label>
@@ -334,6 +343,8 @@ async function openEditor(question?: Question): Promise<void> {
     answer = rawAnswer;
   }
 
+  const typeEl = body.querySelector<HTMLSelectElement>('[data-role="type"]');
+
   const draft: QuestionDraft = {
     q,
     opts,
@@ -341,6 +352,7 @@ async function openEditor(question?: Question): Promise<void> {
     chapter: get('chapter').trim(),
     subject: get('subject').trim() || '默认题库',
     explain: get('explain').trim(),
+    type: typeEl?.value ?? '',
   };
 
   try {

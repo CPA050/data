@@ -42,7 +42,7 @@ export const onRequestPost = route(async ({ request, env }) => {
 
   await env.exam_db
     .prepare(
-      'UPDATE questions SET q = ?, opts = ?, a = ?, chapter = ?, subject = ?, explain = ?, updated_at = ? WHERE id = ? AND user_id = ?',
+      'UPDATE questions SET q = ?, opts = ?, a = ?, chapter = ?, subject = ?, explain = ?, type = ?, updated_at = ? WHERE id = ? AND user_id = ?',
     )
     .bind(
       q,
@@ -51,6 +51,7 @@ export const onRequestPost = route(async ({ request, env }) => {
       String(body.chapter || ''),
       String(body.subject || '默认题库'),
       String(body.explain || ''),
+      String(body.type || ''),
       new Date().toISOString(),
       id,
       user,
