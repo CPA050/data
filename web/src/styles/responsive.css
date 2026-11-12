@@ -817,3 +817,11 @@
   margin-top: 12px;
 }
 
+
+/* 品牌方块：与图标同一形态（直角黑块 + 白字） */
+.brand-mark {
+  border-radius: 2px;
+  background: #0a0c0f;
+  color: #fff;
+  font-weight: 700;
+}

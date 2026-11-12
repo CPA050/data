@@ -32,7 +32,6 @@ const entries = await readdir(DIST, { withFileTypes: true });
 for (const entry of entries) {
   const from = path.join(DIST, entry.name);
   const to = path.join(ROOT, entry.name);
-  if (entry.name === 'favicon.png') continue; // 根目录已有同名文件
   await cp(from, to, { recursive: true });
   console.log(`  ${entry.isDirectory() ? '目录' : '文件'} ${entry.name}`);
 }
