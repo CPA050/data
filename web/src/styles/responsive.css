@@ -1,0 +1,244 @@
+/*
+ * 响应式与弹窗可用性
+ * 1) 弹窗改成「头/身/脚」三段式：中间滚动，按钮永远可见
+ * 2) 手机 / 平板 / 桌面三档布局
+ */
+
+/* ---------------- 弹窗：内容能滚完，按钮不被挤走 ---------------- */
+
+.modal-card {
+  display: flex;
+  flex-direction: column;
+  width: min(480px, 100%);
+  max-height: min(88dvh, 860px);
+  overflow: hidden;
+  padding: 0;
+}
+
+.modal-title {
+  flex: none;
+  margin: 0;
+  padding: 20px 22px 6px;
+}
+
+.modal-desc {
+  flex: none;
+  margin: 0;
+  padding: 0 22px 4px;
+}
+
+.modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px 22px 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-actions {
+  flex: none;
+  display: flex;
+  gap: 10px;
+  padding: 14px 22px calc(16px + var(--safe-b));
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.modal-actions .btn {
+  flex: 1;
+}
+
+.modal-close {
+  top: 14px;
+  right: 14px;
+}
+
+/* 弹窗内部列表交给 .modal-body 滚动，避免嵌套滚动 */
+.import-list,
+.gen-scroll,
+.gen-list {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+/* ---------------- 平板 ---------------- */
+
+@media (min-width: 720px) {
+  .app-shell {
+    max-width: 780px;
+    margin-inline: auto;
+    padding-inline: 8px;
+  }
+
+  .view-inner {
+    padding-inline: 20px;
+  }
+
+  .tile-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .tabbar {
+    max-width: 560px;
+    margin-inline: auto;
+  }
+
+  .modal-card {
+    width: min(600px, 100%);
+  }
+
+  .modal-title {
+    padding: 22px 26px 6px;
+  }
+
+  .modal-body {
+    padding: 12px 26px 4px;
+  }
+
+  .modal-actions {
+    padding: 16px 26px 18px;
+  }
+}
+
+/* ---------------- 桌面 ---------------- */
+
+@media (min-width: 1080px) {
+  .app-shell {
+    max-width: 1120px;
+    border-inline: 1px solid var(--border);
+    min-height: 100dvh;
+  }
+
+  .view {
+    width: min(980px, 100%);
+  }
+
+  .view-inner {
+    padding: 36px 44px 28px;
+  }
+
+  .mast-title {
+    font-size: 56px;
+  }
+
+  .mast-sub {
+    font-size: 15px;
+  }
+
+  .overview .ov-cell {
+    padding: 18px 20px;
+  }
+
+  .tabbar {
+    max-width: 620px;
+    margin-bottom: 14px;
+  }
+
+  /* 题库表格：桌面显示完整列 */
+  .q-table .c-no {
+    width: 52px;
+  }
+
+  .q-table .c-type {
+    width: 76px;
+  }
+
+  .q-table .c-chapter {
+    width: 140px;
+  }
+
+  .q-table .c-ans {
+    width: 110px;
+  }
+
+  /* 答题卡居中，别拉成一整行 */
+  .quiz .q-card,
+  .quiz .quiz-top,
+  .quiz .quiz-foot {
+    width: min(820px, 100%);
+    margin-inline: auto;
+  }
+
+  /* 弹窗更宽，内容两列排 */
+  .modal-card {
+    width: min(720px, 100%);
+  }
+
+  .import-item + .import-item {
+    margin-top: 6px;
+  }
+
+  .exam .exam-body {
+    width: min(820px, 100%);
+    margin-inline: auto;
+  }
+}
+
+/* 矮屏（手机横屏 / 小笔记本）：把弹窗高度压一点 */
+@media (max-height: 620px) {
+  .modal-card {
+    max-height: 94dvh;
+  }
+
+  .modal-title {
+    padding-top: 16px;
+  }
+}
+
+/* 顶栏内容与正文同宽，避免大屏上品牌贴左、内容居中 */
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  max-width: 760px;
+  margin-inline: auto;
+}
+
+/* 提示条：居中、不压底栏、不被裁 */
+.toast-host {
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  width: min(420px, calc(100% - 24px)) !important;
+  display: grid;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.toast {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+@media (min-width: 720px) {
+  .header-inner {
+    max-width: 100%;
+  }
+}
+
+@media (min-width: 1080px) {
+  .header-inner {
+    max-width: 980px;
+  }
+}
+
+/* 大屏答题：进度条/底部按钮与题卡同宽，悬浮动作挪到卡左侧 */
+@media (min-width: 1080px) {
+  .quiz-progress {
+    width: min(820px, 100%);
+    margin-inline: auto;
+  }
+
+  .quiz-foot {
+    padding-inline: max(16px, calc((100% - 820px) / 2));
+  }
+
+  .floating-actions {
+    right: max(16px, calc((100% - 820px) / 2 - 56px));
+    bottom: calc(var(--safe-b) + 96px);
+  }
+}

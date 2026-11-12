@@ -54,13 +54,15 @@ function mountShell(): void {
   appRoot().innerHTML = `
     <div class="app-shell">
       <header class="app-header">
-        <div class="brand">
-          <span class="brand-dot"></span>
-          <span class="brand-name">Origin Quiz</span>
+        <div class="header-inner">
+          <div class="brand">
+            <span class="brand-dot"></span>
+            <span class="brand-name">Origin Quiz</span>
+          </div>
+          <button class="avatar" data-act="tab" data-tab="me" aria-label="我的">${(state.user || '?')
+            .slice(0, 1)
+            .toUpperCase()}</button>
         </div>
-        <button class="avatar" data-act="tab" data-tab="me" aria-label="我的">${(state.user || '?')
-          .slice(0, 1)
-          .toUpperCase()}</button>
       </header>
       <main id="view" class="view"></main>
       <nav class="tabbar" role="tablist" style="--tab-count:${TABS.length}">
