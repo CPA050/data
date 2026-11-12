@@ -89,6 +89,7 @@ export function normalizeDraft(raw: Record<string, unknown>): QuestionDraft | nu
     q,
     opts,
     a,
+    ...(raw.figure ? { figure: raw.figure } : {}),
     chapter: clean(raw.chapter ?? raw.章节 ?? raw.知识点),
     subject: clean(raw.subject ?? raw.科目 ?? raw.题库) || '默认题库',
   };

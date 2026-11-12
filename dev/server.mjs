@@ -49,12 +49,13 @@ globalThis.fetch = async (input, init = {}) => {
           subject: '一建建筑',
         },
         {
-          q: '【AI 生成】大体积混凝土浇筑时，下列哪项措施不能降低水化热？',
-          opts: ['A. 掺加粉煤灰', 'B. 使用低热水泥', 'C. 提高入模温度', 'D. 埋设冷却水管'],
-          a: 2,
-          explain: '提高入模温度会加剧水化热，不是降温措施。',
+          q: '【AI 生成】如图所示简支梁，跨度 6 m，均布荷载 20 kN/m，跨中最大弯矩最接近下列哪个值？',
+          opts: ['A. 45 kN·m', 'B. 90 kN·m', 'C. 120 kN·m', 'D. 180 kN·m'],
+          a: 1,
+          explain: '简支梁均布荷载跨中弯矩 M = qL²/8 = 20×36/8 = 90 kN·m。',
           chapter: '混凝土',
           subject: '一建建筑',
+          figure: { kind: 'beam', caption: '简支梁受力图', span: 6, load: 'uniform', value: 20 },
         },
       ]);
     }

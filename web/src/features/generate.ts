@@ -2,6 +2,7 @@ import { api, ApiError } from '../core/api';
 import { invalidate, loadBank, state } from '../core/app';
 import { escapeHtml } from '../core/format';
 import { parseJsonQuestions } from './import';
+import { figureDataUrl, readFigure } from './figure';
 import type { QuestionDraft } from '../core/types';
 import { openModal } from '../ui/modal';
 import { notify } from '../ui/toast';
@@ -95,18 +96,37 @@ export async function openGenerate(): Promise<void> {
     return;
   }
 
+  // 把 AI 给的 figure 描述画成本地 SVG，贴进题干；画不出来的就丢弃 figure
+  let figures = 0;
+  const withFigures = drafts.map((d) => {
+    const spec = readFigure((d as unknown as Record<string, unknown>).figure);
+    const url = figureDataUrl(spec);
+    if (!url) return d;
+    figures += 1;
+    const caption = (spec?.caption ?? '示意图').replace(/"/g, '');
+    return { ...d, q: `${d.q}\n<img src="${url}" alt="${caption}">` };
+  });
+  drafts = withFigures;
+
   const preview = document.createElement('div');
   preview.innerHTML = `
-    <div class="muted small" style="margin-bottom:8px">共 ${drafts.length} 道，确认后写入「${escapeHtml(subjectVal)}」</div>
+    <div class="muted small" style="margin-bottom:8px">共 ${drafts.length} 道${
+      figures ? `（${figures} 道带示意图）` : ''
+    }，确认后写入「${escapeHtml(subjectVal)}」</div>
     <div class="import-list">
       ${drafts
         .slice(0, 20)
-        .map(
-          (d, i) =>
-            `<div class="import-item"><b>${i + 1}.</b> ${escapeHtml(String(d.q ?? '').slice(0, 70))}${
-              Array.isArray(d.opts) && d.opts.length ? ` <span class="muted">· ${d.opts.length} 选项</span>` : ''
-            }</div>`,
-        )
+        .map((d, i) => {
+          const img = /<img\b[^>]*src="([^"]+)"/i.exec(String(d.q ?? ''));
+          const thumb = img ? `<img class="gen-thumb" src="${img[1]}" alt="示意图">` : '';
+          const text = String(d.q ?? '')
+            .replace(/<img\b[^>]*>/gi, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+          return `<div class="import-item gen-item"><div class="gen-row"><b>${i + 1}.</b> ${escapeHtml(
+            text.slice(0, 64),
+          )}${Array.isArray(d.opts) && d.opts.length ? ` <span class="muted">· ${d.opts.length} 选项</span>` : ''}</div>${thumb}</div>`;
+        })
         .join('')}
     </div>`;
 

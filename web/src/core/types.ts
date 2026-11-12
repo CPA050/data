@@ -59,6 +59,8 @@ export interface QuestionDraft {
   chapter?: string;
   subject?: string;
   explain?: string;
+  /** AI 出题返回的结构化配图描述，落库前由 figure.ts 画成 <img> */
+  figure?: unknown;
 }
 
 export interface AiResult {
