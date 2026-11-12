@@ -152,7 +152,13 @@ export async function openGenerate(): Promise<void> {
 
   const chapterPool = chapterVal ? [chapterVal] : chapters.length ? chapters : [''];
 
-  for (let batch = 0; collected.length < target && !cancelled; batch += 1) {
+
+  // 两批并发：单批 10–20 秒，串行 100 道要等 1 分多钟，并行能砍掉一半
+  let nextBatch = 0;
+  const CONCURRENCY = 2;
+
+  const runBatch = async (batch: number): Promise<void> => {
+    if (cancelled || collected.length >= target) return;
     const want = Math.min(BATCH, target - collected.length);
     const chapter = chapterPool[batch % chapterPool.length];
     const recent = [...collected.slice(-6), ...bank.slice(0, 6)].map((q) => `· ${plainText(q.q).slice(0, 40)}`);
@@ -174,27 +180,24 @@ export async function openGenerate(): Promise<void> {
     try {
       const res = await api.ai.generate(prompt);
       drafts = parseJsonQuestions(res.result ?? '');
+      failed = 0;
     } catch (error) {
       failed += 1;
       const msg = error instanceof ApiError ? error.message : '网络异常';
-      if (/次数|配额|429/.test(msg)) {
-        stopReason = msg;
-        break;
-      }
       stopReason = msg;
-      if (failed >= 3) break;
-      await sleep(800);
-      continue;
+      if (/次数|配额|429/.test(msg)) cancelled = true;
+      return;
     }
 
     if (!drafts.length) {
       failed += 1;
-      if (failed >= 3) break;
-      continue;
+      if (failed >= 3) stopReason = '模型没有返回可用题目，先停在这里';
+      return;
     }
 
     const before = collected.length;
     for (const d of drafts) {
+      if (collected.length >= target) break;
       const key = norm(d.q);
       if (!key || seen.has(key)) {
         dupes += 1;
@@ -211,17 +214,27 @@ export async function openGenerate(): Promise<void> {
         collected.push(d);
       }
       addFeed(d);
-      if (collected.length >= target) break;
     }
 
     emptyStreak = collected.length > before ? 0 : emptyStreak + 1;
     if (emptyStreak >= 3) {
+      cancelled = true;
       stopReason = '模型开始重复出同一批题，先停在这里';
-      break;
     }
     paintProgress(collected.length, target, dupes ? `去重 ${dupes} 道` : '');
-    await sleep(250);
-  }
+  };
+
+  const worker = async (): Promise<void> => {
+    while (!cancelled && collected.length < target) {
+      const batch = nextBatch;
+      nextBatch += 1;
+      await runBatch(batch);
+      await sleep(60);
+    }
+  };
+
+  await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
+
 
   closeAllModals();
   await sleep(180);

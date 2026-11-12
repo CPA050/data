@@ -57,10 +57,18 @@ export function openModal<T = string>(options: ModalOptions<T>): Promise<T | nul
       settled = true;
       cleanup();
       container.classList.remove('open');
-      window.setTimeout(() => {
+      // 立刻让遮罩不再拦截点击，动画只是视觉残留，不再"卡一下"
+      container.style.pointerEvents = 'none';
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduced) {
         container.remove();
         unlockBody();
-      }, 200);
+      } else {
+        window.setTimeout(() => {
+          container.remove();
+          unlockBody();
+        }, 80);
+      }
       resolve(value);
     };
 

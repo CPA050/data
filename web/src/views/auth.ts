@@ -1,5 +1,5 @@
 import { api, ApiError } from '../core/api';
-import { login, setup, state } from '../core/app';
+import { login, setup } from '../core/app';
 import { escapeHtml } from '../core/format';
 import { notify } from '../ui/toast';
 
@@ -132,7 +132,7 @@ export async function handleAuth(action: string, el: HTMLElement): Promise<boole
     try {
       if (local.step === 'create') await setup(local.username, password);
       else await login(local.username, password);
-      notify.ok(local.step === 'create' ? '账号已创建，开始刷题吧' : `欢迎回来，${state.user}`);
+      if (local.step === 'create') notify.ok('账号已创建，开始刷题吧');
       resetAuth();
     } catch (error) {
       local.error = error instanceof ApiError ? error.message : '登录失败，请重试';

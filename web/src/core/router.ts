@@ -53,6 +53,21 @@ function mountShell(): void {
   authMode = false;
   appRoot().innerHTML = `
     <div class="app-shell">
+      <aside class="sidebar" aria-label="主导航">
+        <div class="sidebar-brand">Origin Quiz</div>
+        <nav class="sidebar-nav">
+          ${TABS.map(
+            (tab) =>
+              `<button class="side-btn" data-act="tab" data-tab="${tab.id}" aria-label="${tab.label}">
+                 <span class="side-ico">${tab.icon}</span><span class="side-label">${tab.label}</span>
+               </button>`,
+          ).join('')}
+        </nav>
+        <div class="sidebar-foot">
+          <span class="side-user">${state.user ? `@${state.user}` : '未登录'}</span>
+          <span class="side-ver">v2.0</span>
+        </div>
+      </aside>
       <header class="app-header">
         <div class="header-inner">
           <div class="brand">
@@ -83,6 +98,11 @@ function syncTabs(): void {
     const active = btn.dataset.tab === state.tab;
     btn.classList.toggle('is-active', active);
     btn.setAttribute('aria-selected', String(active));
+  });
+  document.querySelectorAll<HTMLElement>('.side-btn').forEach((btn) => {
+    const active = btn.dataset.tab === state.tab;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-current', active ? 'page' : 'false');
   });
   // 滑动光晕跟着当前 tab 走
   const nav = document.querySelector<HTMLElement>('.tabbar');
@@ -148,10 +168,10 @@ let scheduledRender = false;
 function scheduleRender(): void {
   if (scheduledRender) return;
   scheduledRender = true;
-  setTimeout(() => {
+  requestAnimationFrame(() => {
     scheduledRender = false;
     rerender();
-  }, 0);
+  });
 }
 
 async function runAuth(handler: () => Promise<boolean>): Promise<void> {

@@ -80,6 +80,20 @@ export async function practiceBank(mode: 'random' | 'sequential' | 'chapter' = '
   startQuiz({ questions: shuffle(bank).slice(0, limit), source: 'all', title: '随机练习' });
 }
 
+/** 乱序练习：整库打乱，直接开始，不再弹数量选择 */
+export function practiceShuffle(): void {
+  const bank = state.bank ?? [];
+  if (!bank.length) {
+    notify.info('题库还是空的，先去添加题目吧');
+    return;
+  }
+  startQuiz({
+    questions: shuffle(bank),
+    source: 'all',
+    title: `乱序练习 · ${bank.length} 题`,
+  });
+}
+
 /** 错题重练 */
 export async function practiceWrong(): Promise<void> {
   const items = state.wrong ?? (await loadWrong(true));
