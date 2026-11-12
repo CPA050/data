@@ -1003,3 +1003,13 @@
   line-height: 1.6;
   color: var(--text-3);
 }
+
+/* 弹窗要盖在 toast 之上：否则底部的提示条会压住「关闭」按钮 */
+.modal-layer {
+  z-index: 130;
+}
+
+/* 提示条永远在弹窗之下，避免挡住按钮 */
+.toast-host {
+  z-index: 60;
+}
