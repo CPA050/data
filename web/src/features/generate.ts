@@ -123,9 +123,12 @@ export async function openGenerate(): Promise<void> {
             .replace(/<img\b[^>]*>/gi, ' ')
             .replace(/\s+/g, ' ')
             .trim();
-          return `<div class="import-item gen-item"><div class="gen-row"><b>${i + 1}.</b> ${escapeHtml(
-            text.slice(0, 64),
-          )}${Array.isArray(d.opts) && d.opts.length ? ` <span class="muted">· ${d.opts.length} 选项</span>` : ''}</div>${thumb}</div>`;
+          return `<div class="import-item gen-item"><div class="gen-row">
+            ${thumb}
+            <span class="gen-text"><b>${i + 1}.</b> ${escapeHtml(text.slice(0, 64))}${
+              Array.isArray(d.opts) && d.opts.length ? ` <span class="muted">· ${d.opts.length} 选项</span>` : ''
+            }</span>
+          </div></div>`;
         })
         .join('')}
     </div>`;

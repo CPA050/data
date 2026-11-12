@@ -1606,3 +1606,42 @@ select.input {
   max-width: 420px;
   margin: 0 auto;
 }
+
+/* 出题预览：列表可滚，缩略图不再被弹窗裁掉 */
+.gen-scroll {
+  max-height: 44vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.gen-thumb {
+  max-height: 96px;
+}
+
+@media (max-height: 720px) {
+  .gen-thumb {
+    max-height: 72px;
+  }
+}
+
+/* 出题预览：缩略图与文字并排，高度可控 */
+.gen-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.gen-thumb {
+  width: 108px;
+  height: 72px;
+  flex: none;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+.gen-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.45;
+}
