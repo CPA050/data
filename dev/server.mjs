@@ -33,10 +33,31 @@ globalThis.fetch = async (input, init = {}) => {
     const sys = JSON.stringify(body.messages || '');
     const isGrade = sys.includes('阅卷老师');
     const isClassify = sys.includes('题库整理助手');
+    const isGenerate = sys.includes('命题老师');
     const isExtract = sys.includes('题目提取助手');
     let content = '1. 【考点定位】模拟解析\n2. 【解析】这是一条本地开发用的假数据。';
     if (isGrade) content = '得分';
     if (isClassify) content = '{"subject":"一建建筑","chapter":"建筑材料"}';
+    if (isGenerate) {
+      content = JSON.stringify([
+        {
+          q: '【AI 生成】混凝土的强度等级是按什么划分的？',
+          opts: ['A. 立方体抗压强度标准值', 'B. 抗拉强度', 'C. 弹性模量', 'D. 坍落度'],
+          a: 0,
+          explain: '混凝土强度等级按立方体抗压强度标准值划分。',
+          chapter: '混凝土',
+          subject: '一建建筑',
+        },
+        {
+          q: '【AI 生成】大体积混凝土浇筑时，下列哪项措施不能降低水化热？',
+          opts: ['A. 掺加粉煤灰', 'B. 使用低热水泥', 'C. 提高入模温度', 'D. 埋设冷却水管'],
+          a: 2,
+          explain: '提高入模温度会加剧水化热，不是降温措施。',
+          chapter: '混凝土',
+          subject: '一建建筑',
+        },
+      ]);
+    }
     if (isExtract) {
       content = JSON.stringify([
         { q: '普通硅酸盐水泥的初凝时间不得早于？', opts: ['A. 45min', 'B. 60min', 'C. 90min', 'D. 30min'], a: 0, chapter: '建筑材料', subject: '一建建筑' },

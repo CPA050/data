@@ -2,6 +2,7 @@ import { go, greeting, loadBank, loadFavs, loadWrong, state } from '../core/app'
 import { escapeHtml } from '../core/format';
 import { getProgress, getRecent, getSession, hasWelcomedToday, markWelcomed } from '../core/storage';
 import { practiceBank, practiceWrong, resumeSession } from '../features/session';
+import { startExam } from '../features/exam';
 
 let welcome = '';
 
@@ -82,6 +83,13 @@ export function renderHome(): string {
            </button>`
     }
 
+    <button class="exam-entry" data-act="exam">
+      <span class="exam-entry-label">MOCK EXAM</span>
+      <span class="exam-entry-title">模拟考试</span>
+      <span class="exam-entry-desc">限时 <b>15</b> 分钟 · 交卷才出分 · 错题自动进错题本</span>
+      <span class="exam-entry-arrow">→</span>
+    </button>
+
     <div class="tile-grid">
       <button class="tile" data-act="sequential" ${bank && !bank.length ? 'disabled' : ''}>
         <span class="tile-idx">01</span>
@@ -153,6 +161,9 @@ export async function handleHome(action: string, el: HTMLElement): Promise<boole
       return true;
     case 'resume':
       resumeSession();
+      return true;
+    case 'exam':
+      await startExam();
       return true;
     default:
       return false;

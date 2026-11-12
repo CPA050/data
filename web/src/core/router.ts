@@ -20,6 +20,7 @@ import { handleMe, mountMe, renderMe } from '../views/me';
 import { handleQuiz } from '../views/quiz';
 import { handleWrong, mountWrong, renderWrong, resetWrong } from '../views/wrong';
 import { quizActive } from '../features/session';
+import { examActive, handleExam } from '../features/exam';
 import { installShortcuts } from '../features/shortcuts';
 import { notify } from '../ui/toast';
 
@@ -161,6 +162,10 @@ async function runAuth(handler: () => Promise<boolean>): Promise<void> {
 function dispatch(el: HTMLElement): void {
   const action = el.dataset.act ?? '';
 
+  if (examActive() && el.closest('.exam')) {
+    if (handleExam(el.dataset.ex ?? '', el)) return;
+  }
+
   if (quizActive() && el.closest('.quiz')) {
     void handleQuiz(action, el).then((handled) => {
       if (!handled) emit('render');
@@ -188,6 +193,14 @@ function dispatch(el: HTMLElement): void {
 function handleClick(event: MouseEvent): void {
   const target = event.target as HTMLElement | null;
   if (!target) return;
+
+  // 考试层用 data-ex，不进 data-act 的分发链
+  const examEl = target.closest<HTMLElement>('[data-ex]');
+  if (examEl && examActive() && examEl.closest('.exam')) {
+    handleExam(examEl.dataset.ex ?? '', examEl);
+    return;
+  }
+
   const el = target.closest<HTMLElement>('[data-act]');
   if (!el) return;
   if (el.closest('.modal-layer')) return; // 弹窗按钮由 openModal 自行处理

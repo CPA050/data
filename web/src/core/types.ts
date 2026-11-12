@@ -8,6 +8,10 @@ export interface Question {
   a: Answer;
   chapter: string;
   subject: string;
+  /** 解析：为什么选它 / 其它选项错在哪 */
+  explain?: string;
+  /** 乐观锁版本号（服务端写入时间），多端编辑冲突检测用 */
+  updated_at?: string;
   created_at?: string;
 }
 
@@ -54,6 +58,7 @@ export interface QuestionDraft {
   a?: Answer;
   chapter?: string;
   subject?: string;
+  explain?: string;
 }
 
 export interface AiResult {

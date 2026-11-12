@@ -114,10 +114,18 @@ function renderAnswerPanel(q: Question, rec: RecordItem): string {
       ${markRow}
     </div>`;
   }
+  const explain = (q.explain ?? '').trim();
   return `<div class="answer-panel">
     <div class="ai-title">${rec.correct ? '✅ 回答正确' : '❌ 回答错误'}</div>
     正确答案：${escapeHtml(formatAnswer(q.a, q.opts))}
     ${rec.correct ? '' : `<br>你的选择：${escapeHtml(mine)}`}
+    ${
+      explain
+        ? `<div class="divider"></div><div class="ai-title" style="color:var(--text-3)">解析</div><div class="explain-body">${renderRich(
+            explain,
+          )}</div>`
+        : ''
+    }
   </div>`;
 }
 

@@ -199,8 +199,18 @@ export const api = {
     },
     add: (questions: QuestionDraft[]) =>
       mutate<{ ok: boolean; added: number }>('/api/questions-add', { user_id: getUser(), questions }, `导入 ${questions.length} 道题`),
-    update: (id: number, draft: QuestionDraft) =>
-      mutate<{ ok: boolean }>('/api/questions-update', { id, user_id: getUser(), ...draft }, '保存题目'),
+    update: (id: number, draft: QuestionDraft, opts?: { baseUpdatedAt?: string; force?: boolean }) =>
+      mutate<{ ok: boolean; conflict?: boolean }>(
+        '/api/questions-update',
+        {
+          id,
+          user_id: getUser(),
+          ...draft,
+          ...(opts?.baseUpdatedAt ? { base_updated_at: opts.baseUpdatedAt } : {}),
+          ...(opts?.force ? { force: true } : {}),
+        },
+        '保存题目',
+      ),
     remove: (ids: number[]) =>
       mutate<{ ok: boolean; deleted: number }>('/api/questions-delete', { ids, user_id: getUser() }, `删除 ${ids.length} 道题`),
   },
@@ -213,7 +223,15 @@ export const api = {
       const rows = Array.isArray(data) ? data : ((data as { questions?: unknown[] }).questions ?? []);
       return rows.map((row) => normalizeWrong(row as Record<string, unknown>));
     },
-    add: (item: { q: string; opts: string[]; a: Answer; chapter?: string; subject?: string; user_choice?: number[] | string }) =>
+    add: (item: {
+      q: string;
+      opts: string[];
+      a: Answer;
+      chapter?: string;
+      subject?: string;
+      explain?: string;
+      user_choice?: number[] | string;
+    }) =>
       mutate<{ ok: boolean }>('/api/wrong-add', {
         user_id: getUser(),
         q: item.q,
@@ -247,6 +265,7 @@ export const api = {
     extract: (payload: { prompt?: string; imageBase64?: string }) =>
       post<AiResult>('/api/ai', { action: 'extract', ...payload }),
     classify: (prompt: string) => post<AiResult>('/api/ai', { action: 'classify', prompt }),
+    generate: (prompt: string) => post<AiResult>('/api/ai', { action: 'generate', prompt }),
     explainStream: (prompt: string, onDelta: (text: string) => void, signal?: AbortSignal) =>
       streamAi({ action: 'explain', prompt }, onDelta, signal),
   },

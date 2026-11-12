@@ -10,6 +10,7 @@ import type { RichEditor } from '../ui/rich-editor';
 import { notify } from '../ui/toast';
 import type { Answer, Question, QuestionDraft } from '../core/types';
 import { openImport } from '../features/import-dialog';
+import { openGenerate } from '../features/generate';
 import { exportSheet } from '../features/export-sheet';
 import { exportDocx } from '../features/export-docx';
 
@@ -165,6 +166,7 @@ export function renderBank(): string {
     </div>
     <div class="tool-row">
       <button class="tool-btn" data-act="import" title="导入题库">⇪<span>导入</span></button>
+      <button class="tool-btn" data-act="generate" title="AI 出题">✦<span>出题</span></button>
       <button class="tool-btn" data-act="add" title="添加题目">＋<span>新建</span></button>
       <button class="tool-btn" data-act="print" title="导出试卷（打印 / 存 PDF）">⎙<span>试卷</span></button>
       <button class="tool-btn" data-act="docx" title="导出 Word（.docx）">⤓<span>Word</span></button>
@@ -216,7 +218,14 @@ async function openEditor(question?: Question): Promise<void> {
         <input class="input" data-role="subject" value="${escapeHtml(question?.subject ?? '默认题库')}" placeholder="默认题库">
       </label>
     </div>
-    <div class="row" style="justify-content:flex-end;margin-top:-4px">
+    <label class="field">
+      <span class="field-label">解析 <span class="muted small">（错题复习时直接看，不用每次问 AI）</span></span>
+      <textarea class="textarea" data-role="explain" rows="3" placeholder="为什么选它、其他选项错在哪">${escapeHtml(
+        question?.explain ?? '',
+      )}</textarea>
+    </label>
+    <div class="row" style="justify-content:flex-end;gap:8px;margin-top:-4px">
+      <button type="button" class="btn btn-ghost btn-sm" data-role="gen-explain">✦ 生成解析</button>
       <button type="button" class="btn btn-ghost btn-sm" data-role="classify">✦ AI 归类</button>
     </div>`;
 
@@ -237,6 +246,33 @@ async function openEditor(question?: Question): Promise<void> {
         });
         host.appendChild(holder.editor.el);
       }
+
+      const genBtn = card.querySelector<HTMLButtonElement>('[data-role="gen-explain"]');
+      genBtn?.addEventListener('click', async () => {
+        const qText = plainText(holder.editor?.getValue() ?? '').trim();
+        const optsText = card.querySelector<HTMLTextAreaElement>('[data-role="opts"]')?.value ?? '';
+        const aText = card.querySelector<HTMLInputElement>('[data-role="a"]')?.value ?? '';
+        if (!qText) {
+          notify.error('先写题干，AI 才能写解析');
+          return;
+        }
+        const box = card.querySelector<HTMLTextAreaElement>('[data-role="explain"]');
+        const label = genBtn.textContent ?? '';
+        genBtn.disabled = true;
+        genBtn.textContent = '生成中…';
+        try {
+          const res = await api.ai.explain(
+            `题目：${qText}\n选项：${optsText.split('\n').join('；')}\n正确答案：${aText}`,
+          );
+          if (box) box.value = (res.result ?? '').trim();
+          notify.ok('解析已生成，可再手动润色');
+        } catch (error) {
+          notify.error(error instanceof ApiError ? error.message : '生成失败');
+        } finally {
+          genBtn.disabled = false;
+          genBtn.textContent = label;
+        }
+      });
 
       const btn = card.querySelector<HTMLButtonElement>('[data-role="classify"]');
       if (!btn) return;
@@ -304,11 +340,31 @@ async function openEditor(question?: Question): Promise<void> {
     a: answer,
     chapter: get('chapter').trim(),
     subject: get('subject').trim() || '默认题库',
+    explain: get('explain').trim(),
   };
 
   try {
-    if (isNew) await api.questions.add([draft]);
-    else await api.questions.update(question!.id, draft);
+    if (isNew) {
+      await api.questions.add([draft]);
+    } else {
+      try {
+        await api.questions.update(question!.id, draft, { baseUpdatedAt: question!.updated_at });
+      } catch (error) {
+        // 409：另一台设备在这期间改过同一题
+        if (error instanceof ApiError && error.status === 409) {
+          const overwrite = await confirm({
+            title: '这道题在别处被改过',
+            message: '另一台设备保存了这题的更新版本。要用你现在的内容覆盖它吗？',
+            okText: '覆盖',
+            danger: true,
+          });
+          if (!overwrite) return;
+          await api.questions.update(question!.id, draft, { force: true });
+        } else {
+          throw error;
+        }
+      }
+    }
     invalidate('bank');
     await loadBank(true);
     notify.ok(isNew ? '题目已添加' : '题目已保存');
@@ -417,6 +473,9 @@ export async function handleBank(action: string, el: HTMLElement): Promise<boole
       rows.forEach((q) => (all ? ui.selected.delete(q.id) : ui.selected.add(q.id)));
       return true;
     }
+    case 'generate':
+      await openGenerate();
+      return true;
     case 'import':
       await importQuestions();
       return true;

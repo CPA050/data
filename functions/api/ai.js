@@ -13,7 +13,7 @@ import { consume, today } from '../_lib/rate.js';
 import { resolveProvider } from '../_lib/ai-provider.js';
 
 // 每个用户每天可用次数（解析/批改共用 60 次，图片识别单独 20 次）
-const QUOTA = { text: 60, extract: 20 };
+const QUOTA = { text: 60, extract: 20, generate: 10 };
 const GLOBAL_DAILY_CAP = 3000;
 const CACHE_DAYS = 7;
 
@@ -36,7 +36,24 @@ const EXTRACT_PROMPT = `你是一个题目提取助手。请从用户提供的�
 const SYSTEM_PROMPTS = {
   explain: '你是一个极简的答题助手。请直接输出：\n1. 核心考点：xxx\n2. 解析：xxx\n严禁输出任何多余的废话、开场白或结束语。字数控制在150字以内。',
   grade: "你是阅卷老师。请对比标准答案和学生回答。如果意思相近即算正确。只允许输出两个字：'得分' 或 '不得分'。",
-  classify: '你是题库整理助手。根据题目内容判断它属于哪个学科、哪个章节。只输出 JSON：{"subject":"学科名","chapter":"章节名"}，不要任何解释。学科与章节都用简短中文（2~8 个字）。'
+  classify: '你是题库整理助手。根据题目内容判断它属于哪个学科、哪个章节。只输出 JSON：{"subject":"学科名","chapter":"章节名"}，不要任何解释。学科与章节都用简短中文（2~8 个字）。',
+  generate: `你是建造师考试的命题老师。请根据用户给出的学科/章节/难度/数量，命制同等风格的选择题。
+严格只输出 JSON 数组，不要任何解释或 markdown 围栏，格式：
+[
+  {
+    "q": "题干（可以含 $LaTeX$ 公式，不要出现"图中"这类需要配图的描述）",
+    "opts": ["A. 选项1", "B. 选项2", "C. 选项3", "D. 选项4"],
+    "a": 0,
+    "explain": "80 字以内的解析：为什么选它、其它选项错在哪",
+    "chapter": "章节名",
+    "subject": "学科名"
+  }
+]
+要求：
+1. 单选题 a 为数字（从 0 开始），多选题 a 为数组如 [0, 2]，不要出简答题。
+2. 四个选项必须互斥且只有一个/一组正确，干扰项要像真题。
+3. 题目必须自洽、可直接作答，不要引用图表。
+4. 数量严格按用户要求，不要多也不要少。`
 };
 
 function cleanAiText(text) {
@@ -151,7 +168,7 @@ export const onRequestPost = route(async ({ request, env }) => {
   const { provider, apiKey, model } = resolved;
 
   const { messages } = buildMessages(action, prompt, imageBase64, model, provider.name);
-  const bucket = action === 'extract' ? 'extract' : 'text';
+  const bucket = action === 'extract' ? 'extract' : action === 'generate' ? 'generate' : 'text';
   const key = await cacheKey(action, model, prompt, imageBase64);
   const wantStream = body.stream === true && action === 'explain';
 
