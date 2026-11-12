@@ -719,3 +719,119 @@
   border-color: var(--text);
   color: var(--bg);
 }
+
+/* ---------------- 今日进度（首页） ---------------- */
+
+.today {
+  margin-top: 8px;
+}
+
+.today-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.today-num {
+  font-size: 56px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+}
+
+.today-unit {
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.today-cap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 14px;
+  color: var(--text-2);
+}
+
+.today-cap small {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--muted);
+}
+
+.today-side {
+  margin-left: auto;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.today-side b {
+  color: var(--text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.today-goal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.today-bar {
+  position: relative;
+  flex: 1;
+  height: 3px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  overflow: hidden;
+}
+
+.today-bar i {
+  display: block;
+  height: 100%;
+  background: var(--text);
+  transition: width 0.5s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+.today-goal-cap {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 720px) {
+  .today-num {
+    font-size: 64px;
+  }
+}
+
+/* 进度条与下方数据条之间留一点空气 */
+.stat-strip {
+  margin-top: 18px;
+}
+
+/* 今日目标：刻度条 */
+.today-ticks {
+  display: flex;
+  flex: 1;
+  gap: 3px;
+  align-items: center;
+}
+
+.today-ticks i {
+  flex: 1;
+  height: 9px;
+  max-width: 6px;
+  background: color-mix(in srgb, var(--text) 14%, transparent);
+  transition: background 0.25s ease;
+}
+
+.today-ticks i.on {
+  background: var(--text);
+}

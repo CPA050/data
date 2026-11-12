@@ -47,6 +47,9 @@ export interface DayStat {
   ok: number;
 }
 
+/** 每天的目标题量，首页进度条用 */
+export const DAILY_GOAL = 20;
+
 export interface StatsSummary {
   total: number;
   ok: number;
@@ -55,6 +58,8 @@ export interface StatsSummary {
   byType: TypeStat[];
   days: DayStat[];
   days7: DayStat[];
+  /** 连续练习天数（今天没练就从昨天往前数） */
+  streak: number;
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -98,6 +103,15 @@ export function summary(): StatsSummary {
     .sort((a, b) => a[1].ts - b[1].ts)
     .map(([label, v]) => ({ label, n: v.n, ok: v.ok }));
 
+  const dayKeys = new Set(list.map((e) => new Date(e.ts).toDateString()));
+  let streak = 0;
+  const cursor = new Date();
+  if (!dayKeys.has(cursor.toDateString())) cursor.setDate(cursor.getDate() - 1);
+  while (dayKeys.has(cursor.toDateString())) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
   return {
     total,
     ok: okTotal,
@@ -106,6 +120,7 @@ export function summary(): StatsSummary {
     byType,
     days,
     days7: days.slice(-7),
+    streak,
   };
 }
 

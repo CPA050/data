@@ -1,6 +1,7 @@
 import { go, greeting, loadBank, loadFavs, loadWrong, state } from '../core/app';
 import { escapeHtml } from '../core/format';
 import { getProgress, getSession, hasWelcomedToday, markWelcomed } from '../core/storage';
+import { DAILY_GOAL, summary as statsSummary } from '../core/stats';
 import { practiceBank, practiceShuffle, practiceWrong, resumeSession } from '../features/session';
 import { startExam } from '../features/exam';
 import { notify } from '../ui/toast';
@@ -21,10 +22,11 @@ export function renderHome(): string {
   const session = getSession();
   const progress = getProgress();
 
-  const total = bank ? bank.length : 0;
-  const suggestion = Math.min(total || 10, 20);
   const empty = Boolean(bank && !bank.length);
   const num = (v: number | undefined) => (v === undefined ? '—' : pad2(v));
+  const stats = statsSummary();
+  const todayN = stats.today.n;
+  const rateText = stats.today.n ? `${Math.round(stats.today.rate * 100)}%` : '—';
 
   return `
     <section class="masthead">
@@ -33,9 +35,17 @@ export function renderHome(): string {
         <span class="mast-dot" aria-hidden="true"></span>
         <span>${state.user ? `@${escapeHtml(state.user)}` : '未登录'}</span>
       </div>
-      <h1 class="mast-title mast-title-sm">
-        练 <em>${pad2(suggestion)}</em> 题
-      </h1>
+      <div class="today">
+        <div class="today-head">
+          <span class="today-num">${pad2(todayN)}</span>
+          <span class="today-unit">题 · 今日已练</span>
+          <span class="today-side">${stats.today.n ? `正确率 <b>${rateText}</b>` : '今天还没开始'}</span>
+        </div>
+        <div class="today-goal">
+          <span class="today-ticks">${Array.from({ length: DAILY_GOAL }, (_, i) => `<i class="${i < todayN ? 'on' : ''}"></i>`).join('')}</span>
+          <span class="today-goal-cap">${todayN} / ${DAILY_GOAL}${stats.streak > 1 ? ` · 连练 ${stats.streak} 天` : ''}</span>
+        </div>
+      </div>
       <div class="stat-strip">
         <button class="stat" data-act="goto" data-tab="bank">
           <span class="stat-num">${num(bank?.length)}</span><span class="stat-label">题库</span>
