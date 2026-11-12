@@ -228,11 +228,15 @@ DELETE FROM ai_cache WHERE created_at < datetime('now', '-7 day');
 
 | 类型 | 每人每天 | 说明 |
 |---|---|---|
-| 解析 / 批改（`explain` / `grade`） | 60 次 | glm-4-flash |
-| 图片识别（`extract` + 图片） | 20 次 | glm-4v-flash，按张计费更高 |
+| 解析 / 批改 / 归类（`explain` / `grade` / `classify`） | 60 次 | `deepseek-flash`（未配 DeepSeek key 时回落 `glm-4-flash`） |
+| 图片识别（`extract` + 图片） | 20 次 | 视觉模型，按张计费更高 |
+| AI 出题（`generate`） | 60 次（每次最多 20 道，约 1200 道/天） | 前端按 20 道一批循环调用，本地去重 |
 | 全站兜底 | 3000 次/天 | 防止密钥被刷爆 |
 
-改配额只需改 `functions/api/ai.js` 顶部的 `QUOTA` / `GLOBAL_DAILY_CAP`。
+改配额只需改 `functions/api/ai.js` 顶部的 `QUOTA` / `GLOBAL_DAILY_CAP`。出题调用的 `max_tokens` 给到 8000、`temperature` 0.8，避免 20 道题被截断。
+
+**批量出题**：题库页「✦ 出题」里可选 10–1000 道。前端每批 20 道调用一次模型，边生成边去重（题干归一化后取前 40 字比对，也跟题库已有题目比对），生成中可随时取消；同一批连续 3 次没有新题会自动停下。图片类示意图由本地 SVG 绘制，不消耗模型额度。
+
 
 ## 题目里怎么写图片和公式
 

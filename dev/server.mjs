@@ -16,6 +16,7 @@ const PORT = Number(process.env.PORT || 8788);
 
 // 记录对智谱的真实调用次数（测试用来断言配额生效）
 export const stats = { aiCalls: 0 };
+let seq = 0;
 
 const db = new D1Shim(process.env.DB_FILE || ':memory:');
 // 与线上同一份 migrations/*.sql，本地不再单独维护 schema.sql
@@ -39,25 +40,26 @@ globalThis.fetch = async (input, init = {}) => {
     if (isGrade) content = '得分';
     if (isClassify) content = '{"subject":"一建建筑","chapter":"建筑材料"}';
     if (isGenerate) {
-      content = JSON.stringify([
-        {
-          q: '【AI 生成】混凝土的强度等级是按什么划分的？',
-          opts: ['A. 立方体抗压强度标准值', 'B. 抗拉强度', 'C. 弹性模量', 'D. 坍落度'],
-          a: 0,
-          explain: '混凝土强度等级按立方体抗压强度标准值划分。',
-          chapter: '混凝土',
-          subject: '一建建筑',
-        },
-        {
-          q: '【AI 生成】如图所示简支梁，跨度 6 m，均布荷载 20 kN/m，跨中最大弯矩最接近下列哪个值？',
-          opts: ['A. 45 kN·m', 'B. 90 kN·m', 'C. 120 kN·m', 'D. 180 kN·m'],
-          a: 1,
-          explain: '简支梁均布荷载跨中弯矩 M = qL²/8 = 20×36/8 = 90 kN·m。',
-          chapter: '混凝土',
-          subject: '一建建筑',
-          figure: { kind: 'beam', caption: '简支梁受力图', span: 6, load: 'uniform', value: 20 },
-        },
-      ]);
+      // 按提示里的「数量：N 道」动态造题，并让题面带序号，避免客户端去重把它们吃掉
+      const asked = Number(/数量：(\d+)\s*道/.exec(sys)?.[1] ?? 2);
+      const count = Math.min(20, Math.max(1, asked));
+      content = JSON.stringify(
+        Array.from({ length: count }, (_, i) => {
+          seq += 1;
+          const no = seq;
+          return {
+            q: `【AI 生成】模拟题 ${no}：第 ${no} 号知识点，下列说法正确的是？`,
+            opts: [`A. 说法 A-${no}`, `B. 说法 B-${no}`, `C. 说法 C-${no}`, `D. 说法 D-${no}`],
+            a: no % 4,
+            explain: `解析 ${no}：这是本地假数据。`,
+            chapter: no % 3 === 0 ? '混凝土' : no % 3 === 1 ? '建筑材料' : '施工管理',
+            subject: '一建建筑',
+            ...(i === 0 && no % 5 === 0
+              ? { figure: { kind: 'beam', caption: '简支梁受力图', span: 6, load: 'uniform', value: 20 } }
+              : {}),
+          };
+        }),
+      );
     }
     if (isExtract) {
       content = JSON.stringify([

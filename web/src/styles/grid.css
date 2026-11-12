@@ -1645,3 +1645,23 @@ select.input {
   min-width: 0;
   line-height: 1.45;
 }
+
+/* 批量出题进度 */
+.gen-progress .gen-bar {
+  height: 6px;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  overflow: hidden;
+}
+
+.gen-progress .gen-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.28s var(--ease-out, ease);
+}
+
+.gen-progress .import-list {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}

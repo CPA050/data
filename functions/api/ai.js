@@ -13,7 +13,7 @@ import { consume, today } from '../_lib/rate.js';
 import { resolveProvider } from '../_lib/ai-provider.js';
 
 // 每个用户每天可用次数（解析/批改共用 60 次，图片识别单独 20 次）
-const QUOTA = { text: 60, extract: 20, generate: 10 };
+const QUOTA = { text: 60, extract: 20, generate: 60 };
 const GLOBAL_DAILY_CAP = 3000;
 const CACHE_DAYS = 7;
 
@@ -194,7 +194,7 @@ export const onRequestPost = route(async ({ request, env }) => {
   // ② 配额
   const day = today();
   const rl = await consume(env, `ai:${user}:${day}:${bucket}`, 24 * 3600, QUOTA[bucket]);
-  if (!rl.allowed) throw new HttpError(429, `今日 AI ${bucket === 'extract' ? '识别' : '解析'}次数已用完（每天 ${QUOTA[bucket]} 次）`);
+  if (!rl.allowed) throw new HttpError(429, `今日 AI ${bucket === 'extract' ? '识别' : bucket === 'generate' ? '出题' : '解析'}次数已用完（每天 ${QUOTA[bucket]} 次）`);
   const globalRl = await consume(env, `ai:global:${day}`, 24 * 3600, GLOBAL_DAILY_CAP);
   if (!globalRl.allowed) throw new HttpError(503, '服务今日 AI 调用总量已达上限，请明天再试');
   const remaining = Math.max(0, QUOTA[bucket] - rl.count);
@@ -206,7 +206,13 @@ export const onRequestPost = route(async ({ request, env }) => {
       upstream = await fetch(provider.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model, messages, temperature: 0.1, stream: true }),
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: action === 'generate' ? 0.8 : 0.1,
+          max_tokens: action === 'generate' ? 8000 : 2000,
+          stream: true,
+        }),
         signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(60000) : undefined
       });
     } catch (e) {
@@ -260,8 +266,14 @@ export const onRequestPost = route(async ({ request, env }) => {
     upstream = await fetch(provider.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, messages, temperature: 0.1, stream: false }),
-      signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(45000) : undefined
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: action === 'generate' ? 0.8 : 0.1,
+        max_tokens: action === 'generate' ? 8000 : 2000,
+        stream: false,
+      }),
+      signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(60000) : undefined
     });
   } catch (e) {
     throw new HttpError(504, 'AI 服务响应超时，请稍后重试');
