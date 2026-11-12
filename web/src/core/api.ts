@@ -1,3 +1,4 @@
+import { enqueue } from './offline';
 import { getUser, getToken } from './storage';
 import { parseAnswer } from './format';
 import type { AiResult, Answer, Question, QuestionDraft, WrongItem } from './types';
@@ -155,6 +156,22 @@ function normalizeWrong(raw: Record<string, unknown>): WrongItem {
 
 /* ---------- 接口 ---------- */
 
+/**
+ * 写操作：断网（fetch 抛错，status=0）时进本地队列，联网后自动补传。
+ * 返回形状与在线一致，调用方不必区分。
+ */
+async function mutate<T extends { ok?: boolean }>(path: string, body: unknown, label: string): Promise<T> {
+  try {
+    return await post<T>(path, body);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 0) {
+      enqueue(path, body, label);
+      return { ok: true, queued: true, offline: true } as unknown as T;
+    }
+    throw error;
+  }
+}
+
 export const api = {
   auth: {
     check: (username: string) =>
@@ -181,11 +198,11 @@ export const api = {
       return rows.map((row) => normalizeQuestion(row as Record<string, unknown>));
     },
     add: (questions: QuestionDraft[]) =>
-      post<{ ok: boolean; added: number }>('/api/questions-add', { user_id: getUser(), questions }),
+      mutate<{ ok: boolean; added: number }>('/api/questions-add', { user_id: getUser(), questions }, `导入 ${questions.length} 道题`),
     update: (id: number, draft: QuestionDraft) =>
-      post<{ ok: boolean }>('/api/questions-update', { id, user_id: getUser(), ...draft }),
+      mutate<{ ok: boolean }>('/api/questions-update', { id, user_id: getUser(), ...draft }, '保存题目'),
     remove: (ids: number[]) =>
-      post<{ ok: boolean; deleted: number }>('/api/questions-delete', { ids, user_id: getUser() }),
+      mutate<{ ok: boolean; deleted: number }>('/api/questions-delete', { ids, user_id: getUser() }, `删除 ${ids.length} 道题`),
   },
 
   wrong: {
@@ -197,7 +214,7 @@ export const api = {
       return rows.map((row) => normalizeWrong(row as Record<string, unknown>));
     },
     add: (item: { q: string; opts: string[]; a: Answer; chapter?: string; subject?: string; user_choice?: number[] | string }) =>
-      post<{ ok: boolean }>('/api/wrong-add', {
+      mutate<{ ok: boolean }>('/api/wrong-add', {
         user_id: getUser(),
         q: item.q,
         opts: item.opts,
@@ -205,9 +222,9 @@ export const api = {
         chapter: item.chapter ?? '',
         subject: item.subject ?? '默认题库',
         user_choice: item.user_choice ?? '',
-      }),
+      }, '记录错题'),
     remove: (ids: number[]) =>
-      post<{ ok: boolean; deleted: number }>('/api/wrong-delete', { ids, user_id: getUser() }),
+      mutate<{ ok: boolean; deleted: number }>('/api/wrong-delete', { ids, user_id: getUser() }, '移除错题'),
   },
 
   favorites: {
@@ -219,9 +236,9 @@ export const api = {
       return rows.map((row) => normalizeQuestion(row as Record<string, unknown>));
     },
     add: (questionId: number) =>
-      post<{ ok: boolean }>('/api/favorites-add', { user_id: getUser(), question_id: questionId }),
+      mutate<{ ok: boolean }>('/api/favorites-add', { user_id: getUser(), question_id: questionId }, '收藏题目'),
     remove: (questionId: number) =>
-      post<{ ok: boolean }>('/api/favorites-remove', { user_id: getUser(), question_id: questionId }),
+      mutate<{ ok: boolean }>('/api/favorites-remove', { user_id: getUser(), question_id: questionId }, '取消收藏'),
   },
 
   ai: {

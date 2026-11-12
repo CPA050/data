@@ -1,6 +1,7 @@
 // web/src/features/shortcuts.ts —— 键盘快捷键（答题 / 导航 / 帮助面板）
 import { go } from '../core/app';
 import { openModal } from '../ui/modal';
+import { openSearch } from './search';
 
 export const SHORTCUTS: { keys: string; desc: string; scope: string }[] = [
   { keys: '1 2 3 4 / A B C D', desc: '选择对应选项', scope: '答题中' },
@@ -12,7 +13,7 @@ export const SHORTCUTS: { keys: string; desc: string; scope: string }[] = [
   { keys: 'G', desc: 'AI 阅卷（简答题）', scope: '答题中' },
   { keys: 'Esc', desc: '关闭弹窗 / 结束练习', scope: '全局' },
   { keys: '1 – 5', desc: '切换 首页 / 题库 / 错题 / 收藏 / 我的', scope: '非答题时' },
-  { keys: '/', desc: '聚焦题库搜索框', scope: '题库页' },
+  { keys: '/ 或 Ctrl+K', desc: '全局搜索（题库 / 错题 / 收藏）', scope: '全局' },
   { keys: '?', desc: '打开这份快捷键说明', scope: '全局' },
 ];
 
@@ -46,6 +47,13 @@ function isTyping(target: EventTarget | null): boolean {
  */
 export function installShortcuts(): void {
   document.addEventListener('keydown', (ev) => {
+    const cmdK = (ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'k';
+    if (cmdK) {
+      if (document.querySelector('.quiz')) return;
+      ev.preventDefault();
+      openSearch();
+      return;
+    }
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
     if (document.querySelector('.quiz')) return;
     if (isTyping(ev.target)) return;
@@ -57,11 +65,8 @@ export function installShortcuts(): void {
       return;
     }
     if (ev.key === '/') {
-      const input = document.querySelector<HTMLInputElement>('.view input[data-role="search"]');
-      if (input) {
-        ev.preventDefault();
-        input.focus();
-      }
+      ev.preventDefault();
+      openSearch();
       return;
     }
     const n = Number(ev.key);

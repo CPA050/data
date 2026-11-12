@@ -1,11 +1,15 @@
 import { api, ApiError } from '../core/api';
 import { invalidate, loadBank, state } from '../core/app';
 import { escapeHtml, plainText, renderRich } from '../core/format';
-import { insertAtCursor, shrinkToDataUrl } from '../core/image';
+import { highlightHtml } from '../core/highlight';
+import { detectType, TYPE_LABEL } from '../core/question-type';
 import { confirm, openModal } from '../ui/modal';
+import { createRichEditor } from '../ui/rich-editor';
+import type { RichEditor } from '../ui/rich-editor';
 import { notify } from '../ui/toast';
 import type { Answer, Question, QuestionDraft } from '../core/types';
 import { openImport } from '../features/import-dialog';
+import { exportSheet } from '../features/export-sheet';
 
 /** 从 AI 返回里抠出第一个 JSON 对象（可能带 ```json 围栏或前后废话） */
 function extractJsonBlock(raw: string): string {
@@ -16,10 +20,13 @@ function extractJsonBlock(raw: string): string {
   return start === -1 || end <= start ? '{}' : block.slice(start, end + 1);
 }
 
+const PAGE_SIZE = 20;
+
 const ui = {
   search: '',
   subject: 'all',
   edit: false,
+  page: 0,
   selected: new Set<number>(),
 };
 
@@ -27,6 +34,7 @@ export function resetBank(): void {
   ui.search = '';
   ui.subject = 'all';
   ui.edit = false;
+  ui.page = 0;
   ui.selected.clear();
 }
 
@@ -55,6 +63,11 @@ function answerLabel(q: Question): string {
 
 export function renderBank(): string {
   const rows = filtered();
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  if (ui.page > pages - 1) ui.page = pages - 1;
+  if (ui.page < 0) ui.page = 0;
+  const pageRows = rows.slice(ui.page * PAGE_SIZE, ui.page * PAGE_SIZE + PAGE_SIZE);
+
   const chips = subjects()
     .map(
       (s) =>
@@ -64,30 +77,51 @@ export function renderBank(): string {
     )
     .join('');
 
+  const tableRows = pageRows
+    .map((q, i) => {
+      const type = detectType(q);
+      const no = String(ui.page * PAGE_SIZE + i + 1).padStart(2, '0');
+      return `<tr class="q-row ${ui.edit ? 'selectable' : ''}" data-id="${q.id}">
+        <td class="c-no">${
+          ui.edit
+            ? `<button class="checkbox" data-act="select" data-id="${q.id}" aria-pressed="${ui.selected.has(q.id)}">✓</button>`
+            : no
+        }</td>
+        <td class="c-q">
+          <div class="q-cell">${highlightHtml(renderRich(q.q), ui.search)}</div>
+          ${q.opts.length ? `<div class="q-sub">${q.opts.length} 个选项</div>` : ''}
+        </td>
+        <td class="c-type"><span class="tag tag-type">${TYPE_LABEL[type]}</span></td>
+        <td class="c-chapter muted">${escapeHtml(q.chapter || '—')}</td>
+        <td class="c-ans"><span class="tag tag-ok">${escapeHtml(answerLabel(q))}</span></td>
+        <td class="c-act"><button class="icon-btn sm" data-act="edit" data-id="${q.id}" aria-label="编辑">✎</button></td>
+      </tr>`;
+    })
+    .join('');
+
   const body = state.loading.bank && !state.bank
-    ? `<div class="list">${Array.from({ length: 4 })
-        .map(
-          () =>
-            `<div class="item"><div class="skeleton sk-line w80"></div><div class="skeleton sk-line w60"></div></div>`,
-        )
+    ? `<div class="list">${Array.from({ length: 5 })
+        .map(() => `<div class="item"><div class="skeleton sk-line w80"></div></div>`)
         .join('')}</div>`
     : rows.length
-      ? `<div class="list">${rows
-          .map(
-            (q) => `
-          <div class="item ${ui.edit ? 'selectable' : ''}" data-id="${q.id}" data-checked="${ui.selected.has(q.id)}">
-            ${ui.edit ? `<span class="checkbox" data-act="select" data-id="${q.id}">✓</span>` : ''}
-            <div class="item-q">${renderRich(q.q)}</div>
-            <div class="item-meta">
-              ${q.subject ? `<span class="tag tag-accent">${escapeHtml(q.subject)}</span>` : ''}
-              ${q.chapter ? `<span class="tag">${escapeHtml(q.chapter)}</span>` : ''}
-              <span class="tag tag-ok">答案 ${escapeHtml(answerLabel(q))}</span>
-              <span class="grow"></span>
-              ${!ui.edit ? `<button class="btn btn-sm btn-ghost" data-act="edit" data-id="${q.id}">编辑</button>` : ''}
-            </div>
-          </div>`,
-          )
-          .join('')}</div>`
+      ? `<div class="table-wrap">
+          <table class="q-table">
+            <thead><tr>
+              <th class="c-no">NO</th><th class="c-q">题干</th><th class="c-type">题型</th>
+              <th class="c-chapter">章节</th><th class="c-ans">答案</th><th class="c-act"></th>
+            </tr></thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>
+        ${
+          pages > 1
+            ? `<div class="pager">
+                 <button class="btn btn-sm" data-act="page-prev" ${ui.page === 0 ? 'disabled' : ''}>← 上一页</button>
+                 <span class="pager-info">${ui.page + 1} / ${pages} 页 · 共 ${rows.length} 题</span>
+                 <button class="btn btn-sm" data-act="page-next" ${ui.page >= pages - 1 ? 'disabled' : ''}>下一页 →</button>
+               </div>`
+            : `<p class="muted small table-count">共 ${rows.length} 题</p>`
+        }`
       : `<div class="empty"><div class="empty-ico">▤</div><div class="empty-title">${
           ui.search ? '没有匹配的题目' : '题库还是空的'
         }</div><div class="empty-desc">${ui.search ? '换个关键词试试' : '点右上角「⇪」导入 JSON / TXT / Word / 图片，或点「＋」手写'}</div></div>`;
@@ -97,36 +131,36 @@ export function renderBank(): string {
     <div class="row" style="margin-bottom:12px">
       <div class="search-box grow">
         <span class="ico">⌕</span>
-        <input type="search" placeholder="搜索题目或选项" data-role="search" value="${escapeHtml(ui.search)}" enterkeyhint="search">
+        <input type="search" placeholder="搜索题干或选项（/ 聚焦）" data-role="search" value="${escapeHtml(ui.search)}" enterkeyhint="search">
       </div>
       <button class="icon-btn" data-act="import" aria-label="导入题库" title="导入题库">⇪</button>
-      <button class="icon-btn" data-act="add" aria-label="添加题目">＋</button>
-      <button class="icon-btn" data-act="toggle-edit" aria-label="批量管理">${ui.edit ? '✓' : '☰'}</button>
+      <button class="icon-btn" data-act="add" aria-label="添加题目" title="添加题目">＋</button>
+      <button class="icon-btn" data-act="print" aria-label="导出试卷" title="导出试卷（打印 / 存 PDF）">⎙</button>
+      <button class="icon-btn" data-act="toggle-edit" aria-label="批量管理" title="批量管理">${ui.edit ? '✓' : '☰'}</button>
     </div>
     <div class="chips">${chips}</div>
     ${ui.edit ? `<div class="row between" style="margin-bottom:12px">
-        <span class="muted small">已选 ${ui.selected.size} 题</span>
+        <button class="btn btn-sm btn-ghost" data-act="select-all">${ui.selected.size === rows.length && rows.length ? '取消全选' : '全选本页'}</button>
         <div class="btn-row" style="gap:8px">
-          <button class="btn btn-sm" data-act="export">导出</button>
+          <button class="btn btn-sm" data-act="export" ${ui.selected.size ? '' : 'disabled'}>导出 JSON</button>
+          <button class="btn btn-sm" data-act="print-selected" ${ui.selected.size ? '' : 'disabled'}>导出试卷</button>
           <button class="btn btn-sm btn-danger" data-act="delete-selected" ${ui.selected.size ? '' : 'disabled'}>删除</button>
         </div>
       </div>` : ''}
-    ${body}
-    <p class="muted small" style="margin-top:18px;text-align:center">共 ${bank().length} 题 · 当前显示 ${rows.length} 题</p>`;
+    ${body}`;
 }
 
 async function openEditor(question?: Question): Promise<void> {
   const isNew = !question;
+  const holder: { editor: RichEditor | null } = { editor: null };
   const body = document.createElement('div');
   body.innerHTML = `
     <label class="field">
       <span class="field-label">题干</span>
-      <textarea class="textarea" data-role="q" placeholder="支持换行、图片与公式">${escapeHtml(question?.q ?? '')}</textarea>
+      <div data-role="q-host"></div>
     </label>
     <div class="row" style="gap:8px;margin-top:-8px;flex-wrap:wrap">
-      <button type="button" class="btn btn-ghost btn-sm" data-role="pick-img">＋ 插入图片</button>
-      <button type="button" class="btn btn-ghost btn-sm" data-role="pick-math">＋ 插入公式</button>
-      <span class="muted small" data-role="img-hint">图片自动压缩后内联，公式写 $E=mc^2$</span>
+      <span class="muted small">粗体 / 上下标 / 列表 / ∑ 公式 / ▣ 图片（自动压缩内联）</span>
     </div>
     <label class="field">
       <span class="field-label">选项（每行一个，留空表示简答题）</span>
@@ -160,50 +194,20 @@ async function openEditor(question?: Question): Promise<void> {
       { label: isNew ? '添加' : '保存', value: true, variant: 'primary' },
     ],
     onMount: (card) => {
-      const qArea = card.querySelector<HTMLTextAreaElement>('[data-role="q"]');
-
-      // 插图：选图 → 压缩 → 以 <img> 内联进题干
-      const imgBtn = card.querySelector<HTMLButtonElement>('[data-role="pick-img"]');
-      if (imgBtn && qArea) {
-        imgBtn.addEventListener('click', () => {
-          const picker = document.createElement('input');
-          picker.type = 'file';
-          picker.accept = 'image/*';
-          picker.onchange = async () => {
-            const file = picker.files?.[0];
-            if (!file) return;
-            const hint = card.querySelector<HTMLElement>('[data-role="img-hint"]');
-            if (hint) hint.textContent = '正在压缩图片…';
-            try {
-              const dataUrl = await shrinkToDataUrl(file);
-              insertAtCursor(qArea, `\n<img src="${dataUrl}" alt="题图">\n`);
-              if (hint) {
-                const kb = Math.round((dataUrl.length * 0.75) / 1024);
-                hint.textContent = `已插入 ${kb} KB 图片`;
-              }
-            } catch {
-              if (hint) hint.textContent = '图片读取失败，换一张试试';
-            }
-          };
-          picker.click();
+      const host = card.querySelector<HTMLElement>('[data-role="q-host"]');
+      if (host) {
+        holder.editor = createRichEditor({
+          value: question?.q ?? '',
+          placeholder: '输入题干；可用工具栏插图、写公式（$…$）',
+          minHeight: 110,
         });
-      }
-
-      // 公式：选中内容包一层 $，没有选中就插入占位符
-      const mathBtn = card.querySelector<HTMLButtonElement>('[data-role="pick-math"]');
-      if (mathBtn && qArea) {
-        mathBtn.addEventListener('click', () => {
-          const start = qArea.selectionStart ?? qArea.value.length;
-          const end = qArea.selectionEnd ?? start;
-          const picked = qArea.value.slice(start, end);
-          insertAtCursor(qArea, picked ? `$${picked}$` : '$公式$');
-        });
+        host.appendChild(holder.editor.el);
       }
 
       const btn = card.querySelector<HTMLButtonElement>('[data-role="classify"]');
       if (!btn) return;
       btn.addEventListener('click', async () => {
-        const qText = card.querySelector<HTMLTextAreaElement>('[data-role="q"]')?.value.trim() ?? '';
+        const qText = plainText(holder.editor?.getValue() ?? '').trim();
         if (!qText) {
           notify.error('先写题干，AI 才能判断归类');
           return;
@@ -232,8 +236,8 @@ async function openEditor(question?: Question): Promise<void> {
   if (!ok) return;
 
   const get = (role: string) => body.querySelector<HTMLTextAreaElement | HTMLInputElement>(`[data-role="${role}"]`)!.value;
-  const q = get('q').trim();
-  if (!q) {
+  const q = (holder.editor?.getValue() ?? '').trim();
+  if (!plainText(q).trim() && !/<img/i.test(q)) {
     notify.error('题干不能为空');
     return;
   }
@@ -346,6 +350,27 @@ export async function handleBank(action: string, el: HTMLElement): Promise<boole
     case 'export':
       exportSelected();
       return true;
+    case 'print':
+      exportSheet(filtered(), { title: `题库 · ${ui.subject === 'all' ? '全部' : ui.subject}` });
+      return true;
+    case 'print-selected':
+      exportSheet(
+        bank().filter((q) => ui.selected.has(q.id)),
+        { title: '选中题目 · 试卷' },
+      );
+      return true;
+    case 'page-prev':
+      ui.page = Math.max(0, ui.page - 1);
+      return true;
+    case 'page-next':
+      ui.page += 1;
+      return true;
+    case 'select-all': {
+      const rows = filtered().slice(ui.page * PAGE_SIZE, ui.page * PAGE_SIZE + PAGE_SIZE);
+      const all = rows.every((q) => ui.selected.has(q.id));
+      rows.forEach((q) => (all ? ui.selected.delete(q.id) : ui.selected.add(q.id)));
+      return true;
+    }
     case 'import':
       await importQuestions();
       return true;
@@ -359,6 +384,7 @@ export async function handleBank(action: string, el: HTMLElement): Promise<boole
 export function onBankInput(el: HTMLElement): boolean {
   if (el.dataset.role === 'search') {
     ui.search = (el as HTMLInputElement).value;
+    ui.page = 0;
     return true;
   }
   return false;

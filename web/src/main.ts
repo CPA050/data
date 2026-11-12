@@ -3,10 +3,12 @@ import './styles/app.css';
 import './styles/glass.css';
 import './styles/grid.css';
 import { boot } from './core/router';
+import { installOfflineQueue } from './core/offline';
 
 function start(): void {
   try {
     boot();
+    installOfflineQueue();
   } catch (error) {
     console.error('[origin-quiz] 启动失败', error);
     const root = document.getElementById('app-root');
