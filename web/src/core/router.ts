@@ -115,8 +115,81 @@ function syncTabs(): void {
   }
 }
 
-function renderView(): void {
-  const view = document.getElementById('view');
+/**
+ * 底栏长按拖动：按住 140ms 后进入拖动，手指滑到哪一格就切到哪个 tab。
+ * 拖动过程中禁用按钮点击，避免松手时又跳回起始页。
+ */
+function installDockDrag(): void {
+  const nav = document.querySelector<HTMLElement>('.tabbar');
+  if (!nav) return;
+
+  let dragging = false;
+  let armed = false;
+  let moved = false;
+  let startX = 0;
+  let timer: number | undefined;
+
+  const indexAt = (clientX: number): number => {
+    const rect = nav.getBoundingClientRect();
+    const pad = 4;
+    const slot = (rect.width - pad * 2) / TABS.length;
+    const raw = Math.floor((clientX - rect.left - pad) / slot);
+    return Math.min(TABS.length - 1, Math.max(0, raw));
+  };
+
+  const arm = () => {
+    if (armed) return;
+    armed = true;
+    nav.classList.add('is-dragging');
+  };
+
+  nav.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    dragging = true;
+    armed = false;
+    moved = false;
+    startX = event.clientX;
+    nav.setPointerCapture(event.pointerId);
+    timer = window.setTimeout(arm, 140);
+  });
+
+  nav.addEventListener('pointermove', (event) => {
+    if (!dragging) return;
+    if (!armed) {
+      if (Math.abs(event.clientX - startX) < 6) return;
+      arm();
+    }
+    moved = true;
+    const next = TABS[indexAt(event.clientX)];
+    if (next && next.id !== state.tab) go(next.id);
+  });
+
+  const end = (event: PointerEvent) => {
+    if (!dragging) return;
+    dragging = false;
+    if (timer) window.clearTimeout(timer);
+    nav.classList.remove('is-dragging');
+    try {
+      nav.releasePointerCapture(event.pointerId);
+    } catch {
+      /* 指针已经释放 */
+    }
+    if (moved) {
+      // 拖动结束后吞掉紧随其后的 click
+      const swallow = (ev: Event) => {
+        ev.stopPropagation();
+        ev.preventDefault();
+      };
+      nav.addEventListener('click', swallow, { capture: true, once: true });
+      window.setTimeout(() => nav.removeEventListener('click', swallow, { capture: true }), 260);
+    }
+  };
+
+  nav.addEventListener('pointerup', end);
+  nav.addEventListener('pointercancel', end);
+}
+
+function renderView(): void {  const view = document.getElementById('view');
   if (!view) return;
 
   const active = document.activeElement as HTMLElement | null;
@@ -152,7 +225,10 @@ function rerender(): void {
       appRoot().innerHTML = renderAuth();
       return;
     }
-    if (!shellMounted) mountShell();
+    if (!shellMounted) {
+      mountShell();
+      installDockDrag();
+    }
     renderView();
   } finally {
     rendering = false;

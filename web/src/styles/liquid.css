@@ -1,181 +1,181 @@
 /* ============================================================
-   liquid.css —— 液态玻璃材质层（最后一层覆盖）
+   liquid.css —— 材质层（最后一层覆盖）
 
-   原则：**结构和排版保持瑞士式**——发丝线、直角、黑白灰、
-        表格与列表不动；只给「浮在内容之上的层」加玻璃：
-        Dock、弹窗、提示条、浮钮、顶栏、侧栏。
-        卡片只加一点点透明度与顶部高光，不换形状、不换圆角。
+   上一版的问题：白色页面上的透明玻璃没有东西可折射，
+   只剩边框和阴影，看着像"发灰的白块"。
+
+   这一版的原则：
+   1) 内容层保持纸感 —— 白底、发丝线、直角，不加透明；
+   2) 只做**一处**真正的液态玻璃：底部 Dock 是一块深色玻璃，
+      滑块是一小片被压亮的镜片（白 14% + 镜面高光）；
+   3) 弹窗不用大模糊，改用"纸浮起来"的硬边 + 远投影；
+   4) 所有装饰只在有对比的地方出现：深色 Dock、深色 CTA。
    ============================================================ */
 
 :root {
-  --lg-blur: 20px;
-  --lg-sat: 165%;
-  --lg-surface: rgba(255, 255, 255, 0.6);
-  --lg-surface-2: rgba(255, 255, 255, 0.44);
-  --lg-edge: rgba(255, 255, 255, 0.7);
-  --lg-sheen: rgba(255, 255, 255, 0.6);
-  --lg-inner: inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  --lg-shadow: 0 20px 44px -28px rgba(10, 12, 15, 0.6), 0 2px 6px -3px rgba(10, 12, 15, 0.14);
+  --dock-bg: rgba(10, 12, 15, 0.92);
+  --dock-edge: rgba(255, 255, 255, 0.14);
+  --dock-lens: rgba(255, 255, 255, 0.16);
+  --dock-lens-edge: rgba(255, 255, 255, 0.4);
+  --paper-shadow: 0 26px 48px -34px rgba(10, 12, 15, 0.55), 0 1px 2px rgba(10, 12, 15, 0.06);
+  --paper-edge: rgba(10, 12, 15, 0.12);
+  --lg-ease: cubic-bezier(0.22, 0.85, 0.24, 1);
 }
 
 [data-theme='dark'] {
-  --lg-surface: rgba(22, 24, 31, 0.55);
-  --lg-surface-2: rgba(32, 35, 44, 0.42);
-  --lg-edge: rgba(255, 255, 255, 0.13);
-  --lg-sheen: rgba(255, 255, 255, 0.13);
-  --lg-inner: inset 0 1px 0 rgba(255, 255, 255, 0.13);
-  --lg-shadow: 0 22px 48px -30px rgba(0, 0, 0, 0.9), 0 2px 8px -4px rgba(0, 0, 0, 0.5);
+  --dock-bg: rgba(30, 33, 41, 0.9);
+  --dock-edge: rgba(255, 255, 255, 0.1);
+  --dock-lens: rgba(255, 255, 255, 0.14);
+  --dock-lens-edge: rgba(255, 255, 255, 0.26);
+  --paper-shadow: 0 30px 56px -40px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --paper-edge: rgba(255, 255, 255, 0.12);
 }
 
-/* 底色：极淡的冷色，让玻璃有东西可折射，但不改变黑白基调 */
-body::before {
-  content: '';
-  position: fixed;
-  inset: -10%;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(50vmax 40vmax at 6% -8%, rgba(20, 64, 255, 0.06), transparent 62%),
-    radial-gradient(46vmax 40vmax at 104% 10%, rgba(92, 122, 200, 0.07), transparent 64%),
-    radial-gradient(58vmax 44vmax at 40% 110%, rgba(120, 140, 190, 0.07), transparent 66%);
-}
-
-@supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
-  :root {
-    --lg-surface: rgba(255, 255, 255, 0.95);
-    --lg-surface-2: rgba(255, 255, 255, 0.92);
-  }
-
-  [data-theme='dark'] {
-    --lg-surface: rgba(22, 24, 31, 0.95);
-    --lg-surface-2: rgba(32, 35, 44, 0.92);
-  }
-}
-
-/* ---------- 1. 卡片：形状不变，只加一层薄膜 ---------- */
+/* ---------- 1. 内容层：取消上一版的透明膜，回到纸 ---------- */
 .card,
 .q-card,
 .profile,
 .ghost-card {
-  background: color-mix(in srgb, var(--surface) 78%, transparent);
-  backdrop-filter: blur(10px) saturate(150%);
-  -webkit-backdrop-filter: blur(10px) saturate(150%);
-  box-shadow: var(--lg-inner), 0 10px 24px -22px rgba(10, 12, 15, 0.45);
+  background: var(--surface);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--paper-shadow);
 }
 
-[data-theme='dark'] .card,
-[data-theme='dark'] .q-card,
-[data-theme='dark'] .profile,
-[data-theme='dark'] .ghost-card {
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
-}
-
-/* ---------- 2. 顶栏：贴顶玻璃条 ---------- */
 .app-header {
-  background: color-mix(in srgb, var(--lg-surface) 84%, transparent);
-  backdrop-filter: blur(18px) saturate(170%);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
-  border-bottom: 1px solid var(--lg-edge);
-  box-shadow: var(--lg-inner);
-}
-
-/* ---------- 3. 底栏：悬浮玻璃 Dock（唯一的圆角大件） ---------- */
-.tabbar {
-  background: var(--lg-surface);
-  border: 1px solid var(--lg-edge);
-  border-radius: 22px;
-  padding: 5px;
-  backdrop-filter: blur(26px) saturate(185%);
-  -webkit-backdrop-filter: blur(26px) saturate(185%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1px 0 rgba(10, 12, 15, 0.05),
-    0 26px 50px -30px rgba(10, 12, 15, 0.62);
-}
-
-/* 滑块：一小块更亮的玻璃 */
-.tabbar .tab-ind {
-  top: 5px;
-  height: calc(100% - 10px);
-  border-radius: 17px;
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.95);
-  box-shadow:
-    inset 0 1px 0 #ffffff,
-    inset 0 -8px 14px -10px rgba(10, 12, 15, 0.22),
-    0 10px 20px -14px rgba(10, 12, 15, 0.55);
-  backdrop-filter: blur(10px) saturate(160%);
-  -webkit-backdrop-filter: blur(10px) saturate(160%);
-  transition: transform 440ms cubic-bezier(0.22, 0.85, 0.24, 1);
-}
-
-[data-theme='dark'] .tabbar .tab-ind {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 -8px 14px -10px rgba(0, 0, 0, 0.6),
-    0 10px 20px -16px rgba(0, 0, 0, 0.8);
-}
-
-.tabbar .tab-btn.is-active .tab-label {
-  font-weight: 700;
-}
-
-/* ---------- 4. 弹窗：最厚的一块玻璃 ---------- */
-.modal-layer {
-  background: color-mix(in srgb, var(--bg) 42%, transparent);
-  backdrop-filter: blur(6px) saturate(120%);
-  -webkit-backdrop-filter: blur(6px) saturate(120%);
-}
-
-.modal-card {
-  background: color-mix(in srgb, var(--lg-surface) 92%, white);
-  border: 1px solid var(--lg-edge);
-  border-radius: 18px;
-  backdrop-filter: blur(30px) saturate(180%);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    0 40px 80px -44px rgba(10, 12, 15, 0.65),
-    0 4px 12px -8px rgba(10, 12, 15, 0.2);
-}
-
-[data-theme='dark'] .modal-card {
-  background: color-mix(in srgb, var(--lg-surface) 92%, black);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 40px 80px -44px rgba(0, 0, 0, 0.9);
-}
-
-/* ---------- 5. 浮钮 / 侧栏 ---------- */
-.fab {
-  background: var(--lg-surface);
-  border: 1px solid var(--lg-edge);
-  border-radius: 12px;
-  backdrop-filter: blur(16px) saturate(170%);
-  -webkit-backdrop-filter: blur(16px) saturate(170%);
-  box-shadow: var(--lg-inner), 0 12px 24px -18px rgba(10, 12, 15, 0.6);
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--border);
+  box-shadow: none;
 }
 
 .sidebar {
-  background: color-mix(in srgb, var(--lg-surface) 62%, transparent);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border-right: 1px solid var(--lg-edge);
+  background: var(--bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-right: 1px solid var(--border);
 }
 
-/* ---------- 6. 提示条：深色玻璃 ---------- */
+/* ---------- 2. Dock：唯一一块真正的深色液态玻璃 ---------- */
+.tabbar {
+  background: var(--dock-bg);
+  border: 1px solid var(--dock-edge);
+  border-radius: 20px;
+  padding: 4px;
+  backdrop-filter: blur(24px) saturate(170%);
+  -webkit-backdrop-filter: blur(24px) saturate(170%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+    0 20px 40px -26px rgba(10, 12, 15, 0.8),
+    0 2px 6px -2px rgba(10, 12, 15, 0.3);
+}
+
+.tabbar .tab-btn {
+  color: rgba(255, 255, 255, 0.58);
+  transition: color 180ms var(--lg-ease);
+}
+
+.tabbar .tab-btn .tab-label {
+  color: inherit;
+  font-weight: 500;
+}
+
+.tabbar .tab-btn.is-active,
+.tabbar .tab-btn.is-active .tab-label {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* 滑块：一小片被压亮的镜片 */
+.tabbar .tab-ind {
+  top: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / var(--tab-count));
+  height: calc(100% - 8px);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.1) 55%, rgba(255, 255, 255, 0.16));
+  border: 1px solid var(--dock-lens-edge);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -6px 12px -8px rgba(0, 0, 0, 0.7),
+    0 6px 14px -10px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px) saturate(160%);
+  -webkit-backdrop-filter: blur(8px) saturate(160%);
+  transition: transform 420ms var(--lg-ease);
+}
+
+[data-theme='dark'] .tabbar .tab-btn {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+[data-theme='dark'] .tabbar .tab-ind {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06) 55%, rgba(255, 255, 255, 0.1));
+}
+
+/* ---------- 3. 弹窗：硬边纸，不用大模糊 ---------- */
+.modal-layer {
+  background: rgba(10, 12, 15, 0.26);
+  backdrop-filter: blur(3px) saturate(120%);
+  -webkit-backdrop-filter: blur(3px) saturate(120%);
+}
+
+.modal-card {
+  background: var(--surface);
+  border: 1px solid var(--paper-edge);
+  border-radius: 4px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 36px 70px -44px rgba(10, 12, 15, 0.7),
+    0 4px 10px -8px rgba(10, 12, 15, 0.28);
+}
+
+[data-theme='dark'] .modal-card {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 36px 70px -44px rgba(0, 0, 0, 0.95);
+}
+
+.modal-actions {
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+}
+
+/* ---------- 4. 浮钮：回到直角细边 ---------- */
+.fab {
+  background: var(--surface);
+  border: 1px solid var(--paper-edge);
+  border-radius: 2px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--paper-shadow);
+}
+
+.fab[data-on='true'] {
+  background: var(--text);
+  color: var(--bg);
+  border-color: transparent;
+}
+
+/* ---------- 5. 提示条：深色小胶囊 ---------- */
 .toast {
-  background: color-mix(in srgb, var(--text) 88%, transparent);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 12px;
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
-  box-shadow: 0 18px 34px -24px rgba(10, 12, 15, 0.75);
+  background: rgba(10, 12, 15, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  box-shadow: 0 18px 34px -24px rgba(10, 12, 15, 0.8);
 }
 
-/* ---------- 7. 明确不玻璃化：列表、表格、选项、键帽 ---------- */
+[data-theme='dark'] .toast {
+  background: rgba(38, 41, 50, 0.94);
+}
+
+/* ---------- 6. 明确不玻璃化 ---------- */
 .table,
 .q-table,
 .opt,
@@ -195,4 +195,17 @@ body::before {
   .tabbar .tab-ind {
     transition: none;
   }
+}
+
+/* 拖动中：滑块跟手（过渡缩到 90ms），按钮不响应点击，避免松手回弹 */
+.tabbar.is-dragging .tab-ind {
+  transition: transform 90ms linear;
+}
+
+.tabbar.is-dragging .tab-btn {
+  pointer-events: none;
+}
+
+.tabbar.is-dragging {
+  cursor: grabbing;
 }
