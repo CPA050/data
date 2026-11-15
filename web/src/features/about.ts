@@ -35,7 +35,7 @@ export function openAbout(): void {
         <span class="about-ver">v${VERSION}</span>
       </div>
 
-      <p class="about-line">一建刷题、错题本、收藏夹。数据存在你自己的 Cloudflare D1，别人看不到。</p>
+      <p class="about-line">多科目刷题、错题本、收藏夹。数据存在你自己的 Cloudflare D1，别人看不到。</p>
 
       <div class="about-stats">
         <div class="about-stat"><b>${bank}</b><span>题库</span></div>

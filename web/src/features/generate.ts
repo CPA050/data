@@ -38,7 +38,7 @@ export async function openGenerate(): Promise<void> {
     <div class="row" style="gap:10px">
       <label class="field grow">
         <span class="field-label">题库</span>
-        <input class="input" data-role="subject" value="${escapeHtml(subject)}" placeholder="如 一建建筑">
+        <input class="input" data-role="subject" value="${escapeHtml(subject)}" placeholder="如 建筑工程 / 经济法 / 英语">
       </label>
       <label class="field grow">
         <span class="field-label">章节 <span class="muted small">（留空则自动轮换）</span></span>

@@ -3,6 +3,7 @@ import './styles/app.css';
 import './styles/glass.css';
 import './styles/grid.css';
 import './styles/responsive.css';
+import './styles/liquid.css';
 import { boot } from './core/router';
 import { installOfflineQueue } from './core/offline';
 
