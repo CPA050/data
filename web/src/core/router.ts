@@ -65,7 +65,7 @@ function mountShell(): void {
         </nav>
         <div class="sidebar-foot">
           <span class="side-user">${state.user ? `@${state.user}` : '未登录'}</span>
-          <span class="side-ver">v2.0</span>
+          <span class="side-ver" title="构建时间">${__BUILD__}</span>
         </div>
       </aside>
       <header class="app-header">
@@ -116,31 +116,49 @@ function syncTabs(): void {
 }
 
 /**
- * 底栏长按拖动：按住 140ms 后进入拖动，手指滑到哪一格就切到哪个 tab。
- * 拖动过程中禁用按钮点击，避免松手时又跳回起始页。
+ * 长按拖动切换页面：按住 140ms（或沿轴移动超过 6px）进入拖动，
+ * 手指滑到哪个 tab 就切到哪个 tab。底栏横向、侧栏纵向共用一套逻辑。
  */
-function installDockDrag(): void {
-  const nav = document.querySelector<HTMLElement>('.tabbar');
+function installNavDrag(selector: string, axis: 'x' | 'y'): void {
+  const nav = document.querySelector<HTMLElement>(selector);
   if (!nav) return;
 
   let dragging = false;
   let armed = false;
   let moved = false;
-  let startX = 0;
+  let start = 0;
+  let pointerId: number | null = null;
   let timer: number | undefined;
 
-  const indexAt = (clientX: number): number => {
-    const rect = nav.getBoundingClientRect();
-    const pad = 4;
-    const slot = (rect.width - pad * 2) / TABS.length;
-    const raw = Math.floor((clientX - rect.left - pad) / slot);
-    return Math.min(TABS.length - 1, Math.max(0, raw));
+  const indexAt = (client: number): number => {
+    const buttons = Array.from(nav.querySelectorAll<HTMLElement>('.tab-btn, .side-btn'));
+    if (!buttons.length) return 0;
+    let best = 0;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    buttons.forEach((btn, index) => {
+      const rect = btn.getBoundingClientRect();
+      const center = axis === 'x' ? rect.left + rect.width / 2 : rect.top + rect.height / 2;
+      const distance = Math.abs(client - center);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = index;
+      }
+    });
+    return best;
   };
 
   const arm = () => {
     if (armed) return;
     armed = true;
     nav.classList.add('is-dragging');
+    // 只有真正进入拖动才抓指针；否则普通点击会被 nav 抢走，按钮就点不动了
+    if (pointerId !== null) {
+      try {
+        nav.setPointerCapture(pointerId);
+      } catch {
+        /* 指针已释放 */
+      }
+    }
   };
 
   nav.addEventListener('pointerdown', (event) => {
@@ -148,20 +166,25 @@ function installDockDrag(): void {
     dragging = true;
     armed = false;
     moved = false;
-    startX = event.clientX;
-    nav.setPointerCapture(event.pointerId);
+    pointerId = event.pointerId;
+    start = axis === 'x' ? event.clientX : event.clientY;
     timer = window.setTimeout(arm, 140);
   });
 
   nav.addEventListener('pointermove', (event) => {
     if (!dragging) return;
+    const current = axis === 'x' ? event.clientX : event.clientY;
     if (!armed) {
-      if (Math.abs(event.clientX - startX) < 6) return;
+      if (Math.abs(current - start) < 6) return;
       arm();
     }
     moved = true;
-    const next = TABS[indexAt(event.clientX)];
-    if (next && next.id !== state.tab) go(next.id);
+    const buttons = nav.querySelectorAll<HTMLElement>('.tab-btn, .side-btn');
+    const button = buttons[indexAt(current)];
+    const next = TABS[indexAt(current)];
+    const raw = button?.dataset.tab ?? next?.id;
+    const target = TABS.find((tab) => tab.id === raw)?.id;
+    if (target && target !== state.tab) go(target);
   });
 
   const end = (event: PointerEvent) => {
@@ -169,13 +192,15 @@ function installDockDrag(): void {
     dragging = false;
     if (timer) window.clearTimeout(timer);
     nav.classList.remove('is-dragging');
-    try {
-      nav.releasePointerCapture(event.pointerId);
-    } catch {
-      /* 指针已经释放 */
+    if (armed) {
+      try {
+        nav.releasePointerCapture(event.pointerId);
+      } catch {
+        /* 指针已释放 */
+      }
     }
+    pointerId = null;
     if (moved) {
-      // 拖动结束后吞掉紧随其后的 click
       const swallow = (ev: Event) => {
         ev.stopPropagation();
         ev.preventDefault();
@@ -189,7 +214,13 @@ function installDockDrag(): void {
   nav.addEventListener('pointercancel', end);
 }
 
-function renderView(): void {  const view = document.getElementById('view');
+function installNavDrags(): void {
+  installNavDrag('.tabbar', 'x');
+  installNavDrag('.sidebar', 'y');
+}
+
+function renderView(): void {
+  const view = document.getElementById('view');
   if (!view) return;
 
   const active = document.activeElement as HTMLElement | null;
@@ -227,7 +258,7 @@ function rerender(): void {
     }
     if (!shellMounted) {
       mountShell();
-      installDockDrag();
+      installNavDrags();
     }
     renderView();
   } finally {

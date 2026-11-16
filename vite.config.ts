@@ -4,10 +4,16 @@ import { fileURLToPath, URL } from 'node:url';
 
 const API_TARGET = process.env.API_TARGET || 'http://127.0.0.1:8788';
 
+/** 构建戳：显示在侧栏/关于页，用来确认"线上是不是最新那版" */
+const BUILD_STAMP = new Date().toISOString().slice(0, 16).replace('T', ' ');
+
 export default defineConfig({
   root: 'web',
   publicDir: 'public',
   base: '/',
+  define: {
+    __BUILD__: JSON.stringify(BUILD_STAMP),
+  },
   resolve: {
     alias: { '@': fileURLToPath(new URL('./web/src', import.meta.url)) },
   },

@@ -60,6 +60,12 @@ for (const vp of VIEWPORTS) {
 
   await nav('home');
   await page.click('[data-act="shuffle"]');
+  // 乱序前会先弹「练哪个科目」；先等弹窗或题面出现，再决定是否点「开始」
+  await page.waitForSelector('.q-text, .modal-card', { timeout: 15000 });
+  if (await page.locator('.modal-card').count()) {
+    const start = page.locator('.modal-card button', { hasText: '开始' });
+    if (await start.count()) await start.first().click();
+  }
   await page.waitForSelector('.q-text', { timeout: 15000 });
   const quiz = await page.evaluate(() => ({
     opts: document.querySelectorAll('.opt').length,
