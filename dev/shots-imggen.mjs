@@ -51,12 +51,15 @@ await page.waitForSelector('.tabbar', { timeout: 20000 });
 await page.click('.tab-btn[data-tab="bank"]');
 await page.waitForSelector('[data-act="import"]', { timeout: 15000 });
 
-// 1) 导入弹窗：accept 与提示
+// 1) 导入弹窗：accept 与提示 + 两个选择按钮
 await page.click('[data-act="import"]');
 await page.waitForSelector('.dropzone', { timeout: 10000 });
 const accept = await page.getAttribute('input[data-role="file"]', 'accept');
+const imgAccept = await page.getAttribute('input[data-role="image"]', 'accept');
 const hint = await page.locator('.dz-hint').innerText().catch(() => '');
+const pickBtns = await page.locator('.dz-btn').count();
 console.log('accept =>', accept);
+console.log('image accept =>', imgAccept, '| 按钮数 =>', pickBtns);
 console.log('hint =>', hint.replace(/\s+/g, ' '));
 await page.screenshot({ path: `${OUT}\\ig-1-import.png` });
 

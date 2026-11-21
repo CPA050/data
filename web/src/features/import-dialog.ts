@@ -62,13 +62,18 @@ export async function openImport(): Promise<void> {
   const body = document.createElement('div');
   body.className = 'import';
   body.innerHTML = `
-    <label class="dropzone" data-role="drop">
+    <div class="dropzone" data-role="drop">
       <span class="dz-icon">⇪</span>
-      <span class="dz-title">把文件拖进来，或点这里选文件</span>
+      <span class="dz-title">把文件拖进来，或点下面选</span>
       <span class="dz-hint">支持 .json / .txt / .md / .csv / .tsv / .docx / .pdf / 图片，可一次选多个；也能直接 Ctrl+V 粘贴截图</span>
+      <div class="dz-actions">
+        <button type="button" class="dz-btn" data-role="pick-file">📄 选文件</button>
+        <button type="button" class="dz-btn" data-role="pick-image">📷 拍照 / 选图</button>
+      </div>
       <input type="file" hidden multiple data-role="file"
-             accept=".json,.txt,.md,.csv,.tsv,.docx,.pdf,image/png,image/jpeg,image/webp,image/gif,image/bmp">
-    </label>
+             accept=".json,.txt,.md,.csv,.tsv,.docx,.pdf">
+      <input type="file" hidden multiple data-role="image" accept="image/*">
+    </div>
     <div class="import-or"><span>或者直接粘贴文字</span></div>
     <textarea class="textarea import-text" data-role="text" rows="7"
       placeholder="1. 普通硅酸盐水泥的初凝时间不得早于？&#10;A. 45min&#10;B. 60min&#10;C. 90min&#10;D. 30min&#10;答案：A&#10;章节：建筑材料"></textarea>
@@ -76,6 +81,7 @@ export async function openImport(): Promise<void> {
 
   const drop = body.querySelector<HTMLElement>('[data-role="drop"]')!;
   const fileInput = body.querySelector<HTMLInputElement>('[data-role="file"]')!;
+  const imageInput = body.querySelector<HTMLInputElement>('[data-role="image"]')!;
   const textArea = body.querySelector<HTMLTextAreaElement>('[data-role="text"]')!;
   const preview = body.querySelector<HTMLElement>('[data-role="preview"]')!;
 
@@ -195,6 +201,24 @@ export async function openImport(): Promise<void> {
 
   fileInput.addEventListener('change', () => {
     void handleFiles([...(fileInput.files ?? [])]);
+  });
+
+  imageInput.addEventListener('change', () => {
+    void handleFiles([...(imageInput.files ?? [])]);
+  });
+
+  body.querySelector<HTMLButtonElement>('[data-role="pick-file"]')!.addEventListener('click', (e) => {
+    e.stopPropagation();
+    fileInput.click();
+  });
+  body.querySelector<HTMLButtonElement>('[data-role="pick-image"]')!.addEventListener('click', (e) => {
+    e.stopPropagation();
+    imageInput.click();
+  });
+  // 桌面端点整个区域默认选文件；点按钮时已被上面的 stopPropagation 挡住
+  drop.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('.dz-btn')) return;
+    fileInput.click();
   });
 
   for (const type of ['dragenter', 'dragover'] as const) {
