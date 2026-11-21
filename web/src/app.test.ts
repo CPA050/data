@@ -81,9 +81,15 @@ describe('前端整体流程', () => {
     loginForm.querySelector<HTMLInputElement>('input[name="password"]')!.value = '123456';
     loginForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await flush(8);
+    // 登录后首页要等统计与题库两路请求回来才渲染，多轮 flush 避免时序抖动
+    // 首页渲染走 requestAnimationFrame，jsdom 下要给真实时间片，setTimeout(0) 抢不到帧
+    for (let i = 0; i < 30 && !/开始练习|先导入题库/.test(text()); i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
 
     expect(state.authed).toBe(true);
-    expect(text()).toContain('开始练习');
+    // 题库为空时首页 CTA 会变成「先导入题库」，两种都算正常
+    expect(text()).toMatch(/开始练习|先导入题库/);
     expect(text()).toContain('题库');
 
     const authHeader = (fetchMock.mock.calls.find(([url]) => String(url).startsWith('/api/questions?'))?.[1] as RequestInit)

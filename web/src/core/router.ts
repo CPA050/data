@@ -65,7 +65,7 @@ function mountShell(): void {
         </nav>
         <div class="sidebar-foot">
           <span class="side-user">${state.user ? `@${state.user}` : '未登录'}</span>
-          <span class="side-ver" title="构建时间">${__BUILD__}</span>
+          <span class="side-ver" title="构建时间">${buildStamp()}</span>
         </div>
       </aside>
       <header class="app-header">
@@ -272,10 +272,28 @@ function rerender(): void {
 
 /** 合并高频重绘：用宏任务而不是微任务，避免渲染→mount→请求→渲染的微任务死循环 */
 let scheduledRender = false;
+// 有些环境（jsdom、老浏览器、后台标签页）没有 requestAnimationFrame，退化成定时器，
+// 否则渲染会被静默丢掉，界面停在上一次状态。
+/** 构建戳由 vite define 注入；单测/纯 node 环境没有这个常量，给个兜底 */
+function buildStamp(): string {
+  try {
+    return typeof __BUILD__ === 'string' ? __BUILD__ : 'dev';
+  } catch {
+    return 'dev';
+  }
+}
+
+const nextFrame: (cb: () => void) => void =
+  typeof requestAnimationFrame === 'function'
+    ? (cb) => requestAnimationFrame(cb)
+    : (cb) => {
+        setTimeout(cb, 16);
+      };
+
 function scheduleRender(): void {
   if (scheduledRender) return;
   scheduledRender = true;
-  requestAnimationFrame(() => {
+  nextFrame(() => {
     scheduledRender = false;
     rerender();
   });
