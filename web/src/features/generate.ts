@@ -13,7 +13,6 @@ import { notify } from '../ui/toast';
  * 这样单次请求不会超时，中途失败只丢一批，用户也能随时取消。
  */
 
-const LEVELS = ['基础', '进阶', '冲刺'] as const;
 const TARGETS = [10, 20, 50, 100, 200, 500, 1000] as const;
 const BATCH = 20;
 const MAX_TARGET = 1000;
@@ -29,41 +28,23 @@ function norm(text: string): string {
 
 export async function openGenerate(): Promise<void> {
   const bank = state.bank ?? [];
-  const subjects = [...new Set(bank.map((q) => q.subject).filter(Boolean))];
-  const chapters = [...new Set(bank.map((q) => q.chapter).filter(Boolean))];
-  const subject = subjects[0] ?? '默认题库';
 
   const body = document.createElement('div');
   body.innerHTML = `
-    <div class="row" style="gap:10px">
-      <label class="field grow">
-        <span class="field-label">题库</span>
-        <input class="input" data-role="subject" value="${escapeHtml(subject)}" placeholder="如 建筑工程 / 经济法 / 英语">
-      </label>
-      <label class="field grow">
-        <span class="field-label">章节 <span class="muted small">（留空则自动轮换）</span></span>
-        <input class="input" data-role="chapter" value="" placeholder="如 混凝土工程">
-      </label>
-    </div>
-    <div class="row" style="gap:10px;margin-top:10px">
-      <label class="field grow">
-        <span class="field-label">数量</span>
-        <select class="input" data-role="count">
-          ${TARGETS.map((n) => `<option value="${n}"${n === 50 ? ' selected' : ''}>${n} 道</option>`).join('')}
-        </select>
-      </label>
-      <label class="field grow">
-        <span class="field-label">难度</span>
-        <select class="input" data-role="level">
-          ${LEVELS.map((n) => `<option value="${n}">${n}</option>`).join('')}
-        </select>
-      </label>
-    </div>
+    <label class="field">
+      <span class="field-label">想要什么题 <span class="muted small">（学科、题型、难度、考点，一句话说清楚）</span></span>
+      <textarea class="textarea" data-role="ask" rows="4" placeholder="例如：初级会计的增值税计算题，难度中等
+再如：高中生物光合作用的选择题，带解析
+又如：英语四级词汇题，50 道四选一"></textarea>
+    </label>
     <label class="field" style="margin-top:10px">
-      <span class="field-label">考点提示 <span class="muted small">（可选，越具体越好）</span></span>
-      <textarea class="textarea" data-role="hint" rows="2" placeholder="如：混凝土养护时间、水化热控制"></textarea>
+      <span class="field-label">数量</span>
+      <select class="input" data-role="count">
+        ${TARGETS.map((n) => `<option value="${n}"${n === 50 ? ' selected' : ''}>${n} 道</option>`).join('')}
+      </select>
     </label>
     <p class="muted small" style="margin:10px 0 0">
+      AI 会按你的描述出题，学科、题型、难度都由你说了算；没提到的部分按默认（单选、四选项、基础难度）。
       按每批 ${BATCH} 道分批生成，边生成边去重；生成完你可以先看前 12 道再决定是否入库。
       数量越多越慢（100 道约 1–2 分钟），中途可取消。
     </p>`;
@@ -78,14 +59,14 @@ export async function openGenerate(): Promise<void> {
   });
   if (!go) return;
 
-  const val = (role: string): string =>
-    (body.querySelector(`[data-role="${role}"]`) as HTMLInputElement | HTMLTextAreaElement | null)?.value.trim() ?? '';
-
-  const subjectVal = val('subject') || '默认题库';
-  const chapterVal = val('chapter');
-  const target = Math.min(MAX_TARGET, Math.max(1, Number(val('count')) || 20));
-  const level = val('level') || '基础';
-  const hint = val('hint');
+  const ask = (body.querySelector('[data-role="ask"]') as HTMLTextAreaElement | null)?.value.trim() ?? '';
+  if (!ask) {
+    notify.error('先描述一下你想要什么题');
+    return;
+  }
+  const target = Math.min(MAX_TARGET, Math.max(1, Number(
+    (body.querySelector('[data-role="count"]') as HTMLSelectElement | null)?.value,
+  ) || 20));
 
   /* ---------------- 生成中：进度面板 ---------------- */
 
@@ -150,9 +131,6 @@ export async function openGenerate(): Promise<void> {
   let failed = 0;
   let emptyStreak = 0;
 
-  const chapterPool = chapterVal ? [chapterVal] : chapters.length ? chapters : [''];
-
-
   // 两批并发：单批 10–20 秒，串行 100 道要等 1 分多钟，并行能砍掉一半
   let nextBatch = 0;
   const CONCURRENCY = 2;
@@ -160,18 +138,13 @@ export async function openGenerate(): Promise<void> {
   const runBatch = async (batch: number): Promise<void> => {
     if (cancelled || collected.length >= target) return;
     const want = Math.min(BATCH, target - collected.length);
-    const chapter = chapterPool[batch % chapterPool.length];
     const recent = [...collected.slice(-6), ...bank.slice(0, 6)].map((q) => `· ${plainText(q.q).slice(0, 40)}`);
 
     const prompt = [
-      `题库：${subjectVal}`,
-      chapter ? `章节：${chapter}` : '',
-      `数量：${want} 道`,
-      `难度：${level}`,
-      hint ? `考点提示：${hint}` : '',
+      `出题需求：${ask}`,
+      `本批数量：${want} 道`,
       batch ? `这是第 ${batch + 1} 批，请换一批考点，不要重复前面出过的题。` : '',
       recent.length ? `不要与这些题相同或近似：\n${recent.join('\n')}` : '',
-      '要求：贴近真实考试题型，四个选项，答案唯一，附一句解析。',
     ]
       .filter(Boolean)
       .join('\n');
@@ -251,7 +224,7 @@ export async function openGenerate(): Promise<void> {
     <div class="muted small" style="margin-bottom:8px">
       共 ${collected.length} 道${figures ? `（${figures} 道带示意图）` : ''}${
         dupes ? `，自动去重 ${dupes} 道` : ''
-      }${stopReason ? ` · 提前结束：${escapeHtml(stopReason)}` : ''}，确认后写入「${escapeHtml(subjectVal)}」
+      }${stopReason ? ` · 提前结束：${escapeHtml(stopReason)}` : ''}，确认后写入题库（科目由 AI 按题目内容归类）
     </div>
     <div class="import-list gen-scroll">
       ${collected
@@ -286,8 +259,8 @@ export async function openGenerate(): Promise<void> {
 
   const rows = collected.map((d) => ({
     ...d,
-    subject: subjectVal,
-    chapter: d.chapter || chapterVal,
+    subject: d.subject || '默认题库',
+    chapter: d.chapter || '',
   }));
 
   let written = 0;

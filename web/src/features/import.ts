@@ -1,19 +1,20 @@
-import { unzipSync, strFromU8 } from 'fflate';
+import { unzipSync, strFromU8, unzlibSync, inflateSync } from 'fflate';
 import type { Answer, QuestionDraft } from '@/core/types';
 
 /* ------------------------------------------------------------------ *
- * 导入解析：JSON / 纯文本 / Word(.docx) / 图片（交给 AI）
+ * 导入解析：JSON / 纯文本 / Word(.docx) / PDF / 图片（交给 AI）
  * ------------------------------------------------------------------ */
 
-export type ImportKind = 'json' | 'text' | 'docx' | 'image' | 'unknown';
+export type ImportKind = 'json' | 'text' | 'docx' | 'pdf' | 'image' | 'unknown';
 
 export function detectKind(file: File): ImportKind {
   const name = file.name.toLowerCase();
   const type = file.type.toLowerCase();
+  if (name.endsWith('.pdf') || type === 'application/pdf') return 'pdf';
   if (type.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|heic)$/.test(name)) return 'image';
   if (name.endsWith('.docx')) return 'docx';
   if (name.endsWith('.json')) return 'json';
-  if (/\.(txt|md|csv|text)$/.test(name) || type.startsWith('text/')) return 'text';
+  if (/\.(txt|md|csv|tsv|text)$/.test(name) || type.startsWith('text/')) return 'text';
   return 'unknown';
 }
 
@@ -253,6 +254,114 @@ export function parseAnyQuestions(raw: string): QuestionDraft[] {
     if (json.length) return json;
   }
   return parseTextQuestions(text);
+}
+
+/* ------------------------------- PDF ------------------------------- */
+
+/** FlateDecode 通常是 zlib 包装，个别 PDF 用裸 deflate，两种都试 */
+function inflatePdf(data: Uint8Array): Uint8Array | null {
+  for (const fn of [unzlibSync, inflateSync]) {
+    try {
+      return fn(data);
+    } catch {
+      /* 换下一种 */
+    }
+  }
+  return null;
+}
+
+/** PDF 文本串转义：\n \r \t \b \f \( \) \\ 与八进制 \ooo */
+function decodePdfString(s: string): string {
+  return s.replace(/\\(?:([nrtbf()\\])|([0-7]{1,3}))/g, (_all, esc: string | undefined, oct: string | undefined) => {
+    if (esc) {
+      const map: Record<string, string> = { n: '\n', r: '\r', t: '\t', b: '\b', f: '\f', '(': '(', ')': ')', '\\': '\\' };
+      return map[esc] ?? '';
+    }
+    return String.fromCharCode(parseInt(oct ?? '0', 8));
+  });
+}
+
+function hexToText(hex: string): string {
+  const cleanHex = hex.replace(/\s+/g, '');
+  if (cleanHex.length % 2 || !/^[0-9A-Fa-f]+$/.test(cleanHex)) return '';
+  const bytes = new Uint8Array(cleanHex.length / 2);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(cleanHex.slice(i * 2, i * 2 + 2), 16);
+  try {
+    return new TextDecoder('utf-8').decode(bytes);
+  } catch {
+    return '';
+  }
+}
+
+function bytesToLatin(u8: Uint8Array): string {
+  let s = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < u8.length; i += CHUNK) s += String.fromCharCode(...u8.subarray(i, i + CHUNK));
+  return s;
+}
+
+/**
+ * 轻量 PDF 文本抽取：只处理内容流里的 (文本) Tj / [..] TJ / ' 与 " 换行操作符。
+ * 不支持 Type3 字体与 CMap，扫不出字会抛错让用户走截图/Word 路线。
+ */
+export function pdfToText(buffer: ArrayBuffer): string {
+  const src = new Uint8Array(buffer);
+  const latin = bytesToLatin(src);
+  const chunks: string[] = [];
+
+  const streamRe = /stream\r?\n([\s\S]*?)endstream/g;
+  let m: RegExpExecArray | null;
+  while ((m = streamRe.exec(latin))) {
+    const dictStart = latin.lastIndexOf('<<', m.index);
+    const dict = dictStart >= 0 ? latin.slice(dictStart, m.index) : '';
+    const nl = m[0].indexOf('\n');
+    const bodyStart = m.index + (nl >= 0 ? nl + 1 : 'stream'.length);
+    const bodyEnd = m.index + m[0].length - 'endstream'.length;
+    // zlib 解压对尾部垃圾敏感，去掉 stream 与 endstream 之间的换行/空白
+    let end = bodyEnd;
+    while (end > bodyStart && (src[end - 1] === 0x0a || src[end - 1] === 0x0d || src[end - 1] === 0x20 || src[end - 1] === 0x09)) end--;
+    const raw = src.subarray(bodyStart, end);
+    if (/FlateDecode/.test(dict)) {
+      const inflated = inflatePdf(raw);
+      if (inflated) chunks.push(bytesToLatin(inflated));
+    } else {
+      chunks.push(bytesToLatin(raw));
+    }
+  }
+
+  const content = chunks.join('\n');
+  const lines: string[] = [];
+
+  for (const tm of content.matchAll(/\(((?:\\.|[^()\\])*)\)\s*Tj|<([0-9A-Fa-f\s]+)>\s*Tj/g)) {
+    const lit = tm[1] !== undefined ? decodePdfString(tm[1]) : hexToText(tm[2]);
+    if (lit.trim()) lines.push(lit);
+  }
+  for (const tm of content.matchAll(/\[((?:\\.|[^\]])*)\]\s*TJ/g)) {
+    let out = '';
+    for (const part of tm[1].matchAll(/\(((?:\\.|[^()\\])*)\)|<([0-9A-Fa-f\s]+)>/g)) {
+      out += part[1] !== undefined ? decodePdfString(part[1]) : hexToText(part[2]);
+    }
+    if (out.trim()) lines.push(out);
+  }
+  for (const tm of content.matchAll(/(?:^|[\r\n])\s*'((?:\\.|[^'\\])*)'|"((?:\\.|[^"\\])*)"/g)) {
+    const lit = tm[1] !== undefined ? decodePdfString(tm[1]) : decodePdfString(tm[2]);
+    if (lit.trim()) lines.push(lit);
+  }
+
+  const text = fixEncoding(lines.join('\n').replace(/[\r\n]{3,}/g, '\n\n').trim());
+  if (!text) {
+    throw new Error('这份 PDF 里没有可提取的文字（多半是扫描件），请截图让我识别，或转成 Word / 文本再导入');
+  }
+  return text;
+}
+
+/** 简单 PDF 里中文常以 UTF-8 字节存进 Latin-1 串，把它还原成正常中文 */
+function fixEncoding(s: string): string {
+  if (!/[\u0080-\u00ff]/.test(s)) return s;
+  const bytes = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i) & 0xff;
+  const decoded = new TextDecoder('utf-8').decode(bytes);
+  return /[\u4e00-\u9fff]/.test(decoded) ? decoded : s;
 }
 
 /* ------------------------------- Word ------------------------------- */

@@ -9,6 +9,7 @@ import {
   docxToText,
   parseAnyQuestions,
   parseJsonQuestions,
+  pdfToText,
   readAsBuffer,
   readAsDataUrl,
   readAsText,
@@ -64,9 +65,9 @@ export async function openImport(): Promise<void> {
     <label class="dropzone" data-role="drop">
       <span class="dz-icon">⇪</span>
       <span class="dz-title">把文件拖进来，或点这里选文件</span>
-      <span class="dz-hint">支持 .json / .txt / .md / .csv / .docx / 图片，可一次选多个；也能直接 Ctrl+V 粘贴截图</span>
+      <span class="dz-hint">支持 .json / .txt / .md / .csv / .tsv / .docx / .pdf / 图片，可一次选多个；也能直接 Ctrl+V 粘贴截图</span>
       <input type="file" hidden multiple data-role="file"
-             accept=".json,.txt,.md,.csv,.tsv,.docx,image/png,image/jpeg,image/webp,image/gif,image/bmp">
+             accept=".json,.txt,.md,.csv,.tsv,.docx,.pdf,image/png,image/jpeg,image/webp,image/gif,image/bmp">
     </label>
     <div class="import-or"><span>或者直接粘贴文字</span></div>
     <textarea class="textarea import-text" data-role="text" rows="7"
@@ -131,8 +132,13 @@ export async function openImport(): Promise<void> {
         acceptText(docxToText(buf), 'docx', file.name);
         return;
       }
+      if (kind === 'pdf') {
+        const buf = await readAsBuffer(file);
+        acceptText(pdfToText(buf), 'text', file.name);
+        return;
+      }
       if (kind === 'unknown') {
-        notify.error('暂不支持这种文件，换成 txt / json / docx / 图片试试');
+        notify.error('这种文件识别不了，换成 txt / json / docx / pdf / 图片试试');
         return;
       }
       const text = await readAsText(file);
@@ -163,6 +169,15 @@ export async function openImport(): Promise<void> {
         if (kind === 'docx') {
           merged.push(...parseByKind('docx', docxToText(await readAsBuffer(file))));
           notes.push(file.name);
+          continue;
+        }
+        if (kind === 'pdf') {
+          merged.push(...parseByKind('text', pdfToText(await readAsBuffer(file))));
+          notes.push(file.name);
+          continue;
+        }
+        if (kind === 'unknown') {
+          notify.error(`${file.name}：这种文件识别不了，先跳过`);
           continue;
         }
         merged.push(...parseByKind(kind, await readAsText(file)));
