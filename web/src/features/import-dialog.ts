@@ -279,7 +279,7 @@ export async function openImport(): Promise<void> {
     imported = true;
     const res = await api.questions.add(finalDrafts);
     invalidate('bank');
-    await loadBank(true);
+    void loadBank(true); // 不阻塞：弹窗立即关闭，题库后台刷新（之前 await 在这里导致"卡一下"）
     notify.ok(`已导入 ${res.added ?? finalDrafts.length} 道题`);
   } catch (error) {
     notify.error(error instanceof ApiError ? error.message : '导入失败');

@@ -194,10 +194,8 @@ const inflight = new Map<string, Promise<unknown>>();
 
 export function invalidate(kind?: 'bank' | 'wrong' | 'fav'): void {
   if (kind) {
+    // 只标过期，保留旧数据继续显示：后台刷新替换，避免整页骨架屏闪烁（导入/删除后的"卡一下"就是这里清的）
     loadedAt[kind] = 0;
-    if (kind === 'bank') state.bank = null;
-    if (kind === 'wrong') state.wrong = null;
-    if (kind === 'fav') state.favs = null;
   } else {
     loadedAt.bank = loadedAt.wrong = loadedAt.fav = 0;
     state.bank = null;
@@ -237,10 +235,40 @@ async function load<T>(kind: 'bank' | 'wrong' | 'fav', force: boolean, fetcher: 
   }
 }
 
+/* ---------------- 题库本地缓存：秒开，后台再刷新 ---------------- */
+
+function bankCacheKey(): string {
+  return `oq:cache:bank:${state.user}`;
+}
+
+function restoreBankCache(): void {
+  if (state.bank) return;
+  try {
+    const raw = localStorage.getItem(bankCacheKey());
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as { rows?: Question[] };
+    if (Array.isArray(parsed.rows)) state.bank = parsed.rows;
+  } catch {
+    /* 缓存损坏就忽略，走网络 */
+  }
+}
+
+function persistBankCache(rows: Question[]): void {
+  try {
+    const payload = JSON.stringify({ at: Date.now(), rows });
+    if (payload.length > 2_500_000) return; // 别把 localStorage 塞爆
+    localStorage.setItem(bankCacheKey(), payload);
+  } catch {
+    /* 空间不足忽略 */
+  }
+}
+
 export async function loadBank(force = false): Promise<Question[]> {
+  restoreBankCache();
   try {
     await load('bank', force, () => api.questions.list(), (rows) => {
       state.bank = rows;
+      persistBankCache(rows);
     });
   } catch {
     /* 已在 load 内提示 */

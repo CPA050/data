@@ -272,7 +272,7 @@ export async function openGenerate(): Promise<void> {
       notify.info(`已写入 ${written} / ${rows.length} 道`);
     }
     invalidate('bank');
-    await loadBank(true);
+    void loadBank(true); // 不阻塞：导入完立即提示，题库后台刷新
     notify.ok(`已导入 ${written} 道题`);
   } catch (error) {
     notify.error(error instanceof ApiError ? error.message : `导入中断，已写入 ${written} 道`);

@@ -76,23 +76,29 @@ export function renderBank(): string {
   if (ui.page < 0) ui.page = 0;
   const pageRows = rows.slice(ui.page * PAGE_SIZE, ui.page * PAGE_SIZE + PAGE_SIZE);
 
+  const subCounts = new Map<string, number>();
+  bank().forEach((q) => {
+    const s = q.subject || '默认题库';
+    subCounts.set(s, (subCounts.get(s) ?? 0) + 1);
+  });
   const chips = subjects()
     .map(
       (s) =>
         `<button class="chip" data-act="subject" data-subject="${escapeHtml(s)}" aria-pressed="${ui.subject === s}">
-          ${s === 'all' ? '全部' : escapeHtml(s)}
+          ${s === 'all' ? '全部' : escapeHtml(s)} <span class="chip-n">${s === 'all' ? bank().length : subCounts.get(s) ?? 0}</span>
         </button>`,
     )
     .join('');
 
-  const all = bank();
+  // 题型计数只统计当前学科筛选下的题（选完学科，「全部」旁边的数字就是该学科的数量）
+  const scoped = bank().filter((q) => ui.subject === 'all' || (q.subject || '默认题库') === ui.subject);
   const counts: Record<string, number> = { single: 0, multi: 0, judge: 0, blank: 0, essay: 0 };
-  all.forEach((q) => {
+  scoped.forEach((q) => {
     counts[detectType(q)] += 1;
   });
   const typeChips = (
     [
-      ['all', '全部', all.length],
+      ['all', '全部', scoped.length],
       ['single', '单选', counts.single],
       ['multi', '多选', counts.multi],
       ['judge', '判断', counts.judge],
@@ -174,13 +180,18 @@ export function renderBank(): string {
     </div>
     <div class="chips">${chips}</div>
     <div class="chips chips-type">${typeChips}</div>
-    ${ui.edit ? `<div class="row between" style="margin-bottom:12px">
-        <button class="btn btn-sm btn-ghost" data-act="select-all">${ui.selected.size === rows.length && rows.length ? '取消全选' : '全选本页'}</button>
-        <div class="btn-row" style="gap:8px">
+    ${ui.edit ? `<div class="row between" style="margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div class="btn-row" style="gap:8px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-ghost" data-act="select-all">全选本页</button>
+          <button class="btn btn-sm btn-ghost" data-act="select-filtered">全选筛选（${rows.length} 题）</button>
+          ${ui.subject !== 'all' ? `<button class="btn btn-sm btn-danger" data-act="delete-subject">删除本学科全部（${scoped.length} 题）</button>` : ''}
+        </div>
+        <div class="btn-row" style="gap:8px;flex-wrap:wrap">
+          <span class="muted small" style="align-self:center">已选 ${ui.selected.size} 题</span>
           <button class="btn btn-sm" data-act="export" ${ui.selected.size ? '' : 'disabled'}>导出 JSON</button>
           <button class="btn btn-sm" data-act="print-selected" ${ui.selected.size ? '' : 'disabled'}>导出试卷</button>
           <button class="btn btn-sm" data-act="docx-selected" ${ui.selected.size ? '' : 'disabled'}>导出 Word</button>
-          <button class="btn btn-sm btn-danger" data-act="delete-selected" ${ui.selected.size ? '' : 'disabled'}>删除</button>
+          <button class="btn btn-sm btn-danger" data-act="delete-selected" ${ui.selected.size ? '' : 'disabled'}>删除选中</button>
         </div>
       </div>` : ''}
     ${body}`;
@@ -378,7 +389,7 @@ async function openEditor(question?: Question): Promise<void> {
       }
     }
     invalidate('bank');
-    await loadBank(true);
+    void loadBank(true); // 不阻塞：界面立即响应，题库后台刷新
     notify.ok(isNew ? '题目已添加' : '题目已保存');
   } catch (error) {
     notify.error(error instanceof ApiError ? error.message : '保存失败');
@@ -440,10 +451,43 @@ export async function handleBank(action: string, el: HTMLElement): Promise<boole
       }
       try {
         await api.questions.remove(ids);
+        state.bank = state.bank?.filter((q) => !ids.includes(q.id)) ?? null; // 本地先删，界面立刻少题
         ui.selected.clear();
         invalidate('bank');
-        await loadBank(true);
-        notify.ok('已删除');
+        void loadBank(true); // 后台刷新对齐，不阻塞界面
+        notify.ok(`已删除 ${ids.length} 道题`);
+      } catch (error) {
+        notify.error(error instanceof ApiError ? error.message : '删除失败');
+      }
+      return true;
+    }
+    case 'delete-subject': {
+      if (ui.subject === 'all') return true;
+      const rows = bank().filter((q) => (q.subject || '默认题库') === ui.subject);
+      const ids = rows.map((q) => q.id);
+      if (!ids.length) {
+        notify.info('这个学科下没有题目');
+        return true;
+      }
+      if (
+        !(await confirm({
+          title: '删除本学科全部题目',
+          message: `确定删除「${ui.subject}」的全部 ${ids.length} 道题？此操作不可恢复。`,
+          danger: true,
+          okText: '全部删除',
+        }))
+      ) {
+        return true;
+      }
+      try {
+        const subjName = ui.subject;
+        await api.questions.remove(ids);
+        state.bank = state.bank?.filter((q) => !ids.includes(q.id)) ?? null;
+        ui.selected.clear();
+        ui.subject = 'all'; // 学科已清空，回到「全部」视图
+        invalidate('bank');
+        void loadBank(true);
+        notify.ok(`已删除「${subjName}」的 ${ids.length} 道题`);
       } catch (error) {
         notify.error(error instanceof ApiError ? error.message : '删除失败');
       }
@@ -483,6 +527,13 @@ export async function handleBank(action: string, el: HTMLElement): Promise<boole
       const rows = filtered().slice(ui.page * PAGE_SIZE, ui.page * PAGE_SIZE + PAGE_SIZE);
       const all = rows.every((q) => ui.selected.has(q.id));
       rows.forEach((q) => (all ? ui.selected.delete(q.id) : ui.selected.add(q.id)));
+      return true;
+    }
+    case 'select-filtered': {
+      // 跨页全选当前筛选结果（不再只能 20 个 20 个选）
+      const ids = filtered().map((q) => q.id);
+      const all = ids.length > 0 && ids.every((id) => ui.selected.has(id));
+      ids.forEach((id) => (all ? ui.selected.delete(id) : ui.selected.add(id)));
       return true;
     }
     case 'generate':
