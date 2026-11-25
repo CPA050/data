@@ -226,7 +226,9 @@ async function openEditor(question?: Question): Promise<void> {
     </label>
     <label class="field">
       <span class="field-label">答案（单选 A；多选 A,B；简答直接写文字）</span>
-      <input class="input" data-role="a" value="${escapeHtml(question ? answerLabel(question) : '')}" placeholder="A">
+      <input class="input" data-role="a" value="${escapeHtml(
+        question ? (typeof question.a === 'string' ? question.a : answerLabel(question)) : '',
+      )}" placeholder="A">
     </label>
     <div class="row" style="gap:10px">
       <label class="field grow">
@@ -401,7 +403,10 @@ async function importQuestions(): Promise<void> {
 }
 
 function exportSelected(): void {
-  const rows = bank().filter((q) => ui.selected.has(q.id));
+  // 只导出题目本身，把 id / user_id / updated_at 这类内部字段剥掉（再导入时不会被旧 id 干扰）
+  const rows = bank()
+    .filter((q) => ui.selected.has(q.id))
+    .map((q) => ({ q: q.q, opts: q.opts, a: q.a, chapter: q.chapter, subject: q.subject, type: q.type, explain: q.explain }));
   if (!rows.length) {
     notify.info('先选择要导出的题目');
     return;

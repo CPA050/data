@@ -85,7 +85,8 @@ export function summary(): StatsSummary {
     if (e.ok) b.ok += 1;
     buckets.set(e.type, b);
 
-    const key = `${d.getMonth() + 1}-${pad(d.getDate())}`;
+    // key 带年份，防止跨年天数被合并（label 展示时去掉年份）
+    const key = `${d.getFullYear()}-${d.getMonth() + 1}-${pad(d.getDate())}`;
     const day = dayMap.get(key) ?? { n: 0, ok: 0, ts: d.setHours(0, 0, 0, 0) };
     day.n += 1;
     if (e.ok) day.ok += 1;
@@ -98,7 +99,7 @@ export function summary(): StatsSummary {
 
   const days = [...dayMap.entries()]
     .sort((a, b) => a[1].ts - b[1].ts)
-    .map(([label, v]) => ({ label, n: v.n, ok: v.ok }));
+    .map(([key, v]) => ({ label: key.slice(5), n: v.n, ok: v.ok }));
 
   const dayKeys = new Set(list.map((e) => new Date(e.ts).toDateString()));
   let streak = 0;

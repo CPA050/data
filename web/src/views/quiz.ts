@@ -1,5 +1,5 @@
 import { api, ApiError } from '../core/api';
-import { isFavorite, toggleFavorite } from '../core/app';
+import { invalidate, isFavorite, toggleFavorite } from '../core/app';
 import { countUp, sleep, vibrate } from '../core/dom';
 import {
   choiceIndexes,
@@ -9,6 +9,7 @@ import {
   plainText,
   renderRich,
   sameAnswer,
+  shuffle,
 } from '../core/format';
 import { pushRecent, saveNote, getNotes, setProgress } from '../core/storage';
 import { detectType, isTextAnswer, TYPE_LABEL } from '../core/question-type';
@@ -325,8 +326,10 @@ async function saveWrong(q: Question, rec: RecordItem): Promise<void> {
       a: q.a,
       chapter: q.chapter,
       subject: q.subject,
-      user_choice: rec.picked,
+      // 简答/填空把当时写的文字存进 user_choice，错题本里能看见自己写了啥
+      user_choice: textMode(q) ? rec.text : rec.picked,
     });
+    invalidate('wrong'); // 只标过期：首页/错题页下次进来拿最新数量，不整页闪
   } catch (error) {
     if (error instanceof ApiError && error.status !== 401) notify.error(`错题保存失败：${error.message}`);
   }
@@ -383,6 +386,7 @@ function saveProgressHint(): void {
 async function finish(): Promise<void> {
   const rt = runtime!;
   saveProgressHint();
+  const root = rt.root;
   const total = rt.options.questions.length;
   const done = doneCount();
   const correct = correctCount();
@@ -414,8 +418,10 @@ async function finish(): Promise<void> {
     },
   });
 
-  if (action === 'retry') {
-    rt.options.onExit?.();
+  if (action === 'retry' && root) {
+    // 再来一组：原地重开同一套题（随机/乱序的重新洗牌，顺序的从头再来），不用回首页再点一遍
+    const questions = rt.options.source === 'all' ? shuffle(rt.options.questions) : rt.options.questions;
+    mountQuiz(root, { ...rt.options, questions, startIndex: 0 });
     return;
   }
   rt.options.onExit?.();
@@ -424,7 +430,6 @@ async function finish(): Promise<void> {
 function markEssay(q: Question, rec: RecordItem, ok: boolean): void {
   rec.correct = ok;
   rec.submitted = true;
-  note(q, rec);
   note(q, rec);
   if (ok) {
     vibrate(10);

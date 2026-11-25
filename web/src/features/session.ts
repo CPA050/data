@@ -1,4 +1,4 @@
-import { loadWrong, state } from '../core/app';
+import { loadFavs, loadWrong, state } from '../core/app';
 import { escapeHtml, shuffle } from '../core/format';
 import { clearSession, getProgress, getSession, saveSession } from '../core/storage';
 import { mountQuiz, unmountQuiz, type QuizOptions } from '../views/quiz';
@@ -134,14 +134,23 @@ export function practiceFavorites(questions: Question[]): void {
 }
 
 /** 继续上次：按保存的题号还原，题目被删掉的部分自动跳过 */
-export function resumeSession(): boolean {
+export async function resumeSession(): Promise<boolean> {
   const ctx = getSession();
-  const bank = state.bank ?? [];
-  if (!ctx || !bank.length) {
+  if (!ctx) {
     notify.info('没有可以继续的练习');
     return false;
   }
-  const byId = new Map(bank.map((q) => [q.id, q]));
+  // 错题/收藏的练习存的是各自表的 id，不能拿题库表去对号；按来源选数据源
+  const source = ctx.source === 'wrong' ? 'wrong' : ctx.source === 'fav' ? 'fav' : 'bank';
+  let pool: Array<Question | WrongItem> = state.bank ?? [];
+  if (source === 'wrong') {
+    if (!state.wrong) await loadWrong(true);
+    pool = state.wrong ?? [];
+  } else if (source === 'fav') {
+    if (!state.favs) await loadFavs(true);
+    pool = state.favs ?? [];
+  }
+  const byId = new Map(pool.map((q) => [q.id, q as Question]));
   const questions = ctx.ids.map((id) => byId.get(id)).filter((q): q is Question => Boolean(q));
   if (!questions.length) {
     clearSession();
