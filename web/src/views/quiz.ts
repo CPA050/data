@@ -165,11 +165,10 @@ function renderShell(): string {
     <div class="quiz-body">
       <div class="q-card">
         <div class="q-meta">
-          <span class="q-no">第 ${rt.idx + 1} 题</span>
           <span class="q-type">${TYPE_LABEL[detectType(q)]}</span>
         </div>
+        <div class="q-text"><span class="q-no">第 ${rt.idx + 1} 题</span>${renderRich(q.q)}</div>
         ${sub ? `<div class="q-sub">${sub}</div>` : ''}
-        <div class="q-text">${renderRich(q.q)}</div>
         <div class="q-tools">
           <button class="tool-btn" data-act="fav" data-on="${fav}">${fav ? '已收藏' : '收藏'}</button>
           <button class="tool-btn" data-act="note" data-on="${noted}">${noted ? '有笔记' : '笔记'}</button>
@@ -181,7 +180,7 @@ function renderShell(): string {
     </div>
     <div class="quiz-foot">
       <button class="btn" data-act="prev" ${rt.idx === 0 ? 'disabled' : ''}>上一题</button>
-      ${rec.submitted ? '' : `<button class="btn" data-act="skip">${rt.idx === total - 1 ? '结束' : '跳过'}</button>`}
+      ${rec.submitted ? '' : `<button class="btn" data-act="skip">${rt.idx === total - 1 ? '结束' : '下一题'}</button>`}
       ${
         rec.submitted
           ? `<button class="btn btn-primary grow" data-act="next">${rt.idx === total - 1 ? '完成本次' : '下一题'}</button>`

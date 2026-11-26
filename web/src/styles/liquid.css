@@ -334,14 +334,17 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
 }
 
 .q-no {
+  display: inline-block;
+  margin-right: 6px;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  color: var(--text);
+  color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -355,15 +358,15 @@
 }
 
 .q-sub {
-  margin: 0 0 10px;
+  margin: 8px 0 0;
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 1.5;
   color: var(--text-3);
   overflow-wrap: anywhere;
 }
 
 .q-text {
-  margin-top: 2px;
+  margin-top: 0;
 }
 
 .q-tools {
