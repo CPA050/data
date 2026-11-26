@@ -147,34 +147,41 @@ function renderShell(): string {
   const progress = total ? Math.round(((rt.idx + (rec.submitted ? 1 : 0)) / total) * 100) : 0;
   const multi = !textMode(q) && choiceIndexes(q.a).length > 1;
 
+  const fav = isFavorite(q.id);
+  const noted = Boolean(getNotes()[String(q.id)]);
+  const sub = [q.subject, q.chapter]
+    .filter((s): s is string => Boolean(s))
+    .map((s) => escapeHtml(s))
+    .join(' · ');
+
   return `
     <div class="quiz-top">
-      <button class="icon-btn" data-act="exit" aria-label="退出练习">←</button>
-      <div class="quiz-count">${rt.idx + 1}<em> / ${total}</em></div>
+      <button class="text-btn" data-act="exit">退出</button>
+      <div class="quiz-count">第 ${rt.idx + 1} 题<em> / ${total}</em></div>
       <div class="header-spacer"></div>
-      <button class="icon-btn" data-act="nav" aria-label="题目导航">▦</button>
+      <button class="text-btn" data-act="nav">答题卡</button>
     </div>
     <div class="quiz-progress"><i style="width:${progress}%"></i></div>
     <div class="quiz-body">
       <div class="q-card">
-        <div class="q-head">
-          ${q.subject ? `<span class="tag tag-accent">${escapeHtml(q.subject)}</span>` : ''}
-          ${q.chapter ? `<span class="tag">${escapeHtml(q.chapter)}</span>` : ''}
-          <span class="grow"></span>
-          <span>${TYPE_LABEL[detectType(q)]}</span>
+        <div class="q-meta">
+          <span class="q-no">第 ${rt.idx + 1} 题</span>
+          <span class="q-type">${TYPE_LABEL[detectType(q)]}</span>
         </div>
+        ${sub ? `<div class="q-sub">${sub}</div>` : ''}
         <div class="q-text">${renderRich(q.q)}</div>
+        <div class="q-tools">
+          <button class="tool-btn" data-act="fav" data-on="${fav}">${fav ? '已收藏' : '收藏'}</button>
+          <button class="tool-btn" data-act="note" data-on="${noted}">${noted ? '有笔记' : '笔记'}</button>
+          <button class="tool-btn" data-act="ai">AI 解析</button>
+        </div>
         ${renderOptions(q, rec)}
         ${renderAnswerPanel(q, rec)}
       </div>
     </div>
-    <div class="floating-actions">
-      <button class="fab" data-act="fav" data-on="${isFavorite(q.id)}" aria-label="收藏">${isFavorite(q.id) ? '★' : '☆'}</button>
-      <button class="fab" data-act="note" data-on="${Boolean(getNotes()[String(q.id)])}" aria-label="笔记">✎</button>
-      <button class="fab" data-act="ai" aria-label="AI 解析">✦</button>
-    </div>
     <div class="quiz-foot">
       <button class="btn" data-act="prev" ${rt.idx === 0 ? 'disabled' : ''}>上一题</button>
+      ${rec.submitted ? '' : `<button class="btn" data-act="skip">${rt.idx === total - 1 ? '结束' : '跳过'}</button>`}
       ${
         rec.submitted
           ? `<button class="btn btn-primary grow" data-act="next">${rt.idx === total - 1 ? '完成本次' : '下一题'}</button>`
@@ -256,6 +263,106 @@ function paint(): void {
   const rt = runtime;
   if (!rt?.root) return;
   rt.root.innerHTML = renderShell();
+  bindSwipe(rt.root);
+}
+
+/**
+ * 左右滑动切题：横向拖动时卡片跟手位移，松手超过阈值就切到上一题/下一题。
+ * 只在判定为横向手势后才 preventDefault，纵向滚动照常。
+ */
+function bindSwipe(root: HTMLElement): void {
+  const body = root.querySelector<HTMLElement>('.quiz-body');
+  const card = root.querySelector<HTMLElement>('.q-card');
+  if (!body || !card) return;
+
+  let startX = 0;
+  let startY = 0;
+  let dx = 0;
+  let active = false;
+  let axis: 'none' | 'x' | 'y' = 'none';
+
+  const settle = () => {
+    card.style.transition = 'transform .22s ease-out, opacity .22s ease-out';
+    card.style.transform = '';
+    card.style.opacity = '';
+  };
+
+  body.addEventListener(
+    'touchstart',
+    (ev) => {
+      if (ev.touches.length !== 1) return;
+      startX = ev.touches[0].clientX;
+      startY = ev.touches[0].clientY;
+      dx = 0;
+      active = true;
+      axis = 'none';
+    },
+    { passive: true },
+  );
+
+  body.addEventListener(
+    'touchmove',
+    (ev) => {
+      if (!active || ev.touches.length !== 1) return;
+      dx = ev.touches[0].clientX - startX;
+      const dy = ev.touches[0].clientY - startY;
+      if (axis === 'none') {
+        if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+        axis = Math.abs(dx) > Math.abs(dy) * 1.3 ? 'x' : 'y';
+        if (axis === 'x') card.style.transition = 'none';
+      }
+      if (axis !== 'x') return;
+      ev.preventDefault();
+      card.style.transform = `translateX(${dx * 0.5}px)`;
+      card.style.opacity = String(1 - Math.min(Math.abs(dx) / 640, 0.28));
+    },
+    { passive: false },
+  );
+
+  const finishGesture = () => {
+    if (!active) return;
+    active = false;
+    if (axis !== 'x') return;
+
+    // 横向手势结束后吞掉紧随其后的 click，避免误选选项
+    const swallow = (e: Event) => {
+      e.stopPropagation();
+      e.preventDefault();
+    };
+    document.addEventListener('click', swallow, true);
+    setTimeout(() => document.removeEventListener('click', swallow, true), 340);
+
+    const rt = runtime;
+    const total = rt?.options.questions.length ?? 0;
+    const width = card.offsetWidth || 320;
+    const limit = Math.min(90, width * 0.24);
+    const dir = dx < -limit ? 1 : dx > limit ? -1 : 0;
+    const canGo = dir > 0 ? (rt?.idx ?? 0) < total - 1 : (rt?.idx ?? 0) > 0;
+
+    if (!dir || !canGo) {
+      settle();
+      return;
+    }
+    card.style.transition = 'transform .17s ease-out, opacity .17s ease-out';
+    card.style.transform = `translateX(${dir > 0 ? -width : width}px)`;
+    card.style.opacity = '0';
+    setTimeout(() => {
+      if (dir > 0) advance();
+      else goPrev();
+    }, 168);
+  };
+
+  body.addEventListener('touchend', finishGesture, { passive: true });
+  body.addEventListener('touchcancel', finishGesture, { passive: true });
+}
+
+function goPrev(): void {
+  const rt = runtime;
+  if (!rt || rt.idx <= 0) return;
+  rt.idx -= 1;
+  rt.textDraft = '';
+  paint();
+  rt.root?.querySelector('.quiz-body')?.scrollTo({ top: 0 });
 }
 
 function onInput(ev: Event): void {
@@ -634,12 +741,12 @@ export async function handleQuiz(action: string, el: HTMLElement): Promise<boole
     case 'next':
       advance();
       return true;
+    case 'skip':
+      // 跳过：不判分、不进错题，直接到下一题；最后一题等于结束本次
+      advance();
+      return true;
     case 'prev': {
-      if (rt.idx > 0) {
-        rt.idx -= 1;
-        rt.textDraft = '';
-        paint();
-      }
+      goPrev();
       return true;
     }
     case 'jump': {
