@@ -6,8 +6,8 @@ import { resolve } from 'node:path';
 
 const API_TARGET = process.env.API_TARGET || 'http://127.0.0.1:8788';
 
-/** 构建戳：显示在侧栏/关于页，用来确认"线上是不是最新那版" */
-const BUILD_STAMP = new Date().toISOString().slice(0, 16).replace('T', ' ');
+/** 构建戳：显示在侧栏/关于页，用来确认"线上是不是最新那版"。按北京时间（UTC+8）显示 */
+const BUILD_STAMP = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 16).replace('T', ' ');
 
 export default defineConfig({
   root: 'web',
