@@ -1325,6 +1325,7 @@ mark.hl {
 /* 题库工具栏：单独一行，五个动作带小字标签 */
 .tool-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 2px;
   margin: 10px 0 12px;
   border-top: 1px solid var(--border);

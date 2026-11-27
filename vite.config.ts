@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { fileURLToPath, URL } from 'node:url';
+import { writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const API_TARGET = process.env.API_TARGET || 'http://127.0.0.1:8788';
 
@@ -37,6 +39,15 @@ export default defineConfig({
     proxy: { '/api': { target: API_TARGET, changeOrigin: true } },
   },
   plugins: [
+    {
+      // 构建时额外吐一个 version.json：前端启动就拿它和 __BUILD__ 比对，
+      // 不一致就弹「有新版本」提示条，解决"手机还停在旧版"的老问题。
+      name: 'datum-version',
+      closeBundle() {
+        const dist = resolve(process.cwd(), 'dist');
+        writeFileSync(resolve(dist, 'version.json'), JSON.stringify({ build: BUILD_STAMP }), 'utf8');
+      },
+    },
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png'],

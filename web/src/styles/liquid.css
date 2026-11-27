@@ -376,7 +376,7 @@
   margin: 12px 0 2px;
 }
 
-.tool-btn {
+.q-tool {
   flex: 0 0 auto;
   width: auto;
   height: 30px;
@@ -389,16 +389,16 @@
   transition: border-color 0.15s linear, color 0.15s linear, background 0.15s linear;
 }
 
-.tool-btn:hover {
+.q-tool:hover {
   border-color: var(--text);
   color: var(--text);
 }
 
-.tool-btn:active {
+.q-tool:active {
   transform: scale(0.97);
 }
 
-.tool-btn[data-on='true'] {
+.q-tool[data-on='true'] {
   background: var(--text);
   border-color: var(--text);
   color: var(--bg);
@@ -417,4 +417,83 @@
 .quiz-foot > .btn.grow {
   flex: 1 1 auto;
   padding: 0 8px;
+}
+
+/* ---------- 7. 更新提示条 ---------- */
+.update-bar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--tabbar-h) + var(--safe-b) + 16px);
+  transform: translateX(-50%);
+  z-index: 140;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px 7px 14px;
+  border-radius: 999px;
+  background: rgba(17, 18, 20, 0.94);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.2;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+  animation: update-in var(--dur-3) var(--ease-out) both;
+}
+
+.update-bar button {
+  border: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #fff;
+  color: #111;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+@keyframes update-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* ---------- 8. 文字不越界兜底（任何长度都换行，不顶出边框） ---------- */
+.q-text,
+.q-sub,
+.opt-text,
+.answer-panel,
+.answer-panel *,
+.ai-body,
+.ai-body *,
+.explain-body,
+.explain-body *,
+.tag,
+.chip,
+.item,
+.list-item,
+.note-item,
+.q-stem,
+.preview-item,
+.import-summary {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.opt-text,
+.q-text,
+.answer-panel,
+.item,
+.list-item,
+.tag,
+.chip {
+  min-width: 0;
+}
+
+.tag,
+.chip {
+  max-width: 100%;
+  white-space: normal;
 }

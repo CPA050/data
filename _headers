@@ -19,5 +19,8 @@
 /sw.js
   Cache-Control: no-cache
 
+/version.json
+  Cache-Control: no-store, no-cache, must-revalidate
+
 /manifest.webmanifest
   Cache-Control: no-cache

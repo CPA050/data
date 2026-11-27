@@ -124,10 +124,16 @@ function renderAnswerPanel(q: Question, rec: RecordItem): string {
     </div>`;
   }
   const explain = (q.explain ?? '').trim();
+  const verdict =
+    rec.correct === true ? '✅ 回答正确' : rec.correct === false ? '❌ 回答错误' : '📖 正确答案';
+  const mineRow =
+    rec.correct === undefined || rec.correct === null
+      ? ''
+      : `<br>你的选择：${escapeHtml(mine)}`;
   return `<div class="answer-panel">
-    <div class="ai-title">${rec.correct ? '✅ 回答正确' : '❌ 回答错误'}</div>
+    <div class="ai-title">${verdict}</div>
     正确答案：${escapeHtml(formatAnswer(q.a, q.opts))}
-    ${rec.correct ? '' : `<br>你的选择：${escapeHtml(mine)}`}
+    ${mineRow}
     ${
       explain
         ? `<div class="divider"></div><div class="ai-title" style="color:var(--text-3)">解析</div><div class="explain-body">${renderRich(
@@ -170,9 +176,9 @@ function renderShell(): string {
         <div class="q-text"><span class="q-no">第 ${rt.idx + 1} 题</span>${renderRich(q.q)}</div>
         ${sub ? `<div class="q-sub">${sub}</div>` : ''}
         <div class="q-tools">
-          <button class="tool-btn" data-act="fav" data-on="${fav}">${fav ? '已收藏' : '收藏'}</button>
-          <button class="tool-btn" data-act="note" data-on="${noted}">${noted ? '有笔记' : '笔记'}</button>
-          <button class="tool-btn" data-act="ai">AI 解析</button>
+          <button class="q-tool" data-act="fav" data-on="${fav}">${fav ? '已收藏' : '收藏'}</button>
+          <button class="q-tool" data-act="note" data-on="${noted}">${noted ? '有笔记' : '笔记'}</button>
+          <button class="q-tool" data-act="ai">AI 解析</button>
         </div>
         ${renderOptions(q, rec)}
         ${renderAnswerPanel(q, rec)}
@@ -720,7 +726,9 @@ export async function handleQuiz(action: string, el: HTMLElement): Promise<boole
         await grade(q, rec);
       } else {
         if (!rec.picked.length) {
-          notify.info('请先选择答案');
+          // 「查看答案」但还没选：直接揭晓正确答案，不判对错、不记错题
+          rec.submitted = true;
+          paint();
           return true;
         }
         await grade(q, rec);
